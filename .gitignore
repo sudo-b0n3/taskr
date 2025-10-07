@@ -1,0 +1,24 @@
+# macOS metadata
+.DS_Store
+
+# Xcode & Derived Data
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Swift Package Manager / build outputs
+.build/
+.swiftpm/
+
+# Logs & temporary artifacts
+*.log
+
+# Local assets and helper docs
+Assets/
+AGENTS.md
+
+# Result bundles
+*.xcresult
+
+# Environment-specific files
+*.xcworkspace/xcuserdata/

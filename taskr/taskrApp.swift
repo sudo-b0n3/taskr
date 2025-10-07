@@ -1,32 +1,63 @@
-//
-//  taskrApp.swift
-//  taskr
-//
-//  Created by Mackay Smith on 5/8/25.
-//
-
+// taskr/taskr/taskrApp.swift
 import SwiftUI
 import SwiftData
 
 @main
 struct taskrApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject var taskManager: TaskManager
+    let container: ModelContainer
 
+    init() {
+        let modelContainerInstance: ModelContainer
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let schema = Schema([
+                Task.self,
+                TaskTemplate.self,
+            ])
+            let config = ModelConfiguration("TaskrAppModel", schema: schema)
+            modelContainerInstance = try ModelContainer(for: schema, configurations: [config])
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            fatalError("Could not configure the model container: \(error)")
         }
-    }()
+        self.container = modelContainerInstance
+        
+        let taskManagerInstance = TaskManager(modelContext: modelContainerInstance.mainContext)
+        _taskManager = StateObject(wrappedValue: taskManagerInstance)
+        
+        appDelegate.taskManager = taskManagerInstance
+        appDelegate.modelContainer = modelContainerInstance
+        appDelegate.setupPopoverAfterDependenciesSet()
+    }
 
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        WindowGroup("Taskr", id: "MainWindow") {
+            ContentView(isStandalone: true)
+                .environmentObject(taskManager)
+                .modelContainer(container)
+                .environmentObject(appDelegate)
+                .background(WindowConfigurator(autosaveName: "TaskrMainWindowAutosave", initialSize: NSSize(width: 720, height: 560)))
         }
-        .modelContainer(sharedModelContainer)
+        Settings {
+            SettingsView(
+                updateIconAction: appDelegate.updateStatusItemIcon,
+                setDockIconVisibilityAction: appDelegate.setDockIconVisibility,
+                // Wrap the call to match the expected (Bool) -> Bool signature
+                enableGlobalHotkeyAction: { enable in
+                    // When called from SettingsView, we want the alert if permissions fail
+                    return appDelegate.enableGlobalHotkey(enable, showAlertIfNotGranted: true)
+                }
+            )
+        }
+        .modelContainer(container)
+        .environmentObject(taskManager)
+        .commands {
+            CommandGroup(replacing: .help) {
+                Button("taskr Help…") {
+                    appDelegate.showHelpWindow()
+                }
+                .keyboardShortcut("?", modifiers: [.command])
+            }
+        }
     }
 }

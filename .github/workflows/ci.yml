@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Build Debug configuration
+        run: |
+          xcodebuild \
+            -project taskr.xcodeproj \
+            -scheme taskr \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            build
+
+      - name: Run unit tests
+        run: |
+          xcodebuild \
+            -project taskr.xcodeproj \
+            -scheme taskr \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            test
