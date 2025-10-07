@@ -26,6 +26,7 @@ jobs:
             -scheme taskr \
             -configuration Debug \
             -destination 'platform=macOS,arch=arm64' \
+            CODE_SIGNING_ALLOWED=NO \
             build
 
       - name: Run unit tests
@@ -35,4 +36,5 @@ jobs:
             -scheme taskr \
             -configuration Debug \
             -destination 'platform=macOS,arch=arm64' \
+            CODE_SIGNING_ALLOWED=NO \
             test
