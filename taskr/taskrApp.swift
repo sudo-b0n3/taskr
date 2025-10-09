@@ -9,13 +9,26 @@ struct taskrApp: App {
     let container: ModelContainer
 
     init() {
+        let isScreenshotCapture = ProcessInfo.processInfo.environment["SCREENSHOT_CAPTURE"] == "1"
+        if isScreenshotCapture {
+            UserDefaults.standard.set(true, forKey: showDockIconPreferenceKey)
+            UserDefaults.standard.set(false, forKey: globalHotkeyEnabledPreferenceKey)
+            UserDefaults.standard.set(false, forKey: addRootTasksToTopPreferenceKey)
+            UserDefaults.standard.set(false, forKey: addSubtasksToTopPreferenceKey)
+        }
+
         let modelContainerInstance: ModelContainer
         do {
             let schema = Schema([
                 Task.self,
                 TaskTemplate.self,
             ])
-            let config = ModelConfiguration("TaskrAppModel", schema: schema)
+            let config: ModelConfiguration
+            if isScreenshotCapture {
+                config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            } else {
+                config = ModelConfiguration("TaskrAppModel", schema: schema)
+            }
             modelContainerInstance = try ModelContainer(for: schema, configurations: [config])
         } catch {
             fatalError("Could not configure the model container: \(error)")
@@ -23,11 +36,22 @@ struct taskrApp: App {
         self.container = modelContainerInstance
         
         let taskManagerInstance = TaskManager(modelContext: modelContainerInstance.mainContext)
+        if isScreenshotCapture {
+            taskManagerInstance.prepareForScreenshotCapture()
+        }
         _taskManager = StateObject(wrappedValue: taskManagerInstance)
         
         appDelegate.taskManager = taskManagerInstance
         appDelegate.modelContainer = modelContainerInstance
+        appDelegate.isRunningScreenshotAutomation = isScreenshotCapture
         appDelegate.setupPopoverAfterDependenciesSet()
+
+        if isScreenshotCapture {
+            let automationDelegate = appDelegate
+            DispatchQueue.main.async {
+                automationDelegate.showAutomationWindowIfNeeded(manager: taskManagerInstance, container: modelContainerInstance)
+            }
+        }
     }
 
     var body: some Scene {

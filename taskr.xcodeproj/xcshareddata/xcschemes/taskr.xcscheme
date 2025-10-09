@@ -26,36 +26,60 @@
             buildForProfiling = "NO"
             buildForArchiving = "NO"
             buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "C97172515EB542FBA7E23D54"
-               BuildableName = "taskrTests.xctest"
-               BlueprintName = "taskrTests"
-               ReferencedContainer = "container:taskr.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
-      </BuildActionEntries>
-   </BuildAction>
-   <TestAction
-      buildConfiguration = "Debug"
-      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "C97172515EB542FBA7E23D54"
+            BuildableName = "taskrTests.xctest"
+            BlueprintName = "taskrTests"
+            ReferencedContainer = "container:taskr.xcodeproj">
+         </BuildableReference>
+      </BuildActionEntry>
+      <BuildActionEntry
+         buildForTesting = "YES"
+         buildForRunning = "NO"
+         buildForProfiling = "NO"
+         buildForArchiving = "NO"
+         buildForAnalyzing = "YES">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "E9A7FB002DE1C0C700AA11BB"
+            BuildableName = "taskrUITests.xctest"
+            BlueprintName = "taskrUITests"
+            ReferencedContainer = "container:taskr.xcodeproj">
+         </BuildableReference>
+      </BuildActionEntry>
+   </BuildActionEntries>
+</BuildAction>
+<TestAction
+   buildConfiguration = "Debug"
+   selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
       <Testables>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "C97172515EB542FBA7E23D54"
-               BuildableName = "taskrTests.xctest"
-               BlueprintName = "taskrTests"
-               ReferencedContainer = "container:taskr.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-      </Testables>
-      <AdditionalOptions>
-      </AdditionalOptions>
-   </TestAction>
+      <TestableReference
+         skipped = "NO">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "C97172515EB542FBA7E23D54"
+            BuildableName = "taskrTests.xctest"
+            BlueprintName = "taskrTests"
+            ReferencedContainer = "container:taskr.xcodeproj">
+         </BuildableReference>
+      </TestableReference>
+      <TestableReference
+         skipped = "NO">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "E9A7FB002DE1C0C700AA11BB"
+            BuildableName = "taskrUITests.xctest"
+            BlueprintName = "taskrUITests"
+            ReferencedContainer = "container:taskr.xcodeproj">
+         </BuildableReference>
+      </TestableReference>
+   </Testables>
+   <AdditionalOptions>
+   </AdditionalOptions>
+</TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"

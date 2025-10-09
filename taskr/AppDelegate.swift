@@ -8,9 +8,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     var statusItem: NSStatusItem?
     var popover: NSPopover?
     private var helpWindowController: NSWindowController?
+    private var automationWindow: NSWindow?
 
     var taskManager: TaskManager?
     var modelContainer: ModelContainer?
+    var isRunningScreenshotAutomation: Bool = false
 
     // Track standalone window presence to auto-toggle activation policy
     private var standaloneWindowCount: Int = 0
@@ -48,6 +50,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 UserDefaults.standard.set(false, forKey: globalHotkeyEnabledPreferenceKey)
             }
         }
+
+        scheduleScreenshotAutomationPresentationIfNeeded()
     }
     
     func setupPopoverAfterDependenciesSet() {
@@ -254,6 +258,61 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         if let monitor = globalEventMonitor {
             NSEvent.removeMonitor(monitor)
             globalEventMonitor = nil
+        }
+    }
+
+    private func scheduleScreenshotAutomationPresentationIfNeeded() {
+        guard isRunningScreenshotAutomation else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.presentAutomationScenes()
+        }
+    }
+
+    private func presentAutomationScenes(attempt: Int = 0) {
+        setDockIconVisibility(show: true)
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let window = NSApp.windows.first(where: { $0.title == "Taskr" }) {
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+        } else if attempt < 6 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self.presentAutomationScenes(attempt: attempt + 1)
+            }
+        }
+    }
+
+    func showAutomationWindowIfNeeded(manager: TaskManager, container: ModelContainer) {
+        guard isRunningScreenshotAutomation else { return }
+        if automationWindow != nil { return }
+
+        let automationView = ContentView(isStandalone: true)
+            .environmentObject(manager)
+            .modelContainer(container)
+            .environmentObject(self)
+
+        let hosting = NSHostingController(rootView: automationView)
+        let window = NSWindow(contentViewController: hosting)
+        window.title = "Taskr"
+        window.setContentSize(NSSize(width: 720, height: 560))
+        window.isReleasedWhenClosed = false
+        automationWindow = window
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            if self.automationWindow === window {
+                self.automationWindow = nil
+            }
+        }
+
+        DispatchQueue.main.async {
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
         }
     }
 }

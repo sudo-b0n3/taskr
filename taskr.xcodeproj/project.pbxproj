@@ -8,12 +8,15 @@
 
 /* Begin PBXBuildFile section */
 		BA528B8092C649F88D94C7BC /* TaskManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239E977365004E86AF34518C /* TaskManagerTests.swift */; };
+		E9A7FB042DE1C0C700AA11BB /* TaskrScreenshotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		31CF3FC82DCCEDF70035AF5B /* taskr.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = taskr.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		239E977365004E86AF34518C /* TaskManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskManagerTests.swift; sourceTree = "<group>"; };
 		D562EF14BCB34A6581EA90B8 /* taskrTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E9A7FB012DE1C0C700AA11BB /* taskrUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskrScreenshotUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -45,6 +48,13 @@
 			remoteGlobalIDString = 31CF3FC72DCCEDF70035AF5B;
 			remoteInfo = taskr;
 		};
+		E9A7FB072DE1C0C700AA11BB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 31CF3FC02DCCEDF70035AF5B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 31CF3FC72DCCEDF70035AF5B;
+			remoteInfo = taskr;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +72,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E9A7FB062DE1C0C700AA11BB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -70,6 +87,7 @@
 			children = (
 				31CF3FCA2DCCEDF70035AF5B /* taskr */,
 				CF250352AEEF45D696CF5E5F /* taskrTests */,
+				E9A7FB022DE1C0C700AA11BB /* taskrUITests */,
 				31CF3FC92DCCEDF70035AF5B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -79,6 +97,7 @@
 			children = (
 				31CF3FC82DCCEDF70035AF5B /* taskr.app */,
 				D562EF14BCB34A6581EA90B8 /* taskrTests.xctest */,
+				E9A7FB012DE1C0C700AA11BB /* taskrUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -89,6 +108,14 @@
 				239E977365004E86AF34518C /* TaskManagerTests.swift */,
 			);
 			path = taskrTests;
+			sourceTree = "<group>";
+		};
+		E9A7FB022DE1C0C700AA11BB /* taskrUITests */ = {
+			isa = PBXGroup;
+			children = (
+				E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */,
+			);
+			path = taskrUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -133,6 +160,23 @@
 			productReference = D562EF14BCB34A6581EA90B8 /* taskrTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		E9A7FB002DE1C0C700AA11BB /* taskrUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E9A7FB0B2DE1C0C700AA11BB /* Build configuration list for PBXNativeTarget "taskrUITests" */;
+			buildPhases = (
+				E9A7FB052DE1C0C700AA11BB /* Sources */,
+				E9A7FB062DE1C0C700AA11BB /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E9A7FB082DE1C0C700AA11BB /* PBXTargetDependency */,
+			);
+			name = taskrUITests;
+			productName = taskrUITests;
+			productReference = E9A7FB012DE1C0C700AA11BB /* taskrUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXTargetDependency section */
@@ -140,6 +184,11 @@
 			isa = PBXTargetDependency;
 			target = 31CF3FC72DCCEDF70035AF5B /* taskr */;
 			targetProxy = 42BDFEDCD1B34DD5A47E26CE /* PBXContainerItemProxy */;
+		};
+		E9A7FB082DE1C0C700AA11BB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 31CF3FC72DCCEDF70035AF5B /* taskr */;
+			targetProxy = E9A7FB072DE1C0C700AA11BB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -155,6 +204,10 @@
 						CreatedOnToolsVersion = 16.3;
 					};
 					C97172515EB542FBA7E23D54 = {
+						CreatedOnToolsVersion = 16.3;
+						TestTargetID = 31CF3FC72DCCEDF70035AF5B;
+					};
+					E9A7FB002DE1C0C700AA11BB = {
 						CreatedOnToolsVersion = 16.3;
 						TestTargetID = 31CF3FC72DCCEDF70035AF5B;
 					};
@@ -176,6 +229,7 @@
 			targets = (
 				31CF3FC72DCCEDF70035AF5B /* taskr */,
 				C97172515EB542FBA7E23D54 /* taskrTests */,
+				E9A7FB002DE1C0C700AA11BB /* taskrUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -203,6 +257,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				BA528B8092C649F88D94C7BC /* TaskManagerTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E9A7FB052DE1C0C700AA11BB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E9A7FB042DE1C0C700AA11BB /* TaskrScreenshotUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -461,6 +523,58 @@
 			};
 			name = Release;
 		};
+		E9A7FB092DE1C0C700AA11BB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BM7GWKHLXS;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = taskrUITests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bone.taskrUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = taskr;
+			};
+			name = Debug;
+		};
+		E9A7FB0A2DE1C0C700AA11BB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BM7GWKHLXS;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = taskrUITests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bone.taskrUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = taskr;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -487,6 +601,15 @@
 			buildConfigurations = (
 				4207DE296FDB49ED97A79D7E /* Debug */,
 				68502E1F493A4A109AAC9489 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E9A7FB0B2DE1C0C700AA11BB /* Build configuration list for PBXNativeTarget "taskrUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E9A7FB092DE1C0C700AA11BB /* Debug */,
+				E9A7FB0A2DE1C0C700AA11BB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

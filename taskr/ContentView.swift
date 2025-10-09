@@ -55,17 +55,24 @@ struct ContentView: View {
             Button(action: { currentView = .tasks }) {
                 Text("Tasks").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
                     .foregroundColor(currentView == .tasks ? .accentColor : .primary)
-            }.buttonStyle(PlainButtonStyle())
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityIdentifier("HeaderTasksButton")
             Divider().frame(height: 20)
             Button(action: { currentView = .templates }) {
                 Text("Templates").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
                     .foregroundColor(currentView == .templates ? .accentColor : .primary)
-            }.buttonStyle(PlainButtonStyle())
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityIdentifier("HeaderTemplatesButton")
             Divider().frame(height: 20)
             Button(action: { currentView = .settings }) {
                 Image(systemName: "gearshape.fill").foregroundColor(currentView == .settings ? .accentColor : .primary)
                     .padding(.vertical, 8).frame(maxWidth: .infinity).contentShape(Rectangle())
-            }.buttonStyle(PlainButtonStyle()).frame(width: 40)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityIdentifier("HeaderSettingsButton")
+            .frame(width: 40)
 
             // Subtle expand button to open full window (shown only in popover mode)
             if !isStandalone {
