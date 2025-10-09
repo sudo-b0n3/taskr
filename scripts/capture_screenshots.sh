@@ -65,4 +65,16 @@ for record in records:
 PY
 
 rm -rf "${ATTACH_EXPORT_DIR}" "${RESULT_TMP}"
+
+for image in "${OUTPUT_DIR}"/*.png; do
+  [[ -f "${image}" ]] || continue
+  width=$(sips -g pixelWidth "${image}" 2>/dev/null | awk '/pixelWidth/ {print $2}')
+  if [[ -n "${width}" && "${width}" -gt 1 ]]; then
+    new_width=$(( width / 2 ))
+    if [[ "${new_width}" -gt 0 ]]; then
+      sips --resampleWidth "${new_width}" "${image}" >/dev/null
+    fi
+  fi
+done
+
 echo "Screenshot capture complete."
