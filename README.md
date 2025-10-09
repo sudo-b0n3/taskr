@@ -6,7 +6,7 @@ Taskr is a lightweight macOS menu bar companion for rapidly capturing and organi
 - **Fast path-based capture** – Create deeply nested subtasks in one line using `/`-delimited paths with optional quoted segments.
 - **Status menu and standalone window** – Use the compact popover for quick edits or open the full SwiftUI window when you need elbow room.
 - **Reusable templates** – Author checklist templates once and apply them to your live task list without duplicating work.
-- **Persistent hierarchy** – Drag to reorder, duplicate, collapse, and clear tasks while Taskr keeps display order, completion state, and collapsed sections in sync.
+- **Persistent hierarchy** – Duplicate, collapse, and clear tasks while Taskr keeps display order, completion state, and collapsed sections in sync.
 - **Import & export** – Round-trip non-template tasks as JSON so you can back up or share curated lists.
 
 ## Requirements
@@ -35,7 +35,7 @@ When you run the app for the first time macOS will prompt for accessibility acce
 
 ## Development Tips
 - Task creation routes through `TaskManager.addTaskFromPath`, maintaining display order and collapsed-state persistence.
-- Template editing helpers live in `TaskManager+Templates.swift`, mirroring the live-task APIs so drag/drop and resequencing stay consistent.
+- Template editing helpers live in `TaskManager+Templates.swift`, mirroring the live-task APIs so template updates stay consistent.
 - Autocomplete and copy-path logic is handled by `TaskManager+PathInput.swift` and is safe to reuse anywhere you surface path entry.
 
 ## Testing
