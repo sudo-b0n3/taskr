@@ -240,8 +240,14 @@ extension TaskManager {
 
         func applySelectedSuggestion() {
             guard let suggestion = currentSuggestion() else { return }
-            taskManager.currentPathInput = suggestion
-            updateAutocompleteSuggestions(for: suggestion)
+            let completedPath: String
+            if suggestion.hasSuffix("/") {
+                completedPath = suggestion
+            } else {
+                completedPath = suggestion + "/"
+            }
+            taskManager.currentPathInput = completedPath
+            updateAutocompleteSuggestions(for: completedPath)
         }
 
         func clearAutocomplete() {
