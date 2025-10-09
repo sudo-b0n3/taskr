@@ -7,9 +7,9 @@ final class TaskrScreenshotUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         let environment = ProcessInfo.processInfo.environment
-        shouldCapture = environment["SKIP_SCREENSHOT_CAPTURE"] != "1"
+        shouldCapture = environment["SCREENSHOT_CAPTURE"] == "1" || environment["SIMCTL_CHILD_SCREENSHOT_CAPTURE"] == "1"
         guard shouldCapture else {
-            throw XCTSkip("Screenshot automation disabled via SKIP_SCREENSHOT_CAPTURE=1.")
+            throw XCTSkip("Screenshot automation disabled (set SCREENSHOT_CAPTURE=1 to enable).")
         }
 
         app = XCUIApplication()

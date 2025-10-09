@@ -53,7 +53,7 @@ scripts/capture_screenshots.sh
 ```
 
 The helper runs a dedicated UI test pass (`taskrUITests`) with pre-seeded demo data, then copies the resulting PNGs into `docs/screenshots/`. Re-run the script any time the interface changes and commit the refreshed assets.
-To omit the screenshot run during a regular `xcodebuild test`, set `SKIP_SCREENSHOT_CAPTURE=1`.
+Screenshot automation stays dormant during normal CI runs; the script opt-in works by launching `xcodebuild` with `SCREENSHOT_CAPTURE=1`.
 
 ## Roadmap
 We’re keeping the near-term roadmap intentionally focused on three big ideas:
