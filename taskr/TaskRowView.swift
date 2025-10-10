@@ -31,6 +31,8 @@ struct TaskRowView: View {
         !(task.subtasks?.isEmpty ?? true)
     }
 
+    private var palette: ThemePalette { taskManager.themePalette }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             rowContent
@@ -55,12 +57,17 @@ struct TaskRowView: View {
         HStack(alignment: checkboxTopAligned ? .top : .center) {
             Group {
                 if mode == .live {
-                    AnimatedCheckCircle(isOn: task.isCompleted, enabled: completionAnimationsEnabled)
+                    AnimatedCheckCircle(
+                        isOn: task.isCompleted,
+                        enabled: completionAnimationsEnabled,
+                        baseColor: palette.secondaryTextColor,
+                        accentColor: palette.accentColor
+                    )
                         .frame(width: 16, height: 16)
                         .contentShape(Rectangle())
                         .onTapGesture { taskManager.toggleTaskCompletion(taskID: task.id) }
                 } else {
-                    Text("•").foregroundColor(.secondary)
+                    Text("•").foregroundColor(palette.secondaryTextColor)
                 }
             }
             .font(.body)
@@ -76,13 +83,14 @@ struct TaskRowView: View {
                         }
                         .font(.body)
                         .padding(.horizontal, 2)
-                        .background(Color(NSColor.textBackgroundColor))
+                        .background(palette.inputBackgroundColor)
                         .clipShape(RoundedRectangle(cornerRadius: 3))
                 } else {
                     AnimatedStrikeText(
                         text: task.name,
                         isStruck: task.isCompleted || hasCompletedAncestor,
-                        enabled: completionAnimationsEnabled
+                        enabled: completionAnimationsEnabled,
+                        strikeColor: palette.secondaryTextColor
                     )
                     .font(.body)
                     .padding(.horizontal, 2)
@@ -96,7 +104,7 @@ struct TaskRowView: View {
             if hasExpandableChildren {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(palette.secondaryTextColor)
                     .padding(5)
                     .contentShape(Rectangle())
                     .onTapGesture { taskManager.toggleTaskExpansion(task.id) }
@@ -110,11 +118,12 @@ struct TaskRowView: View {
         .padding(.vertical, 2)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(isHoveringRow ? Color.secondary.opacity(0.08) : Color.clear)
+                .fill(isHoveringRow ? palette.hoverBackgroundColor : Color.clear)
         )
         .onHover { hovering in
             isHoveringRow = hovering
         }
+        .foregroundColor(palette.primaryTextColor)
     }
 
     @ViewBuilder
@@ -252,6 +261,8 @@ struct TaskRowView: View {
 private struct AnimatedCheckCircle: View {
     var isOn: Bool
     var enabled: Bool
+    var baseColor: Color
+    var accentColor: Color
 
     private let targetScale: CGFloat = 0.55
     private let animation: Animation = .easeInOut(duration: 0.16)
@@ -259,9 +270,9 @@ private struct AnimatedCheckCircle: View {
     var body: some View {
         ZStack {
             Image(systemName: "circle")
-                .foregroundStyle(.secondary)
+                .foregroundColor(baseColor)
             Circle()
-                .fill(Color.accentColor)
+                .fill(accentColor)
                 .scaleEffect(isOn ? targetScale : 0.0001)
                 .animation(enabled ? animation : .none, value: isOn)
         }
@@ -272,6 +283,7 @@ private struct AnimatedStrikeText: View {
     let text: String
     let isStruck: Bool
     let enabled: Bool
+    let strikeColor: Color
     private let animation: Animation = .easeInOut(duration: 0.18)
 
     var body: some View {
@@ -281,7 +293,7 @@ private struct AnimatedStrikeText: View {
 
             Text(text)
                 .foregroundStyle(Color.clear)
-                .strikethrough(true, color: .secondary)
+                .strikethrough(true, color: strikeColor)
                 .mask(
                     GeometryReader { proxy in
                         Rectangle()

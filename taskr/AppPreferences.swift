@@ -19,6 +19,9 @@ let checkboxTopAlignedPreferenceKey = "checkboxTopAlignedPreference" // Align ch
 let selectedThemePreferenceKey = "selectedThemePreference" // Active visual theme
 let frostedBackgroundPreferenceKey = "frostedBackgroundPreference" // Enable frosted glass background
 
+// Screenshot automation coordination artifacts
+let screenshotAutomationConfigFilename = "taskr_screenshot_config.json"
+
 // --- Enums ---
 
 // Icon Choices

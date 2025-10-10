@@ -11,13 +11,17 @@ struct CustomTextField: NSViewRepresentable {
     var onShiftTab: () -> Void
     var onArrowDown: () -> Void
     var onArrowUp: () -> Void
+    var fieldBackgroundColor: NSColor? = nil
+    var fieldTextColor: NSColor? = nil
 
     func makeNSView(context: Context) -> NSTextField {
         let textField = NSTextField()
         textField.delegate = context.coordinator
         textField.placeholderString = placeholder
         textField.isBordered = true
-        textField.backgroundColor = NSColor.textBackgroundColor // Standard background
+        textField.drawsBackground = true
+        textField.backgroundColor = fieldBackgroundColor ?? NSColor.textBackgroundColor // Standard background
+        textField.textColor = fieldTextColor ?? NSColor.labelColor
         textField.focusRingType = .default // Show focus ring
         textField.bezelStyle = .roundedBezel // Standard rounded text field style
         return textField
@@ -37,6 +41,13 @@ struct CustomTextField: NSViewRepresentable {
             // if let range = currentSelectedRange {
             //    nsView.currentEditor()?.selectedRange = NSRange(location: min(text.count, range.location), length: 0)
             // }
+        }
+
+        if let bg = fieldBackgroundColor, nsView.backgroundColor != bg {
+            nsView.backgroundColor = bg
+        }
+        if let fg = fieldTextColor, nsView.textColor != fg {
+            nsView.textColor = fg
         }
     }
 
