@@ -15,6 +15,9 @@ struct SettingsView: View {
     let setDockIconVisibilityAction: (Bool) -> Void
     let enableGlobalHotkeyAction: (Bool) -> Bool
     private var palette: ThemePalette { taskManager.themePalette }
+    private var checkboxToggleStyle: SettingsCheckboxToggleStyle {
+        SettingsCheckboxToggleStyle(palette: palette)
+    }
 
     var body: some View {
         ScrollView {
@@ -27,6 +30,8 @@ struct SettingsView: View {
                             EmptyView()
                         }
                         .labelsHidden()
+                        .toggleStyle(checkboxToggleStyle)
+                        .accessibilityLabel(Text("Launch Taskr at login"))
                         .onChange(of: launchAtLoginEnabled) { _, newValue in
                             toggleLaunchAtLogin(enable: newValue)
                         }
@@ -50,6 +55,7 @@ struct SettingsView: View {
                         }
                         .labelsHidden()
                         .frame(minWidth: 150, maxWidth: 200)
+                        .tint(palette.accentColor)
                         .onChange(of: preferences.selectedIcon) { _, icon in
                             updateIconAction(icon.systemName)
                         }
@@ -75,6 +81,7 @@ struct SettingsView: View {
                         }
                         .labelsHidden()
                         .frame(minWidth: 150, maxWidth: 200)
+                        .tint(palette.accentColor)
                     }
                 }
 
@@ -88,6 +95,8 @@ struct SettingsView: View {
                             EmptyView()
                         }
                         .labelsHidden()
+                        .toggleStyle(checkboxToggleStyle)
+                        .accessibilityLabel(Text("Frosted background"))
                         .onChange(of: preferences.enableFrostedBackground) { _, newValue in
                             taskManager.setFrostedBackgroundEnabled(newValue)
                         }
@@ -104,6 +113,8 @@ struct SettingsView: View {
                             EmptyView()
                         }
                         .labelsHidden()
+                        .toggleStyle(checkboxToggleStyle)
+                        .accessibilityLabel(Text("Show app in Dock"))
                         .onChange(of: preferences.showDockIcon) { _, newValue in
                             setDockIconVisibilityAction(newValue)
                         }
@@ -136,6 +147,8 @@ struct SettingsView: View {
                             EmptyView()
                         }
                         .labelsHidden()
+                        .toggleStyle(checkboxToggleStyle)
+                        .accessibilityLabel(Text("Enable global hotkey"))
                     }
                 }
 
@@ -154,6 +167,7 @@ struct SettingsView: View {
                         }
                         .labelsHidden()
                         .frame(maxWidth: 150)
+                        .tint(palette.accentColor)
                     }
                 }
 
@@ -172,6 +186,7 @@ struct SettingsView: View {
                         }
                         .labelsHidden()
                         .frame(maxWidth: 150)
+                        .tint(palette.accentColor)
                     }
                 }
 
@@ -185,6 +200,8 @@ struct SettingsView: View {
                             EmptyView()
                         }
                         .labelsHidden()
+                        .toggleStyle(checkboxToggleStyle)
+                        .accessibilityLabel(Text("Enable completion animations"))
                     }
                 }
 
@@ -200,6 +217,7 @@ struct SettingsView: View {
                         }
                         .labelsHidden()
                         .frame(maxWidth: 150)
+                        .tint(palette.accentColor)
                     }
                 }
 
@@ -213,6 +231,8 @@ struct SettingsView: View {
                             EmptyView()
                         }
                         .labelsHidden()
+                        .toggleStyle(checkboxToggleStyle)
+                        .accessibilityLabel(Text("Clear crossed-out descendants"))
                     }
                 }
 
@@ -272,6 +292,35 @@ struct SettingsView: View {
             print("Failed to update launch at login: \(error)")
             launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
         }
+    }
+}
+
+private struct SettingsCheckboxToggleStyle: ToggleStyle {
+    let palette: ThemePalette
+    var animate: Bool = true
+
+    private let circleScale: CGFloat = 0.55
+    private let animation: Animation = .easeInOut(duration: 0.16)
+
+    func makeBody(configuration: Configuration) -> some View {
+        Button(action: { configuration.isOn.toggle() }) {
+            ZStack {
+                Image(systemName: "circle")
+                    .foregroundColor(palette.secondaryTextColor)
+                Circle()
+                    .fill(palette.accentColor)
+                    .scaleEffect(configuration.isOn ? circleScale : 0.0001)
+                    .animation(animate ? animation : .none, value: configuration.isOn)
+            }
+            .frame(width: 18, height: 18)
+            .contentShape(Rectangle())
+            configuration.label
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityValue(configuration.isOn ? Text("On") : Text("Off"))
     }
 }
 

@@ -7,6 +7,7 @@ struct WindowConfigurator: NSViewRepresentable {
     let initialSize: NSSize
     let palette: ThemePalette
     let frosted: Bool
+    let usesSystemAppearance: Bool
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -27,7 +28,7 @@ struct WindowConfigurator: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(palette: palette, frosted: frosted)
+        Coordinator(palette: palette, frosted: frosted, usesSystemAppearance: usesSystemAppearance)
     }
 
     private func configureIfPossible(view: NSView, coordinator: Coordinator) {
@@ -50,19 +51,22 @@ struct WindowConfigurator: NSViewRepresentable {
         window.titlebarSeparatorStyle = .none
         window.isOpaque = false
         coordinator.bind(to: window)
-        coordinator.updateAppearance(palette: palette, frosted: frosted)
+        coordinator.updateAppearance(palette: palette, frosted: frosted, usesSystemAppearance: usesSystemAppearance)
     }
 
     final class Coordinator {
         private(set) var palette: ThemePalette
         private(set) var frosted: Bool
+        private(set) var usesSystemAppearance: Bool
         private weak var window: NSWindow?
         private var observers: [NSObjectProtocol] = []
         private weak var overlayView: NSView?
+        private weak var overlayTintView: NSView?
 
-        init(palette: ThemePalette, frosted: Bool) {
+        init(palette: ThemePalette, frosted: Bool, usesSystemAppearance: Bool) {
             self.palette = palette
             self.frosted = frosted
+            self.usesSystemAppearance = usesSystemAppearance
         }
 
         func bind(to window: NSWindow) {
@@ -93,20 +97,25 @@ struct WindowConfigurator: NSViewRepresentable {
             applyAppearance()
         }
 
-        func updateAppearance(palette: ThemePalette, frosted: Bool) {
+        func updateAppearance(palette: ThemePalette, frosted: Bool, usesSystemAppearance: Bool) {
             self.palette = palette
             self.frosted = frosted
+            self.usesSystemAppearance = usesSystemAppearance
             applyAppearance()
         }
 
         private func applyAppearance() {
             guard let window else { return }
-            window.appearance = NSAppearance(named: palette.isDark ? .darkAqua : .aqua)
-            let headerColor = frosted ? palette.headerBackground.withAlphaComponent(0.6) : palette.headerBackground
+            if usesSystemAppearance {
+                window.appearance = nil
+            } else {
+                window.appearance = NSAppearance(named: palette.isDark ? .darkAqua : .aqua)
+            }
+            let headerColor = frosted ? palette.headerBackground.withAlphaComponent(0.7) : palette.headerBackground
             window.backgroundColor = headerColor
             if let titlebarView = locateTitlebarView(in: window) {
                 let overlay = ensureOverlay(in: titlebarView)
-                overlay.layer?.backgroundColor = headerColor.cgColor
+                updateOverlay(overlay, with: headerColor)
                 overlay.layer?.zPosition = -1
 
                 if titlebarView.layer == nil {
@@ -115,7 +124,7 @@ struct WindowConfigurator: NSViewRepresentable {
                 titlebarView.layer?.backgroundColor = headerColor.cgColor
 
                 // Reduce vibrancy by disabling material on any visual effect views we control.
-                for visualEffect in titlebarView.subviews.compactMap({ $0 as? NSVisualEffectView }) {
+                for visualEffect in titlebarView.subviews.compactMap({ $0 as? NSVisualEffectView }).filter({ $0 !== overlay }) {
                     visualEffect.state = frosted ? .active : .inactive
                     visualEffect.material = frosted ? .hudWindow : (palette.isDark ? .menu : .titlebar)
                 }
@@ -147,17 +156,67 @@ struct WindowConfigurator: NSViewRepresentable {
         }
 
         private func ensureOverlay(in titlebarView: NSView) -> NSView {
-            if let overlayView, overlayView.superview === titlebarView {
+            if let overlayView,
+               overlayView.superview === titlebarView,
+               frosted == (overlayView is NSVisualEffectView) {
                 return overlayView
             }
-            let overlay = NSView(frame: titlebarView.bounds)
-            overlay.autoresizingMask = [.width, .height]
-            overlay.wantsLayer = true
-            let color = frosted ? palette.headerBackground.withAlphaComponent(0.6) : palette.headerBackground
-            overlay.layer?.backgroundColor = color.cgColor
+            overlayView?.removeFromSuperview()
+            overlayTintView?.removeFromSuperview()
+
+            let overlay: NSView
+            if frosted {
+                let effectView = NSVisualEffectView(frame: titlebarView.bounds)
+                effectView.autoresizingMask = [.width, .height]
+                effectView.blendingMode = .withinWindow
+                effectView.state = .active
+                effectView.material = .hudWindow
+                effectView.wantsLayer = true
+                overlay = effectView
+                overlayTintView = nil
+            } else {
+                let view = NSView(frame: titlebarView.bounds)
+                view.autoresizingMask = [.width, .height]
+                view.wantsLayer = true
+                overlay = view
+                overlayTintView = nil
+            }
+
             titlebarView.addSubview(overlay, positioned: .below, relativeTo: nil)
-            overlayView = overlay
+            self.overlayView = overlay
             return overlay
+        }
+
+        private func updateOverlay(_ overlay: NSView, with headerColor: NSColor) {
+            if frosted, let effectView = overlay as? NSVisualEffectView {
+                effectView.material = .hudWindow
+                effectView.state = .active
+                effectView.blendingMode = .withinWindow
+                if effectView.layer == nil {
+                    effectView.wantsLayer = true
+                }
+                effectView.layer?.backgroundColor = NSColor.clear.cgColor
+
+                let tintView = ensureTintView(in: effectView)
+                tintView.layer?.backgroundColor = headerColor.cgColor
+            } else {
+                overlay.layer?.backgroundColor = headerColor.cgColor
+                overlayTintView?.removeFromSuperview()
+                overlayTintView = nil
+            }
+        }
+
+        private func ensureTintView(in effectView: NSVisualEffectView) -> NSView {
+            if let tintView = overlayTintView,
+               tintView.superview === effectView {
+                return tintView
+            }
+            let tintView = NSView(frame: effectView.bounds)
+            tintView.autoresizingMask = [.width, .height]
+            tintView.wantsLayer = true
+            effectView.addSubview(tintView, positioned: .above, relativeTo: nil)
+            overlayTintView = tintView
+            return tintView
         }
     }
 }

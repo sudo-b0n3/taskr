@@ -1,6 +1,12 @@
 // taskr/taskr/taskrApp.swift
+import Foundation
 import SwiftUI
 import SwiftData
+
+private struct ScreenshotAutomationConfig: Decodable {
+    let capture: Bool
+    let theme: String?
+}
 
 @main
 struct taskrApp: App {
@@ -9,7 +15,17 @@ struct taskrApp: App {
     let container: ModelContainer
 
     init() {
-        let isScreenshotCapture = ProcessInfo.processInfo.environment["SCREENSHOT_CAPTURE"] == "1"
+        let environment = ProcessInfo.processInfo.environment
+        let configURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(screenshotAutomationConfigFilename)
+        var configCaptureEnabled = false
+        var configTheme: String?
+        if let data = try? Data(contentsOf: configURL),
+           let config = try? JSONDecoder().decode(ScreenshotAutomationConfig.self, from: data) {
+            configCaptureEnabled = config.capture
+            configTheme = config.theme
+        }
+        let isScreenshotCapture = environment["SCREENSHOT_CAPTURE"] == "1" || configCaptureEnabled
+        let screenshotThemeRaw = environment["SCREENSHOT_THEME"] ?? configTheme
         if isScreenshotCapture {
             UserDefaults.standard.set(true, forKey: showDockIconPreferenceKey)
             UserDefaults.standard.set(false, forKey: globalHotkeyEnabledPreferenceKey)
@@ -37,6 +53,12 @@ struct taskrApp: App {
         
         let taskManagerInstance = TaskManager(modelContext: modelContainerInstance.mainContext)
         if isScreenshotCapture {
+            if let screenshotThemeRaw,
+               let screenshotTheme = AppTheme(rawValue: screenshotThemeRaw) {
+                taskManagerInstance.setTheme(screenshotTheme)
+            } else if let screenshotThemeRaw {
+                print("Screenshot automation: theme '\(screenshotThemeRaw)' not recognized; falling back to stored selection.")
+            }
             taskManagerInstance.prepareForScreenshotCapture()
         }
         _taskManager = StateObject(wrappedValue: taskManagerInstance)
@@ -64,7 +86,8 @@ struct taskrApp: App {
                     autosaveName: "TaskrMainWindowAutosave",
                     initialSize: NSSize(width: 720, height: 560),
                     palette: taskManager.themePalette,
-                    frosted: taskManager.frostedBackgroundEnabled
+                    frosted: taskManager.frostedBackgroundEnabled,
+                    usesSystemAppearance: taskManager.selectedTheme == .system
                 ))
         }
         Settings {

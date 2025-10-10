@@ -9,6 +9,10 @@ struct TemplateView: View {
     @Query(sort: [SortDescriptor(\TaskTemplate.name)]) private var templates: [TaskTemplate]
     @State private var editingTemplateID: UUID? = nil
     @State private var editingTemplateName: String = ""
+    private var palette: ThemePalette { taskManager.themePalette }
+    private var backgroundColor: Color {
+        taskManager.frostedBackgroundEnabled ? .clear : palette.backgroundColor
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) { // Main VStack
@@ -29,7 +33,7 @@ struct TemplateView: View {
             // --- End Add Template Section ---
 
             // --- Add Divider Here ---
-            Divider()
+            Divider().background(palette.dividerColor)
             // --- End Divider ---
 
             // --- Template List Section ---
@@ -37,7 +41,7 @@ struct TemplateView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if templates.isEmpty {
                         Text("No templates yet. Add one above!")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(palette.secondaryTextColor)
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .center)
                     } else {
@@ -49,7 +53,7 @@ struct TemplateView: View {
                                     let isExpanded = containerID.map { taskManager.isTaskExpanded($0) } ?? false
                                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(palette.secondaryTextColor)
                                         .padding(5)
                                         .contentShape(Rectangle())
                                         .onTapGesture {
@@ -108,18 +112,20 @@ struct TemplateView: View {
                                             .padding(.leading, 20)
                                             .padding(.vertical, 4)
                                         if t.persistentModelID != subs.last?.persistentModelID {
-                                            Divider().padding(.leading, 20)
+                                            Divider().background(palette.dividerColor).padding(.leading, 20)
                                         }
                                     }
                                 }
                             }
-                            Divider()
+                            Divider().background(palette.dividerColor)
                         }
                     }
                 }
             }
             // --- End Template List Section ---
         }
+        .foregroundColor(palette.primaryTextColor)
+        .background(backgroundColor)
     }
 
     private func commitTemplateNameEdit(_ template: TaskTemplate) {
@@ -161,5 +167,6 @@ struct TemplateView_Previews: PreviewProvider {
             .modelContainer(container)
             .environmentObject(taskManager)
             .frame(width: 380, height: 400)
+            .background(taskManager.themePalette.backgroundColor)
     }
 }

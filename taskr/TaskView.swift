@@ -16,6 +16,10 @@ struct TaskView: View {
 
     // Always display by persisted displayOrder; settings affect only insertion
     private var displayTasks: [Task] { tasks }
+    private var palette: ThemePalette { taskManager.themePalette }
+    private var backgroundColor: Color {
+        taskManager.frostedBackgroundEnabled ? .clear : palette.backgroundColor
+    }
 
     var body: some View {
         // Main VStack for the entire view
@@ -34,11 +38,15 @@ struct TaskView: View {
                         onTab: { if !taskManager.autocompleteSuggestions.isEmpty { taskManager.applySelectedSuggestion(); isInputFocused = true }},
                         onShiftTab: { if !taskManager.autocompleteSuggestions.isEmpty { taskManager.selectPreviousSuggestion() }},
                         onArrowDown: { taskManager.selectNextSuggestion() },
-                        onArrowUp: { taskManager.selectPreviousSuggestion() }
+                        onArrowUp: { taskManager.selectPreviousSuggestion() },
+                        fieldBackgroundColor: palette.inputBackground,
+                        fieldTextColor: palette.primaryText
                     )
                     .focused($isInputFocused).frame(height: 22)
                     Button(action: { taskManager.addTaskFromPath(); isInputFocused = true }) {
-                        Image(systemName: "plus.circle.fill").font(.title2)
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(palette.accentColor)
                     }.buttonStyle(PlainButtonStyle()).padding(.leading, 4)
                 }
                 // Clear Button Row
@@ -46,6 +54,7 @@ struct TaskView: View {
                     Spacer()
                     Button("Clear Completed") { taskManager.clearCompletedTasks() }
                         .padding(.top, 4)
+                        .foregroundColor(palette.primaryTextColor)
                 }
                 // Autocomplete Suggestions List
                 if !taskManager.autocompleteSuggestions.isEmpty {
@@ -53,7 +62,8 @@ struct TaskView: View {
                         ForEach(0..<taskManager.autocompleteSuggestions.count, id: \.self) { index in
                             Text(taskManager.autocompleteSuggestions[index])
                                 .padding(.vertical, 2)
-                                .listRowBackground(taskManager.selectedSuggestionIndex == index ? Color.accentColor.opacity(0.3) : Color.clear)
+                                .foregroundColor(palette.primaryTextColor)
+                                .listRowBackground(taskManager.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
                                 .onTapGesture {
                                     taskManager.selectedSuggestionIndex = index
                                     taskManager.applySelectedSuggestion()
@@ -61,9 +71,12 @@ struct TaskView: View {
                                 }
                         }
                     }
-                    .listStyle(.plain).frame(maxHeight: 100)
-                    .background(Color(NSColor.controlBackgroundColor)).cornerRadius(5)
-                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.gray.opacity(0.5), lineWidth: 1))
+                    .listStyle(.plain)
+                    .frame(maxHeight: 100)
+                    .scrollContentBackground(.hidden)
+                    .background(palette.controlBackgroundColor)
+                    .cornerRadius(5)
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(palette.dividerColor.opacity(0.7), lineWidth: 1))
                     .padding(.top, 2)
                 }
             }
@@ -71,7 +84,8 @@ struct TaskView: View {
             .padding(.bottom, 8) // Space before the divider
             // --- End Top Controls Area ---
 
-            Divider() // Divider between controls and task list
+            Divider()
+                .background(palette.dividerColor) // Divider between controls and task list
 
             // --- Task List Area ---
             // ScrollView now naturally sits below the controls and divider
@@ -80,7 +94,7 @@ struct TaskView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if displayTasks.isEmpty {
                         Text("No tasks yet. Add one above!")
-                            .foregroundColor(.secondary).padding()
+                            .foregroundColor(palette.secondaryTextColor).padding()
                             .frame(maxWidth: .infinity, alignment: .center)
                     } else {
                         ForEach(displayTasks, id: \.persistentModelID) { task in
@@ -89,7 +103,7 @@ struct TaskView: View {
                                 .padding(.bottom, 4)
                             // Add divider only if it's not the last task in the list
                             if task.id != displayTasks.last?.id {
-                                Divider()
+                                Divider().background(palette.dividerColor)
                             }
                         }
                     }
@@ -102,6 +116,8 @@ struct TaskView: View {
             // --- End Task List Area ---
 
         } // End main VStack
+        .foregroundColor(palette.primaryTextColor)
+        .background(backgroundColor)
     } // End body
 } // End TaskView
 
@@ -130,6 +146,6 @@ struct TaskView_Previews: PreviewProvider {
             .modelContainer(container)
             .environmentObject(taskManager)
             .frame(width: 380, height: 400) // Standard preview frame
-            .background(Color(NSColor.windowBackgroundColor)) // Match background
+            .background(taskManager.themePalette.backgroundColor) // Match background
     }
 }
