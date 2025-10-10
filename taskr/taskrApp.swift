@@ -60,7 +60,12 @@ struct taskrApp: App {
                 .environmentObject(taskManager)
                 .modelContainer(container)
                 .environmentObject(appDelegate)
-                .background(WindowConfigurator(autosaveName: "TaskrMainWindowAutosave", initialSize: NSSize(width: 720, height: 560)))
+                .background(WindowConfigurator(
+                    autosaveName: "TaskrMainWindowAutosave",
+                    initialSize: NSSize(width: 720, height: 560),
+                    palette: taskManager.themePalette,
+                    frosted: taskManager.frostedBackgroundEnabled
+                ))
         }
         Settings {
             SettingsView(

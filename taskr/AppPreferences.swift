@@ -16,6 +16,8 @@ let completionAnimationsEnabledPreferenceKey = "completionAnimationsEnabledPrefe
 let allowClearingStruckDescendantsPreferenceKey = "allowClearingStruckDescendantsPreference" // Allow clearing children under completed parents
 let normalizedDisplayOrderMigrationDoneKey = "normalizedDisplayOrderMigrationDone"
 let checkboxTopAlignedPreferenceKey = "checkboxTopAlignedPreference" // Align checkbox with first line
+let selectedThemePreferenceKey = "selectedThemePreference" // Active visual theme
+let frostedBackgroundPreferenceKey = "frostedBackgroundPreference" // Enable frosted glass background
 
 // --- Enums ---
 
@@ -121,6 +123,13 @@ final class PreferencesStore: ObservableObject {
         }
     }
 
+    @Published var enableFrostedBackground: Bool {
+        didSet {
+            guard oldValue != enableFrostedBackground else { return }
+            defaults.set(enableFrostedBackground, forKey: frostedBackgroundPreferenceKey)
+        }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         Self.seedDefaultsIfNeeded(in: defaults)
@@ -135,6 +144,7 @@ final class PreferencesStore: ObservableObject {
         completionAnimationsEnabled = defaults.object(forKey: completionAnimationsEnabledPreferenceKey) as? Bool ?? true
         allowClearingStruckDescendants = defaults.bool(forKey: allowClearingStruckDescendantsPreferenceKey)
         checkboxTopAligned = defaults.object(forKey: checkboxTopAlignedPreferenceKey) as? Bool ?? true
+        enableFrostedBackground = defaults.bool(forKey: frostedBackgroundPreferenceKey)
     }
 
     private static func seedDefaultsIfNeeded(in defaults: UserDefaults) {
@@ -149,6 +159,9 @@ final class PreferencesStore: ObservableObject {
         }
         if defaults.object(forKey: checkboxTopAlignedPreferenceKey) == nil {
             defaults.set(true, forKey: checkboxTopAlignedPreferenceKey)
+        }
+        if defaults.object(forKey: frostedBackgroundPreferenceKey) == nil {
+            defaults.set(false, forKey: frostedBackgroundPreferenceKey)
         }
     }
 

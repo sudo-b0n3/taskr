@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		6D8F4B0223AB4567890C1DEF /* TaskManagerThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D8F4B0123AB4567890C1DEF /* TaskManagerThemeTests.swift */; };
 		BA528B8092C649F88D94C7BC /* TaskManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239E977365004E86AF34518C /* TaskManagerTests.swift */; };
 		E9A7FB042DE1C0C700AA11BB /* TaskrScreenshotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */; };
 /* End PBXBuildFile section */
@@ -14,6 +15,7 @@
 /* Begin PBXFileReference section */
 		31CF3FC82DCCEDF70035AF5B /* taskr.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = taskr.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		239E977365004E86AF34518C /* TaskManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskManagerTests.swift; sourceTree = "<group>"; };
+		6D8F4B0123AB4567890C1DEF /* TaskManagerThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskManagerThemeTests.swift; sourceTree = "<group>"; };
 		D562EF14BCB34A6581EA90B8 /* taskrTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9A7FB012DE1C0C700AA11BB /* taskrUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskrScreenshotUITests.swift; sourceTree = "<group>"; };
@@ -106,6 +108,7 @@
 			isa = PBXGroup;
 			children = (
 				239E977365004E86AF34518C /* TaskManagerTests.swift */,
+				6D8F4B0123AB4567890C1DEF /* TaskManagerThemeTests.swift */,
 			);
 			path = taskrTests;
 			sourceTree = "<group>";
@@ -256,6 +259,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6D8F4B0223AB4567890C1DEF /* TaskManagerThemeTests.swift in Sources */,
 				BA528B8092C649F88D94C7BC /* TaskManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

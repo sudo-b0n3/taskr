@@ -11,6 +11,7 @@ class TaskManager: ObservableObject {
     }
 
     let modelContext: ModelContext
+    private let defaults: UserDefaults
 
     @Published var currentPathInput: String = ""
     @Published var newTemplateName: String = ""
@@ -19,13 +20,33 @@ class TaskManager: ObservableObject {
     @Published var completionMutationVersion: Int = 0
     @Published var pendingInlineEditTaskID: UUID? = nil
     @Published var collapsedTaskIDs: Set<UUID> = []
+    @Published private(set) var selectedTheme: AppTheme
+    @Published private(set) var frostedBackgroundEnabled: Bool
 
     lazy var pathCoordinator = PathInputCoordinator(taskManager: self)
 
-    init(modelContext: ModelContext) {
+    var themePalette: ThemePalette { selectedTheme.palette }
+
+    init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
         self.modelContext = modelContext
+        self.defaults = defaults
+        let storedTheme = defaults.string(forKey: selectedThemePreferenceKey) ?? ""
+        self.selectedTheme = AppTheme(rawValue: storedTheme) ?? .system
+        self.frostedBackgroundEnabled = defaults.bool(forKey: frostedBackgroundPreferenceKey)
         loadCollapsedState()
         pruneCollapsedState()
         normalizeDisplayOrdersIfNeeded()
+    }
+
+    func setTheme(_ theme: AppTheme) {
+        guard theme != selectedTheme else { return }
+        selectedTheme = theme
+        defaults.set(theme.rawValue, forKey: selectedThemePreferenceKey)
+    }
+
+    func setFrostedBackgroundEnabled(_ enabled: Bool) {
+        guard frostedBackgroundEnabled != enabled else { return }
+        frostedBackgroundEnabled = enabled
+        defaults.set(enabled, forKey: frostedBackgroundPreferenceKey)
     }
 }

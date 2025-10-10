@@ -16,22 +16,34 @@ struct ContentView: View {
     }
     @State private var currentView: DisplayedView = .tasks
 
+    private var palette: ThemePalette { taskManager.themePalette }
+    private var headerBackground: Color {
+        let base = palette.headerBackgroundColor
+        return taskManager.frostedBackgroundEnabled ? base.opacity(0.7) : base
+    }
+    private var contentBackground: Color {
+        let base = palette.backgroundColor
+        return taskManager.frostedBackgroundEnabled ? base.opacity(0.65) : base
+    }
+
     var body: some View {
         Group {
             if isStandalone {
                 // Standalone window: place header in the titlebar safe area for consistent transparency
                 VStack(spacing: 0) {
                     headerBar
-                        .background(Color(nsColor: .windowBackgroundColor))
+                        .background(headerBackground)
                     Divider()
+                        .background(palette.dividerColor)
                     contentArea
                 }
             } else {
                 // Popover: keep inline header and divider
                 VStack(spacing: 0) {
                     headerBar
-                        .background(Color(NSColor.windowBackgroundColor))
+                        .background(headerBackground)
                     Divider()
+                        .background(palette.dividerColor)
                     contentArea
                 }
             }
@@ -48,26 +60,29 @@ struct ContentView: View {
                 appDelegate.standaloneWindowDisappeared()
             }
         }
+        .background(rootBackground)
+        .preferredColorScheme(taskManager.selectedTheme.preferredColorScheme)
+        .tint(palette.accentColor)
     }
 
     private var headerBar: some View {
         HStack(spacing: 0) {
             Button(action: { currentView = .tasks }) {
                 Text("Tasks").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
-                    .foregroundColor(currentView == .tasks ? .accentColor : .primary)
+                    .foregroundColor(currentView == .tasks ? palette.accentColor : palette.primaryTextColor)
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityIdentifier("HeaderTasksButton")
-            Divider().frame(height: 20)
+            Divider().frame(height: 20).background(palette.dividerColor)
             Button(action: { currentView = .templates }) {
                 Text("Templates").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
-                    .foregroundColor(currentView == .templates ? .accentColor : .primary)
+                    .foregroundColor(currentView == .templates ? palette.accentColor : palette.primaryTextColor)
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityIdentifier("HeaderTemplatesButton")
-            Divider().frame(height: 20)
+            Divider().frame(height: 20).background(palette.dividerColor)
             Button(action: { currentView = .settings }) {
-                Image(systemName: "gearshape.fill").foregroundColor(currentView == .settings ? .accentColor : .primary)
+                Image(systemName: "gearshape.fill").foregroundColor(currentView == .settings ? palette.accentColor : palette.primaryTextColor)
                     .padding(.vertical, 8).frame(maxWidth: .infinity).contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
@@ -76,14 +91,14 @@ struct ContentView: View {
 
             // Subtle expand button to open full window (shown only in popover mode)
             if !isStandalone {
-                Divider().frame(height: 20)
+                Divider().frame(height: 20).background(palette.dividerColor)
                 Button(action: {
                     openWindow(id: "MainWindow")
                     NSApp.activate(ignoringOtherApps: true)
                 }) {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                         .help("Open Window")
-                        .foregroundColor(.primary)
+                        .foregroundColor(palette.primaryTextColor)
                         .padding(.vertical, 8)
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
@@ -94,7 +109,7 @@ struct ContentView: View {
         }
         .padding(.horizontal, 8)
         .padding(.top, 8)
-        .background(isStandalone ? Color.clear : Color(NSColor.windowBackgroundColor))
+        .background(isStandalone ? Color.clear : headerBackground)
     }
 
     private var contentArea: some View {
@@ -113,10 +128,22 @@ struct ContentView: View {
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(NSColor.windowBackgroundColor))
+                .background(Color.clear)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.clear)
+    }
+
+    private var rootBackground: some View {
+        Group {
+            if taskManager.frostedBackgroundEnabled {
+                VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow, state: .active)
+                    .overlay(contentBackground)
+            } else {
+                palette.backgroundColor
+            }
+        }
     }
 }
 
@@ -134,5 +161,25 @@ struct ContentView_Previews: PreviewProvider {
             .environmentObject(taskManager)
             .modelContainer(container)
             .environmentObject(appDelegate)
+    }
+}
+
+private struct VisualEffectBlur: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blendingMode: NSVisualEffectView.BlendingMode
+    var state: NSVisualEffectView.State
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = state
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+        nsView.state = state
     }
 }

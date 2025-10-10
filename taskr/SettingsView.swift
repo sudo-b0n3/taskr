@@ -14,6 +14,7 @@ struct SettingsView: View {
     let updateIconAction: (String) -> Void
     let setDockIconVisibilityAction: (Bool) -> Void
     let enableGlobalHotkeyAction: (Bool) -> Bool
+    private var palette: ThemePalette { taskManager.themePalette }
 
     var body: some View {
         ScrollView {
@@ -32,7 +33,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider()
+                Divider().background(palette.dividerColor)
 
                 SettingsSection {
                     HStack {
@@ -55,7 +56,45 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider()
+                Divider().background(palette.dividerColor)
+
+                SettingsSection(caption: "Change Taskr's appearance using terminal-inspired palettes.") {
+                    HStack {
+                        Text("Theme")
+                        Spacer()
+                        Picker(
+                            "",
+                            selection: Binding(
+                                get: { taskManager.selectedTheme },
+                                set: { taskManager.setTheme($0) }
+                            )
+                        ) {
+                            ForEach(AppTheme.allCases) { theme in
+                                Text(theme.displayName).tag(theme)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(minWidth: 150, maxWidth: 200)
+                    }
+                }
+
+                Divider().background(palette.dividerColor)
+
+                SettingsSection(caption: "Adds a subtle glass blur behind the window content.") {
+                    HStack {
+                        Text("Frosted background")
+                        Spacer()
+                        Toggle(isOn: $preferences.enableFrostedBackground) {
+                            EmptyView()
+                        }
+                        .labelsHidden()
+                        .onChange(of: preferences.enableFrostedBackground) { _, newValue in
+                            taskManager.setFrostedBackgroundEnabled(newValue)
+                        }
+                    }
+                }
+
+                Divider().background(palette.dividerColor)
 
                 SettingsSection(caption: "Changes to Dock icon visibility may require an app restart.") {
                     HStack {
@@ -71,7 +110,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider()
+                Divider().background(palette.dividerColor)
 
                 SettingsSection(caption: "Exports your non-template tasks as JSON; import appends to current list.") {
                     HStack {
@@ -84,7 +123,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider()
+                Divider().background(palette.dividerColor)
 
                 SettingsSection(caption: "Requires Accessibility permission in System Settings.") {
                     HStack {
@@ -100,7 +139,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider()
+                Divider().background(palette.dividerColor)
 
                 SettingsSection {
                     HStack {
@@ -118,7 +157,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider()
+                Divider().background(palette.dividerColor)
 
                 SettingsSection {
                     HStack {
@@ -136,7 +175,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider()
+                Divider().background(palette.dividerColor)
 
                 SettingsSection {
                     HStack {
@@ -149,7 +188,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider()
+                Divider().background(palette.dividerColor)
 
                 SettingsSection {
                     HStack {
@@ -164,7 +203,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider()
+                Divider().background(palette.dividerColor)
 
                 SettingsSection(caption: "When clearing, remove completed parents and all subtasks even if subtasks aren't completed.") {
                     HStack {
@@ -177,13 +216,13 @@ struct SettingsView: View {
                     }
                 }
 
-                Divider()
+                Divider().background(palette.dividerColor)
 
                 SettingsSection {
                     HStack {
                         Text(appVersion)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(palette.secondaryTextColor)
                         Spacer()
                         Button("Quit Taskr") { NSApp.terminate(nil) }
                             .keyboardShortcut("q", modifiers: .command)
@@ -194,10 +233,14 @@ struct SettingsView: View {
             .padding(.top, 8)
         }
         .onAppear(perform: syncState)
+        .foregroundColor(palette.primaryTextColor)
+        .background(Color.clear)
+        .scrollContentBackground(.hidden)
     }
 
     private func syncState() {
         launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
+        taskManager.setFrostedBackgroundEnabled(preferences.enableFrostedBackground)
     }
 
     private func updateGlobalHotkey(to enabled: Bool) {
@@ -233,33 +276,34 @@ struct SettingsView: View {
 }
 
 private struct SettingsSection<Content: View>: View {
+    @EnvironmentObject private var taskManager: TaskManager
+    private var palette: ThemePalette { taskManager.themePalette }
+
     let caption: String?
-    let backgroundColor: Color
     let content: Content
 
     init(
         caption: String? = nil,
-        backgroundColor: Color = Color(nsColor: .windowBackgroundColor),
         @ViewBuilder content: () -> Content
     ) {
         self.caption = caption
-        self.backgroundColor = backgroundColor
         self.content = content()
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             content
+                .foregroundColor(palette.primaryTextColor)
             if let caption {
                 Text(caption)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(palette.secondaryTextColor)
             }
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(backgroundColor)
+        .background(taskManager.frostedBackgroundEnabled ? palette.sectionBackgroundColor.opacity(0.35) : palette.sectionBackgroundColor)
     }
 }
 
@@ -361,6 +405,6 @@ struct SettingsView_Previews: PreviewProvider {
         .modelContainer(container)
         .environmentObject(taskManager)
         .frame(width: 380, height: 450)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(taskManager.themePalette.backgroundColor)
     }
 }
