@@ -303,7 +303,6 @@ private struct SettingsSection<Content: View>: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(taskManager.frostedBackgroundEnabled ? palette.sectionBackgroundColor.opacity(0.35) : palette.sectionBackgroundColor)
     }
 }
 
