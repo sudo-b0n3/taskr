@@ -1,6 +1,7 @@
 // taskr/taskr/TaskView.swift
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct TaskView: View {
     @EnvironmentObject var taskManager: TaskManager
@@ -13,12 +14,19 @@ struct TaskView: View {
     ) private var tasks: [Task]
 
     @FocusState private var isInputFocused: Bool
+    @State private var keyboardMonitor: Any?
 
     // Always display by persisted displayOrder; settings affect only insertion
     private var displayTasks: [Task] { tasks }
     private var palette: ThemePalette { taskManager.themePalette }
     private var backgroundColor: Color {
         taskManager.frostedBackgroundEnabled ? .clear : palette.backgroundColor
+    }
+    private var releaseTaskInputFocus: () -> Void {
+        return {
+            isInputFocused = false
+            taskManager.setTaskInputFocused(false)
+        }
     }
 
     var body: some View {
@@ -98,7 +106,7 @@ struct TaskView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                     } else {
                         ForEach(displayTasks, id: \.persistentModelID) { task in
-                            TaskRowView(task: task)
+                            TaskRowView(task: task, releaseInputFocus: releaseTaskInputFocus)
                                 .padding(.top, 4)
                                 .padding(.bottom, 4)
                             // Add divider only if it's not the last task in the list
@@ -113,11 +121,19 @@ struct TaskView: View {
                 // .padding(.top, 4)
             }
             .onAppear { isInputFocused = true }
+            .onAppear { taskManager.setTaskInputFocused(true); installKeyboardMonitorIfNeeded() }
             // --- End Task List Area ---
 
         } // End main VStack
         .foregroundColor(palette.primaryTextColor)
         .background(backgroundColor)
+        .onChange(of: isInputFocused) { _, newValue in
+            taskManager.setTaskInputFocused(newValue)
+        }
+        .onDisappear {
+            removeKeyboardMonitor()
+            taskManager.setTaskInputFocused(false)
+        }
     } // End body
 } // End TaskView
 
@@ -147,5 +163,69 @@ struct TaskView_Previews: PreviewProvider {
             .environmentObject(taskManager)
             .frame(width: 380, height: 400) // Standard preview frame
             .background(taskManager.themePalette.backgroundColor) // Match background
+    }
+}
+
+// MARK: - Keyboard Handling
+extension TaskView {
+    private func installKeyboardMonitorIfNeeded() {
+        guard keyboardMonitor == nil else { return }
+        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            guard handleKeyDownEvent(event) else { return event }
+            return nil
+        }
+    }
+
+    private func removeKeyboardMonitor() {
+        if let monitor = keyboardMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyboardMonitor = nil
+        }
+    }
+
+    private func handleKeyDownEvent(_ event: NSEvent) -> Bool {
+        guard shouldHandleKeyEvent(event) else { return false }
+
+        let flags = event.modifierFlags
+        let shiftPressed = flags.contains(.shift)
+        let commandPressed = flags.contains(.command)
+
+        if commandPressed {
+            if let key = event.charactersIgnoringModifiers?.lowercased() {
+                switch key {
+                case "a":
+                    taskManager.selectAllVisibleTasks()
+                    return true
+                default:
+                    break
+                }
+            }
+        }
+
+        switch event.keyCode {
+        case 125: // Down arrow
+            guard !commandPressed || shiftPressed else { return false }
+            taskManager.stepSelection(.down, extend: shiftPressed)
+            return true
+        case 126: // Up arrow
+            guard !commandPressed || shiftPressed else { return false }
+            taskManager.stepSelection(.up, extend: shiftPressed)
+            return true
+        default:
+            break
+        }
+
+        return false
+    }
+
+    private func shouldHandleKeyEvent(_ event: NSEvent) -> Bool {
+        guard let window = event.window else { return false }
+        guard window.isKeyWindow else { return false }
+
+        if taskManager.isTaskInputFocused {
+            return false
+        }
+
+        return true
     }
 }

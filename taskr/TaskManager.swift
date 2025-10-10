@@ -20,12 +20,19 @@ class TaskManager: ObservableObject {
     @Published var completionMutationVersion: Int = 0
     @Published var pendingInlineEditTaskID: UUID? = nil
     @Published var collapsedTaskIDs: Set<UUID> = []
+    @Published var selectedTaskIDs: [UUID] = [] {
+        didSet { selectedTaskIDSet = Set(selectedTaskIDs) }
+    }
+    @Published private(set) var isTaskInputFocused: Bool = false
     @Published private(set) var selectedTheme: AppTheme
     @Published private(set) var frostedBackgroundEnabled: Bool
 
     lazy var pathCoordinator = PathInputCoordinator(taskManager: self)
 
     var themePalette: ThemePalette { selectedTheme.palette }
+    var selectedTaskIDSet: Set<UUID> = []
+    var selectionAnchorID: UUID?
+    var selectionCursorID: UUID?
 
     init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
         self.modelContext = modelContext
@@ -48,5 +55,10 @@ class TaskManager: ObservableObject {
         guard frostedBackgroundEnabled != enabled else { return }
         frostedBackgroundEnabled = enabled
         defaults.set(enabled, forKey: frostedBackgroundPreferenceKey)
+    }
+
+    func setTaskInputFocused(_ isFocused: Bool) {
+        guard isTaskInputFocused != isFocused else { return }
+        isTaskInputFocused = isFocused
     }
 }

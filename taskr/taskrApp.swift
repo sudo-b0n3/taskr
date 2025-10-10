@@ -110,6 +110,13 @@ struct taskrApp: App {
                 }
                 .keyboardShortcut("?", modifiers: [.command])
             }
+            CommandGroup(after: .pasteboard) {
+                Button("Copy Selected Tasks") {
+                    taskManager.copySelectedTasksToPasteboard()
+                }
+                .keyboardShortcut("c", modifiers: [.command])
+                .disabled(taskManager.selectedTaskIDs.isEmpty || taskManager.isTaskInputFocused)
+            }
         }
     }
 }

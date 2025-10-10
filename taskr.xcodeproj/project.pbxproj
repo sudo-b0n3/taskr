@@ -12,9 +12,26 @@
 		E9A7FB042DE1C0C700AA11BB /* TaskrScreenshotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		42BDFEDCD1B34DD5A47E26CE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 31CF3FC02DCCEDF70035AF5B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 31CF3FC72DCCEDF70035AF5B;
+			remoteInfo = taskr;
+		};
+		E9A7FB072DE1C0C700AA11BB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 31CF3FC02DCCEDF70035AF5B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 31CF3FC72DCCEDF70035AF5B;
+			remoteInfo = taskr;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
-		31CF3FC82DCCEDF70035AF5B /* taskr.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = taskr.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		239E977365004E86AF34518C /* TaskManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskManagerTests.swift; sourceTree = "<group>"; };
+		31CF3FC82DCCEDF70035AF5B /* taskr.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = taskr.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6D8F4B0123AB4567890C1DEF /* TaskManagerThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskManagerThemeTests.swift; sourceTree = "<group>"; };
 		D562EF14BCB34A6581EA90B8 /* taskrTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9A7FB012DE1C0C700AA11BB /* taskrUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -42,32 +59,15 @@
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
-/* Begin PBXContainerItemProxy section */
-		42BDFEDCD1B34DD5A47E26CE /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 31CF3FC02DCCEDF70035AF5B /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 31CF3FC72DCCEDF70035AF5B;
-			remoteInfo = taskr;
-		};
-		E9A7FB072DE1C0C700AA11BB /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 31CF3FC02DCCEDF70035AF5B /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 31CF3FC72DCCEDF70035AF5B;
-			remoteInfo = taskr;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFrameworksBuildPhase section */
-		31CF3FC52DCCEDF70035AF5B /* Frameworks */ = {
+		1CB00DA30CC7417BACC1C963 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1CB00DA30CC7417BACC1C963 /* Frameworks */ = {
+		31CF3FC52DCCEDF70035AF5B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -182,19 +182,6 @@
 		};
 /* End PBXNativeTarget section */
 
-/* Begin PBXTargetDependency section */
-		BE071498705445508C4C24BC /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 31CF3FC72DCCEDF70035AF5B /* taskr */;
-			targetProxy = 42BDFEDCD1B34DD5A47E26CE /* PBXContainerItemProxy */;
-		};
-		E9A7FB082DE1C0C700AA11BB /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 31CF3FC72DCCEDF70035AF5B /* taskr */;
-			targetProxy = E9A7FB072DE1C0C700AA11BB /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin PBXProject section */
 		31CF3FC02DCCEDF70035AF5B /* Project object */ = {
 			isa = PBXProject;
@@ -273,6 +260,19 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BE071498705445508C4C24BC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 31CF3FC72DCCEDF70035AF5B /* taskr */;
+			targetProxy = 42BDFEDCD1B34DD5A47E26CE /* PBXContainerItemProxy */;
+		};
+		E9A7FB082DE1C0C700AA11BB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 31CF3FC72DCCEDF70035AF5B /* taskr */;
+			targetProxy = E9A7FB072DE1C0C700AA11BB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		31CF3FD42DCCEDF80035AF5B /* Debug */ = {

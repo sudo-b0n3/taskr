@@ -165,6 +165,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         setDockIconVisibility(show: showDockIcon)
     }
 
+    @IBAction func copy(_ sender: Any?) {
+        guard let manager = taskManager, !manager.selectedTaskIDs.isEmpty else { return }
+        manager.copySelectedTasksToPasteboard()
+    }
+
     @discardableResult
     func enableGlobalHotkey(_ enable: Bool, showAlertIfNotGranted: Bool = true) -> Bool {
         if enable {

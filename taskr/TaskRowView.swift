@@ -8,6 +8,7 @@ struct TaskRowView: View {
 
     @Bindable var task: Task
     var mode: RowMode = .live
+    var releaseInputFocus: (() -> Void)? = nil
     @EnvironmentObject var taskManager: TaskManager
     @Environment(\.modelContext) private var modelContext
 
@@ -32,6 +33,9 @@ struct TaskRowView: View {
     }
 
     private var palette: ThemePalette { taskManager.themePalette }
+    private var isSelected: Bool {
+        taskManager.isTaskSelected(task.id)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -39,7 +43,7 @@ struct TaskRowView: View {
 
             if isExpanded && !displaySubtasks.isEmpty {
                 ForEach(displaySubtasks, id: \.persistentModelID) { subtask in
-                    TaskRowView(task: subtask, mode: mode)
+                    TaskRowView(task: subtask, mode: mode, releaseInputFocus: releaseInputFocus)
                         .padding(.leading, 20)
                 }
             }
@@ -65,7 +69,10 @@ struct TaskRowView: View {
                     )
                         .frame(width: 16, height: 16)
                         .contentShape(Rectangle())
-                        .onTapGesture { taskManager.toggleTaskCompletion(taskID: task.id) }
+                        .onTapGesture {
+                            releaseInputFocus?()
+                            taskManager.toggleTaskCompletion(taskID: task.id)
+                        }
                 } else {
                     Text("•").foregroundColor(palette.secondaryTextColor)
                 }
@@ -118,12 +125,19 @@ struct TaskRowView: View {
         .padding(.vertical, 2)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(isHoveringRow ? palette.hoverBackgroundColor : Color.clear)
+                .fill((isHoveringRow || isSelected) ? palette.hoverBackgroundColor : Color.clear)
         )
+        .foregroundColor(palette.primaryTextColor)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            handlePrimarySelectionClick()
+        }
         .onHover { hovering in
             isHoveringRow = hovering
         }
-        .foregroundColor(palette.primaryTextColor)
+        .onDisappear {
+            isHoveringRow = false
+        }
     }
 
     @ViewBuilder
@@ -178,6 +192,11 @@ struct TaskRowView: View {
                 }
             }
             Divider()
+            if !taskManager.selectedTaskIDs.isEmpty {
+                Button("Copy Selected Tasks") {
+                    taskManager.copySelectedTasksToPasteboard()
+                }
+            }
             Button("Copy Path") {
                 taskManager.copyTaskPath(task)
             }
@@ -253,6 +272,27 @@ struct TaskRowView: View {
             startEditing()
             taskManager.pendingInlineEditTaskID = nil
         }
+    }
+
+    private func handlePrimarySelectionClick() {
+        releaseInputFocus?()
+
+        let modifiers = currentModifierFlags()
+
+        if modifiers.contains(.shift) {
+            taskManager.extendSelection(to: task.id)
+        } else if modifiers.contains(.command) {
+            taskManager.toggleSelection(for: task.id)
+        } else {
+            taskManager.replaceSelection(with: task.id)
+        }
+    }
+
+    private func currentModifierFlags() -> NSEvent.ModifierFlags {
+        if let event = NSApp.currentEvent {
+            return event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        }
+        return NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
     }
 
 }
