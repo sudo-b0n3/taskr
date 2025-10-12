@@ -93,7 +93,7 @@ extension TaskManager {
             for (_, group) in grouped {
                 guard let sample = group.first else { continue }
                 let parent = sample.parentTask
-                var siblings = try fetchSiblings(for: parent, kind: .live)
+                let siblings = try fetchSiblings(for: parent, kind: .live)
                 let groupSet = Set(group.map { $0.id })
                 guard !groupSet.isEmpty else { continue }
 
