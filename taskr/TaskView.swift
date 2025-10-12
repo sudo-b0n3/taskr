@@ -296,14 +296,18 @@ extension TaskView {
                 object: nil,
                 queue: .main
             ) { _ in
-                taskManager.setApplicationActive(true)
+                _Concurrency.Task { @MainActor in
+                    taskManager.setApplicationActive(true)
+                }
             }
             let resign = center.addObserver(
                 forName: NSApplication.didResignActiveNotification,
                 object: nil,
                 queue: .main
             ) { _ in
-                taskManager.setApplicationActive(false)
+                _Concurrency.Task { @MainActor in
+                    taskManager.setApplicationActive(false)
+                }
             }
             appObserverTokens = [become, resign]
         }
@@ -354,14 +358,18 @@ extension TaskView {
             object: window,
             queue: .main
         ) { _ in
-            taskManager.setTaskWindowKey(true)
+            _Concurrency.Task { @MainActor in
+                taskManager.setTaskWindowKey(true)
+            }
         }
         let resign = center.addObserver(
             forName: NSWindow.didResignKeyNotification,
             object: window,
             queue: .main
         ) { _ in
-            taskManager.setTaskWindowKey(false)
+            _Concurrency.Task { @MainActor in
+                taskManager.setTaskWindowKey(false)
+            }
         }
         windowObserverTokens = [become, resign]
     }
