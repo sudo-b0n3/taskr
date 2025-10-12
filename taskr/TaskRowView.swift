@@ -25,11 +25,17 @@ struct TaskRowView: View {
     @State private var isHoveringRow: Bool = false
 
     private var displaySubtasks: [Task] {
-        (task.subtasks ?? []).sorted { $0.displayOrder < $1.displayOrder }
+        guard task.modelContext != nil else { return [] }
+        switch mode {
+        case .live:
+            return (try? taskManager.fetchLiveSiblings(for: task)) ?? []
+        case .template:
+            return (try? taskManager.fetchTemplateSiblings(for: task)) ?? []
+        }
     }
 
     private var hasExpandableChildren: Bool {
-        !(task.subtasks?.isEmpty ?? true)
+        !displaySubtasks.isEmpty
     }
 
     private var palette: ThemePalette { taskManager.themePalette }

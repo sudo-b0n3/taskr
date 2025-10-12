@@ -142,15 +142,9 @@ extension TaskManager {
         if let existing = existingTask {
             targetTask = existing
         } else {
-            let placeAtTop: Bool
-            if parentTask == nil {
-                placeAtTop = UserDefaults.standard.bool(forKey: addRootTasksToTopPreferenceKey)
-            } else {
-                placeAtTop = UserDefaults.standard.bool(forKey: addSubtasksToTopPreferenceKey)
-            }
             let newDisplayOrder = getDisplayOrderForInsertion(
                 for: parentTask,
-                placeAtTop: placeAtTop,
+                placeAtTop: false,
                 in: modelContext
             )
             targetTask = Task(

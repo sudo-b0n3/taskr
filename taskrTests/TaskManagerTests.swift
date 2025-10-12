@@ -390,6 +390,83 @@ final class TaskManagerTests: XCTestCase {
         XCTAssertTrue(livePhase5Children.contains(where: { $0.name == movedStepName }))
     }
 
+    func testStressDeleteNestedTasksDoesNotLeaveDanglingState() throws {
+        let rootCount = 12
+        let childrenPerRoot = 6
+        let grandchildrenPerChild = 4
+
+        var rootIDs: [UUID] = []
+
+        for rootIndex in 0..<rootCount {
+            let rootName = "Stress Parent \(rootIndex)"
+            manager.addTaskFromPath(pathOverride: "/\(rootName)")
+            let rootTask = try XCTUnwrap(manager.findUserTask(named: rootName, under: nil))
+            rootIDs.append(rootTask.id)
+            manager.setTaskExpanded(rootTask.id, expanded: true)
+
+            for childIndex in 0..<childrenPerRoot {
+                let childName = "Child \(rootIndex)-\(childIndex)"
+                manager.addTaskFromPath(pathOverride: "/\(rootName)/\(childName)")
+                let childTask = try XCTUnwrap(manager.findUserTask(named: childName, under: rootTask))
+                if childIndex % 2 == 0 {
+                    manager.toggleTaskCompletion(taskID: childTask.id)
+                }
+                manager.setTaskExpanded(childTask.id, expanded: childIndex % 3 == 0)
+
+                for grandIndex in 0..<grandchildrenPerChild {
+                    let grandName = "Grandchild \(rootIndex)-\(childIndex)-\(grandIndex)"
+                    manager.addTaskFromPath(pathOverride: "/\(rootName)/\(childName)/\(grandName)")
+                    let grandTask = try XCTUnwrap(manager.findUserTask(named: grandName, under: childTask))
+                    if grandIndex % 3 == 0 {
+                        manager.toggleTaskCompletion(taskID: grandTask.id)
+                    }
+                }
+            }
+        }
+
+        for (index, rootID) in rootIDs.enumerated() {
+            let descriptor = FetchDescriptor<Task>(predicate: #Predicate<Task> {
+                !$0.isTemplateComponent && $0.id == rootID
+            })
+            guard let root = try container.mainContext.fetch(descriptor).first else {
+                continue
+            }
+
+            let rootChildren = (root.subtasks ?? []).sorted(by: { $0.displayOrder < $1.displayOrder })
+
+            switch index % 3 {
+            case 0:
+                for child in rootChildren {
+                    let grandchildren = Array(child.subtasks ?? [])
+                    for grandchild in grandchildren {
+                        manager.deleteTask(grandchild)
+                    }
+                    manager.deleteTask(child)
+                }
+                manager.deleteTask(root)
+            case 1:
+                for (childIdx, child) in rootChildren.enumerated() {
+                    if childIdx % 2 == 0 {
+                        manager.deleteTask(child)
+                    } else {
+                        let grandchildren = Array(child.subtasks ?? [])
+                        for (grandIdx, grandchild) in grandchildren.enumerated() where grandIdx % 2 == 0 {
+                            manager.deleteTask(grandchild)
+                        }
+                    }
+                }
+                manager.deleteTask(root)
+            default:
+                manager.deleteTask(root)
+            }
+        }
+
+        let remainingDescriptor = FetchDescriptor<Task>(predicate: #Predicate<Task> { !$0.isTemplateComponent })
+        let remaining = try container.mainContext.fetch(remainingDescriptor)
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertTrue(manager.collapsedTaskIDs.isEmpty)
+    }
+
     @discardableResult
     private func seedLinearHierarchy(rootName: String, childCount: Int) throws -> Task? {
         manager.addTaskFromPath(pathOverride: "/\(rootName)")
