@@ -14,6 +14,7 @@ extension TaskManager {
 
     func clearSelection() {
         applySelection(orderedIDs: [], anchor: nil, cursor: nil)
+        resetTapInteractionCapture()
     }
 
     func replaceSelection(with taskID: UUID) {
@@ -22,20 +23,27 @@ extension TaskManager {
 
     func toggleSelection(for taskID: UUID) {
         let visibleIDs = snapshotVisibleTaskIDs()
-        var candidates = Set(selectedTaskIDs)
-        if candidates.contains(taskID) {
-            candidates.remove(taskID)
-            let remaining = Array(candidates)
+        var orderedCandidates = selectedTaskIDs
+
+        if let existingIndex = orderedCandidates.firstIndex(of: taskID) {
+            orderedCandidates.remove(at: existingIndex)
             applySelection(
-                candidateIDs: remaining,
+                candidateIDs: orderedCandidates,
                 anchor: selectionAnchorID == taskID ? nil : selectionAnchorID,
                 cursor: selectionCursorID == taskID ? nil : selectionCursorID,
                 visibleIDs: visibleIDs
             )
         } else {
-            candidates.insert(taskID)
-            let ordered = orderedSelection(from: Array(candidates), visibleIDs: visibleIDs)
-            applySelection(orderedIDs: ordered, anchor: taskID, cursor: taskID)
+            orderedCandidates.append(taskID)
+            let anchorCandidate = selectionAnchorID
+                ?? selectedTaskIDs.first
+                ?? taskID
+            applySelection(
+                candidateIDs: orderedCandidates,
+                anchor: anchorCandidate,
+                cursor: taskID,
+                visibleIDs: visibleIDs
+            )
         }
     }
 
@@ -161,6 +169,11 @@ extension TaskManager {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(output, forType: .string)
+    }
+
+    func pruneSelectionToVisibleTasks() {
+        let visibleIDs = snapshotVisibleTaskIDs()
+        syncSelectionWithVisibleIDs(visibleIDs)
     }
 
     // MARK: - Helper routines

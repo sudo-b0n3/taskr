@@ -89,6 +89,38 @@ final class TaskManagerSelectionTests: XCTestCase {
         XCTAssertEqual(NSPasteboard.general.string(forType: .string), "() - Subtask Alpha")
     }
 
+    func testCollapsingParentPrunesDescendantSelection() throws {
+        let seeded = try seedSampleHierarchy()
+        let taskAlpha = try XCTUnwrap(seeded["Task Alpha"])
+        let taskBeta = try XCTUnwrap(seeded["Task Beta"])
+        let subtaskAlpha = try XCTUnwrap(seeded["Subtask Alpha"])
+        let subtaskBeta = try XCTUnwrap(seeded["Subtask Beta"])
+
+        NSPasteboard.general.clearContents()
+
+        manager.replaceSelection(with: subtaskAlpha.id)
+        manager.toggleSelection(for: subtaskBeta.id)
+        manager.toggleSelection(for: taskAlpha.id)
+
+        XCTAssertEqual(manager.selectedTaskIDs, [taskAlpha.id, subtaskAlpha.id, subtaskBeta.id])
+
+        manager.setTaskExpanded(taskAlpha.id, expanded: false)
+
+        XCTAssertEqual(manager.selectedTaskIDs, [taskAlpha.id])
+
+        manager.toggleSelection(for: taskBeta.id)
+
+        XCTAssertEqual(manager.selectedTaskIDs, [taskAlpha.id, taskBeta.id])
+
+        manager.copySelectedTasksToPasteboard()
+        let copied = try XCTUnwrap(NSPasteboard.general.string(forType: .string))
+        let expected = """
+        () - Task Alpha
+        () - Task Beta
+        """
+        XCTAssertEqual(copied, expected)
+    }
+
     @discardableResult
     private func seedSampleHierarchy() throws -> [String: Task] {
         let taskAlpha = Task(name: "Task Alpha", displayOrder: 0, isTemplateComponent: false)
@@ -103,6 +135,15 @@ final class TaskManagerSelectionTests: XCTestCase {
         container.mainContext.insert(subtaskAlpha)
         taskAlpha.subtasks?.append(subtaskAlpha)
 
+        let subtaskBeta = Task(
+            name: "Subtask Beta",
+            displayOrder: 1,
+            isTemplateComponent: false,
+            parentTask: taskAlpha
+        )
+        container.mainContext.insert(subtaskBeta)
+        taskAlpha.subtasks?.append(subtaskBeta)
+
         let taskBeta = Task(name: "Task Beta", displayOrder: 1, isTemplateComponent: false)
         container.mainContext.insert(taskBeta)
 
@@ -110,7 +151,8 @@ final class TaskManagerSelectionTests: XCTestCase {
         return [
             "Task Alpha": taskAlpha,
             "Subtask Alpha": subtaskAlpha,
-            "Task Beta": taskBeta
+            "Task Beta": taskBeta,
+            "Subtask Beta": subtaskBeta
         ]
     }
 }

@@ -26,6 +26,8 @@ class TaskManager: ObservableObject {
     @Published private(set) var isTaskInputFocused: Bool = false
     @Published private(set) var selectedTheme: AppTheme
     @Published private(set) var frostedBackgroundEnabled: Bool
+    @Published private(set) var isApplicationActive: Bool = true
+    @Published private(set) var isTaskWindowKey: Bool = true
 
     lazy var pathCoordinator = PathInputCoordinator(taskManager: self)
 
@@ -33,6 +35,7 @@ class TaskManager: ObservableObject {
     var selectedTaskIDSet: Set<UUID> = []
     var selectionAnchorID: UUID?
     var selectionCursorID: UUID?
+    private var selectionInteractionCaptured: Bool = false
 
     init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
         self.modelContext = modelContext
@@ -60,5 +63,29 @@ class TaskManager: ObservableObject {
     func setTaskInputFocused(_ isFocused: Bool) {
         guard isTaskInputFocused != isFocused else { return }
         isTaskInputFocused = isFocused
+    }
+
+    func setApplicationActive(_ active: Bool) {
+        guard isApplicationActive != active else { return }
+        isApplicationActive = active
+    }
+
+    func setTaskWindowKey(_ isKey: Bool) {
+        guard isTaskWindowKey != isKey else { return }
+        isTaskWindowKey = isKey
+    }
+
+    func registerUserInteractionTap() {
+        selectionInteractionCaptured = true
+    }
+
+    func consumeInteractionCapture() -> Bool {
+        let captured = selectionInteractionCaptured
+        selectionInteractionCaptured = false
+        return captured
+    }
+
+    func resetTapInteractionCapture() {
+        selectionInteractionCaptured = false
     }
 }

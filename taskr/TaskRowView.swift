@@ -42,6 +42,16 @@ struct TaskRowView: View {
     private var isSelected: Bool {
         taskManager.isTaskSelected(task.id)
     }
+    private var highlightColor: Color {
+        if isSelected {
+            let activeOpacity = (taskManager.isApplicationActive && taskManager.isTaskWindowKey) ? 1.0 : 0.35
+            return palette.hoverBackgroundColor.opacity(activeOpacity)
+        }
+        if isHoveringRow {
+            return palette.hoverBackgroundColor
+        }
+        return Color.clear
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -77,6 +87,7 @@ struct TaskRowView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             releaseInputFocus?()
+                            taskManager.registerUserInteractionTap()
                             taskManager.toggleTaskCompletion(taskID: task.id)
                         }
                 } else {
@@ -107,7 +118,10 @@ struct TaskRowView: View {
                     )
                     .font(.body)
                     .padding(.horizontal, 2)
-                    .onTapGesture(count: 2) { startEditing() }
+                    .onTapGesture(count: 2) {
+                        taskManager.registerUserInteractionTap()
+                        startEditing()
+                    }
                 }
             }
             .layoutPriority(1)
@@ -120,7 +134,10 @@ struct TaskRowView: View {
                     .foregroundColor(palette.secondaryTextColor)
                     .padding(5)
                     .contentShape(Rectangle())
-                    .onTapGesture { taskManager.toggleTaskExpansion(task.id) }
+                    .onTapGesture {
+                        taskManager.registerUserInteractionTap()
+                        taskManager.toggleTaskExpansion(task.id)
+                    }
             }
 
             if mode == .template {
@@ -131,11 +148,12 @@ struct TaskRowView: View {
         .padding(.vertical, 2)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill((isHoveringRow || isSelected) ? palette.hoverBackgroundColor : Color.clear)
+                .fill(highlightColor)
         )
         .foregroundColor(palette.primaryTextColor)
         .contentShape(Rectangle())
         .onTapGesture {
+            taskManager.registerUserInteractionTap()
             handlePrimarySelectionClick()
         }
         .onHover { hovering in

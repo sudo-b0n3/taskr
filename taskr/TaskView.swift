@@ -15,6 +15,9 @@ struct TaskView: View {
 
     @FocusState private var isInputFocused: Bool
     @State private var keyboardMonitor: Any?
+    @State private var appObserverTokens: [NSObjectProtocol] = []
+    @State private var windowObserverTokens: [NSObjectProtocol] = []
+    @State private var hostingWindow: NSWindow?
 
     // Always display by persisted displayOrder; settings affect only insertion
     private var displayTasks: [Task] { tasks }
@@ -90,6 +93,12 @@ struct TaskView: View {
             }
             .padding([.horizontal, .top]) // Padding for the controls area
             .padding(.bottom, 8) // Space before the divider
+            .simultaneousGesture(
+                TapGesture()
+                    .onEnded {
+                        taskManager.registerUserInteractionTap()
+                    }
+            )
             // --- End Top Controls Area ---
 
             Divider()
@@ -121,7 +130,11 @@ struct TaskView: View {
                 // .padding(.top, 4)
             }
             .onAppear { isInputFocused = true }
-            .onAppear { taskManager.setTaskInputFocused(true); installKeyboardMonitorIfNeeded() }
+            .onAppear {
+                taskManager.setTaskInputFocused(true)
+                installKeyboardMonitorIfNeeded()
+                installLifecycleObservers()
+            }
             // --- End Task List Area ---
 
         } // End main VStack
@@ -133,7 +146,26 @@ struct TaskView: View {
         .onDisappear {
             removeKeyboardMonitor()
             taskManager.setTaskInputFocused(false)
+            removeLifecycleObservers()
         }
+        .simultaneousGesture(
+            TapGesture()
+                .onEnded {
+                    DispatchQueue.main.async {
+                        if !taskManager.consumeInteractionCapture(),
+                           !taskManager.selectedTaskIDs.isEmpty {
+                            taskManager.clearSelection()
+                        }
+                    }
+                }
+        )
+        .background(
+            WindowAccessor { window in
+                DispatchQueue.main.async {
+                    handleWindowChange(window)
+                }
+            }
+        )
     } // End body
 } // End TaskView
 
@@ -163,6 +195,24 @@ struct TaskView_Previews: PreviewProvider {
             .environmentObject(taskManager)
             .frame(width: 380, height: 400) // Standard preview frame
             .background(taskManager.themePalette.backgroundColor) // Match background
+    }
+}
+
+private struct WindowAccessor: NSViewRepresentable {
+    var onWindowChange: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            onWindowChange(view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            onWindowChange(nsView.window)
+        }
     }
 }
 
@@ -211,6 +261,13 @@ extension TaskView {
             guard !commandPressed || shiftPressed else { return false }
             taskManager.stepSelection(.up, extend: shiftPressed)
             return true
+        case 53: // Escape
+            guard !commandPressed && !shiftPressed else { return false }
+            if !taskManager.selectedTaskIDs.isEmpty {
+                taskManager.clearSelection()
+                return true
+            }
+            return false
         default:
             break
         }
@@ -227,5 +284,85 @@ extension TaskView {
         }
 
         return true
+    }
+
+    @MainActor
+    private func installLifecycleObservers() {
+        taskManager.setApplicationActive(NSApp.isActive)
+        if appObserverTokens.isEmpty {
+            let center = NotificationCenter.default
+            let become = center.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { _ in
+                taskManager.setApplicationActive(true)
+            }
+            let resign = center.addObserver(
+                forName: NSApplication.didResignActiveNotification,
+                object: nil,
+                queue: .main
+            ) { _ in
+                taskManager.setApplicationActive(false)
+            }
+            appObserverTokens = [become, resign]
+        }
+
+        if let window = hostingWindow {
+            taskManager.setTaskWindowKey(window.isKeyWindow)
+        }
+    }
+
+    @MainActor
+    private func removeLifecycleObservers() {
+        let center = NotificationCenter.default
+        for token in appObserverTokens {
+            center.removeObserver(token)
+        }
+        appObserverTokens.removeAll()
+
+        for token in windowObserverTokens {
+            center.removeObserver(token)
+        }
+        windowObserverTokens.removeAll()
+
+        hostingWindow = nil
+        taskManager.setTaskWindowKey(false)
+    }
+
+    @MainActor
+    private func handleWindowChange(_ window: NSWindow?) {
+        guard hostingWindow !== window else { return }
+
+        let center = NotificationCenter.default
+        for token in windowObserverTokens {
+            center.removeObserver(token)
+        }
+        windowObserverTokens.removeAll()
+
+        hostingWindow = window
+
+        guard let window else {
+            taskManager.setTaskWindowKey(false)
+            return
+        }
+
+        taskManager.setTaskWindowKey(window.isKeyWindow)
+
+        let become = center.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: window,
+            queue: .main
+        ) { _ in
+            taskManager.setTaskWindowKey(true)
+        }
+        let resign = center.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: window,
+            queue: .main
+        ) { _ in
+            taskManager.setTaskWindowKey(false)
+        }
+        windowObserverTokens = [become, resign]
     }
 }
