@@ -23,6 +23,7 @@ struct TaskRowView: View {
     @State private var editText: String = ""
     @FocusState private var isTextFieldFocused: Bool
     @State private var isHoveringRow: Bool = false
+    @State private var didStartShiftDrag: Bool = false
 
     private var displaySubtasks: [Task] {
         guard task.modelContext != nil else { return [] }
@@ -158,10 +159,14 @@ struct TaskRowView: View {
         }
         .onHover { hovering in
             isHoveringRow = hovering
+            if hovering && taskManager.isShiftSelectionInProgress {
+                taskManager.updateShiftSelection(to: task.id)
+            }
         }
         .onDisappear {
             isHoveringRow = false
         }
+        .simultaneousGesture(shiftSelectionGesture)
     }
 
     @ViewBuilder
@@ -193,28 +198,51 @@ struct TaskRowView: View {
     @ViewBuilder
     private func menuContent() -> some View {
         if mode == .live {
+            SelectionContextPrimingView(taskManager: taskManager, taskID: task.id)
+            let selectedCount = taskManager.selectedTaskIDs.count
+            let isRowSelected = taskManager.isTaskSelected(task.id)
+            let multiSelectionActive = selectedCount > 1 && isRowSelected
+            let canMoveUp = multiSelectionActive ? taskManager.canMoveSelectedTasksUp() : taskManager.canMoveTaskUp(task)
+            let canMoveDown = multiSelectionActive ? taskManager.canMoveSelectedTasksDown() : taskManager.canMoveTaskDown(task)
+            let canDuplicate = multiSelectionActive ? taskManager.canDuplicateSelectedTasks() : true
+
             Button("Edit") {
                 taskManager.requestInlineEdit(for: task.id)
             }
+            .disabled(multiSelectionActive)
             Menu("Move") {
                 Button("↑ Up") {
-                    taskManager.moveTaskUp(task)
+                    if multiSelectionActive {
+                        taskManager.moveSelectedTasksUp()
+                    } else {
+                        taskManager.moveTaskUp(task)
+                    }
                 }
-                .disabled(!taskManager.canMoveTaskUp(task))
+                .disabled(!canMoveUp)
 
                 Button("↓ Down") {
-                    taskManager.moveTaskDown(task)
+                    if multiSelectionActive {
+                        taskManager.moveSelectedTasksDown()
+                    } else {
+                        taskManager.moveTaskDown(task)
+                    }
                 }
-                .disabled(!taskManager.canMoveTaskDown(task))
+                .disabled(!canMoveDown)
             }
             Button("Duplicate") {
-                _ = taskManager.duplicateTask(task)
+                if multiSelectionActive {
+                    taskManager.duplicateSelectedTasks()
+                } else {
+                    _ = taskManager.duplicateTask(task)
+                }
             }
+            .disabled(!canDuplicate)
             Button("Add Subtask") {
                 if let newTask = taskManager.addSubtask(to: task) {
                     taskManager.requestInlineEdit(for: newTask.id)
                 }
             }
+            .disabled(multiSelectionActive)
             Divider()
             if !taskManager.selectedTaskIDs.isEmpty {
                 Button("Copy Selected Tasks") {
@@ -224,11 +252,16 @@ struct TaskRowView: View {
             Button("Copy Path") {
                 taskManager.copyTaskPath(task)
             }
+            .disabled(multiSelectionActive)
             Divider()
             Button(role: .destructive) {
-                taskManager.deleteTask(task)
+                if multiSelectionActive {
+                    taskManager.deleteSelectedTasks()
+                } else {
+                    taskManager.deleteTask(task)
+                }
             } label: {
-                Text("Delete")
+                Text(multiSelectionActive ? "Delete Selected" : "Delete")
             }
         } else if mode == .template {
             Button("Edit") {
@@ -245,6 +278,24 @@ struct TaskRowView: View {
                 }
                 .disabled(!taskManager.canMoveTemplateTaskDown(task))
             }
+        }
+    }
+
+    private struct SelectionContextPrimingView: View {
+        let taskManager: TaskManager
+        let taskID: UUID
+
+        var body: some View {
+            Color.clear
+                .frame(width: 0, height: 0)
+                .onAppear {
+                    DispatchQueue.main.async {
+                        if !taskManager.isTaskSelected(taskID),
+                           taskManager.selectedTaskIDs.count <= 1 {
+                            taskManager.replaceSelection(with: taskID)
+                        }
+                    }
+                }
         }
     }
 
@@ -317,6 +368,31 @@ struct TaskRowView: View {
             return event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         }
         return NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    }
+
+    private var shiftSelectionGesture: some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { _ in
+                let shiftDown = currentModifierFlags().contains(.shift)
+                if !shiftDown {
+                    if didStartShiftDrag {
+                        didStartShiftDrag = false
+                        taskManager.endShiftSelection()
+                    }
+                    return
+                }
+
+                if !didStartShiftDrag {
+                    didStartShiftDrag = true
+                    taskManager.beginShiftSelection(at: task.id)
+                }
+            }
+            .onEnded { _ in
+                if didStartShiftDrag {
+                    didStartShiftDrag = false
+                    taskManager.endShiftSelection()
+                }
+            }
     }
 
 }

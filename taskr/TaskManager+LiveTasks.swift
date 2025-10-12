@@ -62,6 +62,180 @@ extension TaskManager {
         }
     }
 
+    func deleteSelectedTasks() {
+        let tasks = selectedLiveTasks()
+        guard !tasks.isEmpty else { return }
+        let selectedSet = Set(tasks.map(\.id))
+        let rootIDs = tasks
+            .filter { !hasSelectedAncestor($0, selectedSet: selectedSet) }
+            .map(\.id)
+
+        guard !rootIDs.isEmpty else { return }
+
+        for id in rootIDs {
+            guard let task = task(withID: id) else { continue }
+            deleteTask(task)
+        }
+    }
+
+    func duplicateSelectedTasks() {
+        let tasks = selectedLiveTasks()
+        guard !tasks.isEmpty else { return }
+        let selectedSet = Set(tasks.map(\.id))
+        let rootTasks = tasks.filter { !hasSelectedAncestor($0, selectedSet: selectedSet) }
+        guard !rootTasks.isEmpty else { return }
+
+        let grouped = Dictionary(grouping: rootTasks) { $0.parentTask?.id }
+        var parentsToResequence: [Task?] = []
+        var duplicatedIDs: [UUID] = []
+
+        do {
+            for (_, group) in grouped {
+                guard let sample = group.first else { continue }
+                let parent = sample.parentTask
+                var siblings = try fetchSiblings(for: parent, kind: .live)
+                let groupSet = Set(group.map { $0.id })
+                guard !groupSet.isEmpty else { continue }
+
+                var existingNames = Set(siblings.map { $0.name })
+                var orderIndex = 0
+
+                for sibling in siblings {
+                    if sibling.displayOrder != orderIndex {
+                        sibling.displayOrder = orderIndex
+                    }
+                    orderIndex += 1
+
+                    if groupSet.contains(sibling.id) {
+                        let duplicateName = makeDuplicateName(for: sibling, existingNames: &existingNames)
+                        let duplicate = cloneTaskSubtree(
+                            sibling,
+                            parent: parent,
+                            displayOrder: orderIndex,
+                            overrideName: duplicateName
+                        )
+                        duplicatedIDs.append(duplicate.id)
+                        orderIndex += 1
+                    }
+                }
+
+                parentsToResequence.append(parent)
+            }
+
+            guard !duplicatedIDs.isEmpty else { return }
+
+            try modelContext.save()
+
+            for parent in parentsToResequence {
+                resequenceDisplayOrder(for: parent)
+            }
+        } catch {
+            modelContext.rollback()
+            print("Error duplicating selected tasks: \(error)")
+            return
+        }
+
+        let visibleIDs = snapshotVisibleTaskIDs()
+        var remaining = Set(duplicatedIDs)
+        var orderedDuplicates: [UUID] = []
+        orderedDuplicates.reserveCapacity(duplicatedIDs.count)
+
+        for id in visibleIDs where remaining.contains(id) {
+            orderedDuplicates.append(id)
+            remaining.remove(id)
+        }
+        if !remaining.isEmpty {
+            for id in duplicatedIDs where remaining.contains(id) {
+                orderedDuplicates.append(id)
+                remaining.remove(id)
+            }
+        }
+
+        if !orderedDuplicates.isEmpty {
+            selectTasks(
+                orderedIDs: orderedDuplicates,
+                anchor: orderedDuplicates.first,
+                cursor: orderedDuplicates.last
+            )
+        }
+    }
+
+    func canDuplicateSelectedTasks() -> Bool {
+        !selectedLiveTasks().isEmpty
+    }
+
+    func canMoveSelectedTasksUp() -> Bool {
+        guard selectedTaskIDs.count > 1,
+              let context = selectedSiblingContext(),
+              let firstIndex = context.indices.first else {
+            return false
+        }
+        return firstIndex > 0
+    }
+
+    func canMoveSelectedTasksDown() -> Bool {
+        guard selectedTaskIDs.count > 1,
+              let context = selectedSiblingContext(),
+              let lastIndex = context.indices.last else {
+            return false
+        }
+        return lastIndex < context.siblings.count - 1
+    }
+
+    func moveSelectedTasksUp() {
+        guard selectedTaskIDs.count > 1 else {
+            if let first = selectedTaskIDs.first,
+               let task = task(withID: first) {
+                moveTaskUp(task)
+            }
+            return
+        }
+
+        guard let context = selectedSiblingContext(),
+              let firstIndex = context.indices.first,
+              firstIndex > 0 else {
+            return
+        }
+
+        let block = context.siblings.filter { context.selectedSet.contains($0.id) }
+        guard !block.isEmpty else { return }
+
+        var reordered = context.siblings.filter { !context.selectedSet.contains($0.id) }
+        let insertionIndex = max(0, firstIndex - 1)
+        reordered.insert(contentsOf: block, at: insertionIndex)
+
+        applySiblingOrder(reordered, parent: context.parent, selectedSet: context.selectedSet)
+    }
+
+    func moveSelectedTasksDown() {
+        guard selectedTaskIDs.count > 1 else {
+            if let first = selectedTaskIDs.first,
+               let task = task(withID: first) {
+                moveTaskDown(task)
+            }
+            return
+        }
+
+        guard let context = selectedSiblingContext(),
+              let lastIndex = context.indices.last else {
+            return
+        }
+
+        let afterIndex = lastIndex + 1
+        guard afterIndex < context.siblings.count else { return }
+
+        let block = context.siblings.filter { context.selectedSet.contains($0.id) }
+        guard !block.isEmpty else { return }
+
+        var reordered = context.siblings.filter { !context.selectedSet.contains($0.id) }
+        let blockCount = block.count
+        let insertionIndex = afterIndex - blockCount
+        let targetIndex = min(reordered.count, insertionIndex + 1)
+        reordered.insert(contentsOf: block, at: targetIndex)
+
+        applySiblingOrder(reordered, parent: context.parent, selectedSet: context.selectedSet)
+    }
+
     func moveTask(
         draggedTaskID: UUID,
         targetTaskID: UUID,
@@ -410,16 +584,117 @@ extension TaskManager {
     }
 
     private func makeDuplicateName(for task: Task, among siblings: [Task]) -> String {
+        var existingNames = Set(siblings.map { $0.name })
+        return makeDuplicateName(for: task, existingNames: &existingNames)
+    }
+
+    private func makeDuplicateName(for task: Task, existingNames: inout Set<String>) -> String {
         let baseName = task.name
         var candidate = "\(baseName) (copy)"
-        let siblingNames = Set(siblings.map { $0.name })
-        if !siblingNames.contains(candidate) { return candidate }
+        if !existingNames.contains(candidate) {
+            existingNames.insert(candidate)
+            return candidate
+        }
 
         var index = 2
-        while siblingNames.contains("\(baseName) (copy \(index))") {
+        while existingNames.contains("\(baseName) (copy \(index))") {
             index += 1
         }
         candidate = "\(baseName) (copy \(index))"
+        existingNames.insert(candidate)
         return candidate
+    }
+}
+
+// MARK: - Multi-selection helpers
+private extension TaskManager {
+    struct SelectedSiblingContext {
+        let parent: Task?
+        let siblings: [Task]
+        let selectedSet: Set<UUID>
+        let indices: [Int]
+    }
+
+    func selectedLiveTasks() -> [Task] {
+        selectedTaskIDs.compactMap { id in
+            guard let task = task(withID: id), !task.isTemplateComponent else { return nil }
+            return task
+        }
+    }
+
+    func hasSelectedAncestor(_ task: Task, selectedSet: Set<UUID>) -> Bool {
+        var current = task.parentTask
+        while let parent = current {
+            if selectedSet.contains(parent.id) {
+                return true
+            }
+            current = parent.parentTask
+        }
+        return false
+    }
+
+    func selectedSiblingContext() -> SelectedSiblingContext? {
+        let ids = selectedTaskIDs
+        guard !ids.isEmpty else { return nil }
+
+        let tasks = selectedLiveTasks()
+        guard tasks.count == ids.count else { return nil }
+
+        let parentIDs = Set(tasks.map { $0.parentTask?.id })
+        guard parentIDs.count == 1 else { return nil }
+
+        let parent = tasks.first?.parentTask
+
+        let siblings: [Task]
+        do {
+            siblings = try fetchSiblings(for: parent, kind: .live)
+        } catch {
+            return nil
+        }
+
+        let selectedSet = Set(ids)
+        let indices = siblings.enumerated().compactMap { selectedSet.contains($0.element.id) ? $0.offset : nil }
+        guard indices.count == tasks.count else { return nil }
+
+        if indices.count > 1 {
+            for pair in zip(indices, indices.dropFirst()) where pair.1 != pair.0 + 1 {
+                return nil
+            }
+        }
+
+        return SelectedSiblingContext(
+            parent: parent,
+            siblings: siblings,
+            selectedSet: selectedSet,
+            indices: indices
+        )
+    }
+
+    func applySiblingOrder(_ siblings: [Task], parent: Task?, selectedSet: Set<UUID>? = nil) {
+        var didChange = false
+        for (index, task) in siblings.enumerated() where task.displayOrder != index {
+            task.displayOrder = index
+            didChange = true
+        }
+        if didChange {
+            do {
+                try modelContext.save()
+                resequenceDisplayOrder(for: parent)
+            } catch {
+                modelContext.rollback()
+                print("Error moving selected tasks: \(error)")
+            }
+        }
+
+        if let selectedSet = selectedSet {
+            let orderedIDs = siblings.filter { selectedSet.contains($0.id) }.map(\.id)
+            if !orderedIDs.isEmpty {
+                selectTasks(
+                    orderedIDs: orderedIDs,
+                    anchor: orderedIDs.first,
+                    cursor: orderedIDs.last
+                )
+            }
+        }
     }
 }

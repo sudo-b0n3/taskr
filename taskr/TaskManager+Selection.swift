@@ -15,6 +15,7 @@ extension TaskManager {
     func clearSelection() {
         applySelection(orderedIDs: [], anchor: nil, cursor: nil)
         resetTapInteractionCapture()
+        shiftSelectionActive = false
     }
 
     func replaceSelection(with taskID: UUID) {
@@ -146,7 +147,7 @@ extension TaskManager {
         let cache = Dictionary(uniqueKeysWithValues: visibleTasks.map { ($0.id, $0) })
 
         for id in selectedTaskIDs {
-            guard let task = cache[id] ?? task(for: id) else { continue }
+            guard let task = cache[id] ?? task(withID: id) else { continue }
             let depth = taskDepth(task)
             entries.append((task, depth))
         }
@@ -176,6 +177,40 @@ extension TaskManager {
         syncSelectionWithVisibleIDs(visibleIDs)
     }
 
+    func selectTasks(
+        orderedIDs: [UUID],
+        anchor: UUID? = nil,
+        cursor: UUID? = nil
+    ) {
+        applySelection(orderedIDs: orderedIDs, anchor: anchor, cursor: cursor)
+    }
+
+    func beginShiftSelection(at taskID: UUID) {
+        if selectedTaskIDs.isEmpty {
+            replaceSelection(with: taskID)
+        } else if !selectedTaskIDSet.contains(taskID) && selectedTaskIDs.count == 1 {
+            replaceSelection(with: taskID)
+        } else if selectionAnchorID == nil {
+            selectionAnchorID = selectedTaskIDs.first ?? taskID
+        }
+
+        shiftSelectionActive = true
+        extendSelection(to: taskID)
+    }
+
+    func updateShiftSelection(to taskID: UUID) {
+        guard shiftSelectionActive else { return }
+        extendSelection(to: taskID)
+    }
+
+    func endShiftSelection() {
+        shiftSelectionActive = false
+    }
+
+    var isShiftSelectionInProgress: Bool {
+        shiftSelectionActive
+    }
+
     // MARK: - Helper routines
 
     private func snapshotVisibleTasks() -> [Task] {
@@ -193,7 +228,7 @@ extension TaskManager {
         return flattened
     }
 
-    private func snapshotVisibleTaskIDs() -> [UUID] {
+    func snapshotVisibleTaskIDs() -> [UUID] {
         snapshotVisibleTasks().map(\.id)
     }
 
@@ -278,14 +313,6 @@ extension TaskManager {
         let newAnchor = selectionAnchorID.flatMap { visibleSet.contains($0) ? $0 : nil }
         let newCursor = selectionCursorID.flatMap { visibleSet.contains($0) ? $0 : nil }
         applySelection(orderedIDs: filtered, anchor: newAnchor, cursor: newCursor)
-    }
-
-    private func task(for id: UUID) -> Task? {
-        var descriptor = FetchDescriptor<Task>(
-            predicate: #Predicate<Task> { $0.id == id }
-        )
-        descriptor.fetchLimit = 1
-        return try? modelContext.fetch(descriptor).first
     }
 
     private func taskDepth(_ task: Task) -> Int {

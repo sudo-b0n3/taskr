@@ -36,6 +36,7 @@ class TaskManager: ObservableObject {
     var selectionAnchorID: UUID?
     var selectionCursorID: UUID?
     private var selectionInteractionCaptured: Bool = false
+    var shiftSelectionActive: Bool = false
 
     init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
         self.modelContext = modelContext
@@ -46,6 +47,14 @@ class TaskManager: ObservableObject {
         loadCollapsedState()
         pruneCollapsedState()
         normalizeDisplayOrdersIfNeeded()
+    }
+
+    func task(withID id: UUID) -> Task? {
+        var descriptor = FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { $0.id == id }
+        )
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
     }
 
     func setTheme(_ theme: AppTheme) {
