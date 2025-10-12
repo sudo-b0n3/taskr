@@ -179,7 +179,34 @@ extension TaskManager {
     func deleteTask(_ task: Task) {
         guard !task.isTemplateComponent else { return }
         let parent = task.parentTask
-        modelContext.delete(task)
+        let subtreeIDs = collectSubtreeIDs(for: task)
+
+        if !subtreeIDs.isEmpty {
+            let previousCollapsed = collapsedTaskIDs
+            collapsedTaskIDs.subtract(subtreeIDs)
+            if collapsedTaskIDs != previousCollapsed {
+                persistCollapsedState()
+            }
+
+            if !selectedTaskIDs.isEmpty {
+                selectedTaskIDs.removeAll { subtreeIDs.contains($0) }
+            }
+
+            if let anchor = selectionAnchorID, subtreeIDs.contains(anchor) {
+                selectionAnchorID = nil
+            }
+
+            if let cursor = selectionCursorID, subtreeIDs.contains(cursor) {
+                selectionCursorID = nil
+            }
+
+            if let pending = pendingInlineEditTaskID, subtreeIDs.contains(pending) {
+                pendingInlineEditTaskID = nil
+            }
+        }
+
+        deleteSubtree(task)
+
         do {
             try modelContext.save()
             resequenceDisplayOrder(for: parent)
@@ -307,6 +334,23 @@ extension TaskManager {
 
     func fetchLiveSiblings(for parent: Task?) throws -> [Task] {
         try fetchSiblings(for: parent, kind: .live)
+    }
+
+    private func deleteSubtree(_ task: Task) {
+        let children = task.subtasks ?? []
+        for child in children where !child.isTemplateComponent {
+            deleteSubtree(child)
+        }
+        modelContext.delete(task)
+    }
+
+    private func collectSubtreeIDs(for task: Task) -> Set<UUID> {
+        var identifiers: Set<UUID> = [task.id]
+        let children = task.subtasks ?? []
+        for child in children where !child.isTemplateComponent {
+            identifiers.formUnion(collectSubtreeIDs(for: child))
+        }
+        return identifiers
     }
 
     func getNextDisplayOrder(

@@ -57,7 +57,7 @@ extension TaskManager {
         }
     }
 
-    private func persistCollapsedState() {
+    func persistCollapsedState() {
         let defaults = UserDefaults.standard
         let ids = collapsedTaskIDs.map { $0.uuidString }
         defaults.set(ids, forKey: collapsedTaskIDsPreferenceKey)
