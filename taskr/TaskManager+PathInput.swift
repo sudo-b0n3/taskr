@@ -117,6 +117,7 @@ extension TaskManager {
             }
 
             var currentParent: Task? = nil
+            var pendingInsertions: [Task] = []
             for componentName in finalComponents {
                 if let existingTask = taskManager.findUserTask(named: componentName, under: currentParent) {
                     currentParent = existingTask
@@ -142,8 +143,16 @@ extension TaskManager {
                     isTemplateComponent: false,
                     parentTask: currentParent
                 )
-                taskManager.modelContext.insert(newTask)
+                pendingInsertions.append(newTask)
                 currentParent = newTask
+            }
+
+            if !pendingInsertions.isEmpty {
+                taskManager.performListMutation {
+                    for task in pendingInsertions {
+                        taskManager.modelContext.insert(task)
+                    }
+                }
             }
 
             try? taskManager.modelContext.save()

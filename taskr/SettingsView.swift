@@ -16,7 +16,7 @@ struct SettingsView: View {
     let enableGlobalHotkeyAction: (Bool) -> Bool
     private var palette: ThemePalette { taskManager.themePalette }
     private var checkboxToggleStyle: SettingsCheckboxToggleStyle {
-        SettingsCheckboxToggleStyle(palette: palette)
+        SettingsCheckboxToggleStyle(palette: palette, animate: preferences.animationsMasterEnabled)
     }
 
     var body: some View {
@@ -192,16 +192,63 @@ struct SettingsView: View {
 
                 Divider().background(palette.dividerColor)
 
-                SettingsSection {
-                    HStack {
-                        Text("Enable Completion Animations")
-                        Spacer()
-                        Toggle(isOn: $preferences.completionAnimationsEnabled) {
-                            EmptyView()
+                SettingsSection(caption: "Fine-tune how lively Taskr feels.") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Enable All Animations")
+                            Spacer()
+                            Toggle(isOn: $preferences.animationsMasterEnabled) {
+                                EmptyView()
+                            }
+                            .labelsHidden()
+                            .toggleStyle(checkboxToggleStyle)
+                            .accessibilityLabel(Text("Enable all animations"))
+                            .onChange(of: preferences.animationsMasterEnabled) { _, newValue in
+                                taskManager.setAnimationsMasterEnabled(newValue)
+                            }
                         }
-                        .labelsHidden()
-                        .toggleStyle(checkboxToggleStyle)
-                        .accessibilityLabel(Text("Enable completion animations"))
+
+                        HStack {
+                            Text("Task List Changes")
+                            Spacer()
+                            Toggle(isOn: $preferences.listAnimationsEnabled) {
+                                EmptyView()
+                            }
+                            .labelsHidden()
+                            .toggleStyle(checkboxToggleStyle)
+                            .accessibilityLabel(Text("Animate task list changes"))
+                            .onChange(of: preferences.listAnimationsEnabled) { _, newValue in
+                                taskManager.setListAnimationsEnabled(newValue)
+                            }
+                        }
+                        .disabled(!preferences.animationsMasterEnabled)
+
+                        HStack {
+                            Text("Expand / Collapse")
+                            Spacer()
+                            Toggle(isOn: $preferences.collapseAnimationsEnabled) {
+                                EmptyView()
+                            }
+                            .labelsHidden()
+                            .toggleStyle(checkboxToggleStyle)
+                            .accessibilityLabel(Text("Animate expand or collapse transitions"))
+                            .onChange(of: preferences.collapseAnimationsEnabled) { _, newValue in
+                                taskManager.setCollapseAnimationsEnabled(newValue)
+                            }
+                        }
+                        .disabled(!preferences.animationsMasterEnabled)
+
+                        HStack {
+                            Text("Completion Effects")
+                            Spacer()
+                            Toggle(isOn: $preferences.completionAnimationsEnabled) {
+                                EmptyView()
+                            }
+                            .labelsHidden()
+                            .toggleStyle(checkboxToggleStyle)
+                            .accessibilityLabel(Text("Animate completion effects"))
+                        }
+                        .disabled(!preferences.animationsMasterEnabled)
                     }
                 }
 
@@ -261,6 +308,9 @@ struct SettingsView: View {
     private func syncState() {
         launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
         taskManager.setFrostedBackgroundEnabled(preferences.enableFrostedBackground)
+        taskManager.setAnimationsMasterEnabled(preferences.animationsMasterEnabled)
+        taskManager.setListAnimationsEnabled(preferences.listAnimationsEnabled)
+        taskManager.setCollapseAnimationsEnabled(preferences.collapseAnimationsEnabled)
     }
 
     private func updateGlobalHotkey(to enabled: Bool) {

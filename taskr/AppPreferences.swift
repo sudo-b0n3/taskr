@@ -18,6 +18,9 @@ let normalizedDisplayOrderMigrationDoneKey = "normalizedDisplayOrderMigrationDon
 let checkboxTopAlignedPreferenceKey = "checkboxTopAlignedPreference" // Align checkbox with first line
 let selectedThemePreferenceKey = "selectedThemePreference" // Active visual theme
 let frostedBackgroundPreferenceKey = "frostedBackgroundPreference" // Enable frosted glass background
+let listAnimationsEnabledPreferenceKey = "listAnimationsEnabledPreference" // Toggle task list insert/delete animations
+let animationsMasterEnabledPreferenceKey = "animationsMasterEnabledPreference" // Global animation master switch
+let collapseAnimationsEnabledPreferenceKey = "collapseAnimationsEnabledPreference" // Toggle expand/collapse transitions
 
 // Screenshot automation coordination artifacts
 let screenshotAutomationConfigFilename = "taskr_screenshot_config.json"
@@ -133,6 +136,27 @@ final class PreferencesStore: ObservableObject {
         }
     }
 
+    @Published var listAnimationsEnabled: Bool {
+        didSet {
+            guard oldValue != listAnimationsEnabled else { return }
+            defaults.set(listAnimationsEnabled, forKey: listAnimationsEnabledPreferenceKey)
+        }
+    }
+
+    @Published var animationsMasterEnabled: Bool {
+        didSet {
+            guard oldValue != animationsMasterEnabled else { return }
+            defaults.set(animationsMasterEnabled, forKey: animationsMasterEnabledPreferenceKey)
+        }
+    }
+
+    @Published var collapseAnimationsEnabled: Bool {
+        didSet {
+            guard oldValue != collapseAnimationsEnabled else { return }
+            defaults.set(collapseAnimationsEnabled, forKey: collapseAnimationsEnabledPreferenceKey)
+        }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         Self.seedDefaultsIfNeeded(in: defaults)
@@ -148,6 +172,9 @@ final class PreferencesStore: ObservableObject {
         allowClearingStruckDescendants = defaults.bool(forKey: allowClearingStruckDescendantsPreferenceKey)
         checkboxTopAligned = defaults.object(forKey: checkboxTopAlignedPreferenceKey) as? Bool ?? true
         enableFrostedBackground = defaults.bool(forKey: frostedBackgroundPreferenceKey)
+        listAnimationsEnabled = defaults.object(forKey: listAnimationsEnabledPreferenceKey) as? Bool ?? true
+        animationsMasterEnabled = defaults.object(forKey: animationsMasterEnabledPreferenceKey) as? Bool ?? true
+        collapseAnimationsEnabled = defaults.object(forKey: collapseAnimationsEnabledPreferenceKey) as? Bool ?? true
     }
 
     private static func seedDefaultsIfNeeded(in defaults: UserDefaults) {
@@ -165,6 +192,15 @@ final class PreferencesStore: ObservableObject {
         }
         if defaults.object(forKey: frostedBackgroundPreferenceKey) == nil {
             defaults.set(false, forKey: frostedBackgroundPreferenceKey)
+        }
+        if defaults.object(forKey: listAnimationsEnabledPreferenceKey) == nil {
+            defaults.set(true, forKey: listAnimationsEnabledPreferenceKey)
+        }
+        if defaults.object(forKey: animationsMasterEnabledPreferenceKey) == nil {
+            defaults.set(true, forKey: animationsMasterEnabledPreferenceKey)
+        }
+        if defaults.object(forKey: collapseAnimationsEnabledPreferenceKey) == nil {
+            defaults.set(true, forKey: collapseAnimationsEnabledPreferenceKey)
         }
     }
 

@@ -9,8 +9,7 @@ struct TaskView: View {
     // Fetch tasks sorted by displayOrder for stable UI diffs
     @Query(
         filter: #Predicate<Task> { !$0.isTemplateComponent && $0.parentTask == nil },
-        sort: [SortDescriptor(\Task.displayOrder, order: .forward)],
-        animation: .default
+        sort: [SortDescriptor(\Task.displayOrder, order: .forward)]
     ) private var tasks: [Task]
 
     @FocusState private var isInputFocused: Bool

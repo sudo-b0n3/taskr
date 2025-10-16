@@ -102,7 +102,7 @@ struct TaskRowView: View {
                 if mode == .live {
                     AnimatedCheckCircle(
                         isOn: task.isCompleted,
-                        enabled: completionAnimationsEnabled,
+                        enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
                         baseColor: palette.secondaryTextColor,
                         accentColor: palette.accentColor
                     )
@@ -136,7 +136,7 @@ struct TaskRowView: View {
                     AnimatedStrikeText(
                         text: task.name,
                         isStruck: task.isCompleted || hasCompletedAncestor,
-                        enabled: completionAnimationsEnabled,
+                        enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
                         strikeColor: palette.secondaryTextColor
                     )
                     .font(.body)

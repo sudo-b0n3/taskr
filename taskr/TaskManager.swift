@@ -28,6 +28,9 @@ class TaskManager: ObservableObject {
     @Published private(set) var frostedBackgroundEnabled: Bool
     @Published private(set) var isApplicationActive: Bool = true
     @Published private(set) var isTaskWindowKey: Bool = true
+    @Published private(set) var animationsMasterEnabled: Bool
+    @Published private(set) var listAnimationsEnabled: Bool
+    @Published private(set) var collapseAnimationsEnabled: Bool
 
     lazy var pathCoordinator = PathInputCoordinator(taskManager: self)
 
@@ -44,6 +47,9 @@ class TaskManager: ObservableObject {
         let storedTheme = defaults.string(forKey: selectedThemePreferenceKey) ?? ""
         self.selectedTheme = AppTheme(rawValue: storedTheme) ?? .system
         self.frostedBackgroundEnabled = defaults.bool(forKey: frostedBackgroundPreferenceKey)
+        self.animationsMasterEnabled = defaults.object(forKey: animationsMasterEnabledPreferenceKey) as? Bool ?? true
+        self.listAnimationsEnabled = defaults.object(forKey: listAnimationsEnabledPreferenceKey) as? Bool ?? true
+        self.collapseAnimationsEnabled = defaults.object(forKey: collapseAnimationsEnabledPreferenceKey) as? Bool ?? true
         loadCollapsedState()
         pruneCollapsedState()
         normalizeDisplayOrdersIfNeeded()
@@ -67,6 +73,24 @@ class TaskManager: ObservableObject {
         guard frostedBackgroundEnabled != enabled else { return }
         frostedBackgroundEnabled = enabled
         defaults.set(enabled, forKey: frostedBackgroundPreferenceKey)
+    }
+
+    func setAnimationsMasterEnabled(_ enabled: Bool) {
+        guard animationsMasterEnabled != enabled else { return }
+        animationsMasterEnabled = enabled
+        defaults.set(enabled, forKey: animationsMasterEnabledPreferenceKey)
+    }
+
+    func setListAnimationsEnabled(_ enabled: Bool) {
+        guard listAnimationsEnabled != enabled else { return }
+        listAnimationsEnabled = enabled
+        defaults.set(enabled, forKey: listAnimationsEnabledPreferenceKey)
+    }
+
+    func setCollapseAnimationsEnabled(_ enabled: Bool) {
+        guard collapseAnimationsEnabled != enabled else { return }
+        collapseAnimationsEnabled = enabled
+        defaults.set(enabled, forKey: collapseAnimationsEnabledPreferenceKey)
     }
 
     func setTaskInputFocused(_ isFocused: Bool) {
@@ -96,5 +120,25 @@ class TaskManager: ObservableObject {
 
     func resetTapInteractionCapture() {
         selectionInteractionCaptured = false
+    }
+
+    @discardableResult
+    func performListMutation<Result>(_ body: () -> Result) -> Result {
+        performAnimation(isEnabled: listAnimationsEnabled, body)
+    }
+
+    @discardableResult
+    func performCollapseTransition<Result>(_ body: () -> Result) -> Result {
+        performAnimation(isEnabled: collapseAnimationsEnabled, body)
+    }
+
+    @discardableResult
+    private func performAnimation<Result>(isEnabled: Bool, _ body: () -> Result) -> Result {
+        guard animationsMasterEnabled && isEnabled else {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            return withTransaction(transaction) { body() }
+        }
+        return withAnimation(.default) { body() }
     }
 }

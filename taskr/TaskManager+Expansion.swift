@@ -9,28 +9,32 @@ extension TaskManager {
     }
 
     func toggleTaskExpansion(_ taskID: UUID) {
-        let willCollapse = !collapsedTaskIDs.contains(taskID)
-        if willCollapse {
-            collapsedTaskIDs.insert(taskID)
-        } else {
-            collapsedTaskIDs.remove(taskID)
-        }
-        persistCollapsedState()
-        if willCollapse {
-            pruneSelectionToVisibleTasks()
+        performCollapseTransition {
+            let willCollapse = !collapsedTaskIDs.contains(taskID)
+            if willCollapse {
+                collapsedTaskIDs.insert(taskID)
+            } else {
+                collapsedTaskIDs.remove(taskID)
+            }
+            persistCollapsedState()
+            if willCollapse {
+                pruneSelectionToVisibleTasks()
+            }
         }
     }
 
     func setTaskExpanded(_ taskID: UUID, expanded: Bool) {
-        let wasCollapsed = collapsedTaskIDs.contains(taskID)
-        if expanded {
-            collapsedTaskIDs.remove(taskID)
-        } else {
-            collapsedTaskIDs.insert(taskID)
-        }
-        persistCollapsedState()
-        if !expanded && !wasCollapsed {
-            pruneSelectionToVisibleTasks()
+        performCollapseTransition {
+            let wasCollapsed = collapsedTaskIDs.contains(taskID)
+            if expanded {
+                collapsedTaskIDs.remove(taskID)
+            } else {
+                collapsedTaskIDs.insert(taskID)
+            }
+            persistCollapsedState()
+            if !expanded && !wasCollapsed {
+                pruneSelectionToVisibleTasks()
+            }
         }
     }
 

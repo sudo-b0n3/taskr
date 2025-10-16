@@ -103,26 +103,28 @@ extension TaskManager {
         kind: TaskListKind,
         direction: MoveDirection
     ) {
-        let parent = task.parentTask
-        do {
-            let siblings = try fetchSiblings(for: parent, kind: kind)
-            guard let index = siblings.firstIndex(where: { $0.id == task.id }) else { return }
+        performListMutation {
+            let parent = task.parentTask
+            do {
+                let siblings = try fetchSiblings(for: parent, kind: kind)
+                guard let index = siblings.firstIndex(where: { $0.id == task.id }) else { return }
 
-            switch direction {
-            case .up:
-                guard index > 0 else { return }
-                let neighbor = siblings[index - 1]
-                swapDisplayOrder(task, neighbor)
-            case .down:
-                guard index < siblings.count - 1 else { return }
-                let neighbor = siblings[index + 1]
-                swapDisplayOrder(task, neighbor)
+                switch direction {
+                case .up:
+                    guard index > 0 else { return }
+                    let neighbor = siblings[index - 1]
+                    swapDisplayOrder(task, neighbor)
+                case .down:
+                    guard index < siblings.count - 1 else { return }
+                    let neighbor = siblings[index + 1]
+                    swapDisplayOrder(task, neighbor)
+                }
+
+                try modelContext.save()
+                resequenceDisplayOrder(for: parent, kind: kind)
+            } catch {
+                print("Error moving task (kind: \(kind)) : \(error)")
             }
-
-            try modelContext.save()
-            resequenceDisplayOrder(for: parent, kind: kind)
-        } catch {
-            print("Error moving task (kind: \(kind)) : \(error)")
         }
     }
 
