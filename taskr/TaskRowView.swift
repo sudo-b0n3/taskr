@@ -14,6 +14,28 @@ struct TaskRowView: View {
 
     @AppStorage(completionAnimationsEnabledPreferenceKey) private var completionAnimationsEnabled: Bool = true
     @AppStorage(checkboxTopAlignedPreferenceKey) private var checkboxTopAligned: Bool = true
+    @Query private var liveChildTasks: [Task]
+    @Query private var templateChildTasks: [Task]
+
+    init(task: Task, mode: RowMode = .live, releaseInputFocus: (() -> Void)? = nil) {
+        self._task = Bindable(task)
+        self.mode = mode
+        self.releaseInputFocus = releaseInputFocus
+
+        let parentID = task.id
+        _liveChildTasks = Query(
+            filter: #Predicate<Task> {
+                !$0.isTemplateComponent && $0.parentTask?.id == parentID
+            },
+            sort: [SortDescriptor(\Task.displayOrder, order: .forward)]
+        )
+        _templateChildTasks = Query(
+            filter: #Predicate<Task> {
+                $0.isTemplateComponent && $0.parentTask?.id == parentID
+            },
+            sort: [SortDescriptor(\Task.displayOrder, order: .forward)]
+        )
+    }
 
     private var isExpanded: Bool {
         taskManager.isTaskExpanded(task.id)
@@ -29,9 +51,9 @@ struct TaskRowView: View {
         guard task.modelContext != nil else { return [] }
         switch mode {
         case .live:
-            return (try? taskManager.fetchLiveSiblings(for: task)) ?? []
+            return liveChildTasks
         case .template:
-            return (try? taskManager.fetchTemplateSiblings(for: task)) ?? []
+            return templateChildTasks
         }
     }
 
