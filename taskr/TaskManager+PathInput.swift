@@ -220,7 +220,7 @@ extension TaskManager {
             }
 
             let filtered = potentialMatches
-                .filter { $0.name.lowercased().contains(segmentToSearchLower) }
+                .filter { $0.name.lowercased().hasPrefix(segmentToSearchLower) }
                 .map { task in pathPrefix + taskManager.encodePathComponent(task.name) }
 
             taskManager.autocompleteSuggestions = filtered
