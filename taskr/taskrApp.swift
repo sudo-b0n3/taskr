@@ -68,6 +68,10 @@ struct taskrApp: App {
         appDelegate.isRunningScreenshotAutomation = isScreenshotCapture
         appDelegate.setupPopoverAfterDependenciesSet()
 
+#if DEBUG
+        configureUITestAutomationIfNeeded(taskManager: taskManagerInstance, appDelegate: appDelegate)
+#endif
+
         if isScreenshotCapture {
             let automationDelegate = appDelegate
             DispatchQueue.main.async {
@@ -120,3 +124,31 @@ struct taskrApp: App {
         }
     }
 }
+
+#if DEBUG
+private func configureUITestAutomationIfNeeded(taskManager: TaskManager, appDelegate: AppDelegate) {
+    let arguments = ProcessInfo.processInfo.arguments
+    guard let flagIndex = arguments.firstIndex(of: "-UITestDeepClear") else { return }
+    let depth: Int
+    if arguments.indices.contains(flagIndex + 1), let parsed = Int(arguments[flagIndex + 1]) {
+        depth = max(1, parsed)
+    } else {
+        depth = 18
+    }
+
+    let components = Array(repeating: "test", count: depth)
+    let path = "/" + components.joined(separator: "/")
+
+    DispatchQueue.main.async {
+        appDelegate.togglePopover()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            taskManager.addTaskFromPath(pathOverride: path)
+            let ids = taskManager.snapshotVisibleTaskIDs()
+            for id in ids {
+                taskManager.toggleTaskCompletion(taskID: id)
+            }
+            taskManager.clearCompletedTasks()
+        }
+    }
+}
+#endif

@@ -361,44 +361,8 @@ extension TaskManager {
 
     func deleteTask(_ task: Task) {
         guard !task.isTemplateComponent else { return }
-        let parent = task.parentTask
-        let subtreeIDs = collectSubtreeIDs(for: task)
-
-        if !subtreeIDs.isEmpty {
-            let previousCollapsed = collapsedTaskIDs
-            collapsedTaskIDs.subtract(subtreeIDs)
-            if collapsedTaskIDs != previousCollapsed {
-                persistCollapsedState()
-            }
-
-            if !selectedTaskIDs.isEmpty {
-                selectedTaskIDs.removeAll { subtreeIDs.contains($0) }
-            }
-
-            if let anchor = selectionAnchorID, subtreeIDs.contains(anchor) {
-                selectionAnchorID = nil
-            }
-
-            if let cursor = selectionCursorID, subtreeIDs.contains(cursor) {
-                selectionCursorID = nil
-            }
-
-            if let pending = pendingInlineEditTaskID, subtreeIDs.contains(pending) {
-                pendingInlineEditTaskID = nil
-            }
-        }
-
-        performListMutation {
-            deleteSubtree(task)
-        }
-
-        do {
-            try modelContext.save()
-            resequenceDisplayOrder(for: parent)
-            pruneCollapsedState()
-        } catch {
-            print("Error deleting task: \(error)")
-        }
+        let result = deleteTasks([task])
+        finalizeDeletionBatch(result)
     }
 
     func toggleTaskCompletion(taskID: UUID) {
@@ -417,62 +381,40 @@ extension TaskManager {
     }
 
     func clearCompletedTasks() {
-        performListMutation {
-            let predicate = #Predicate<Task> { $0.isCompleted && !$0.isTemplateComponent }
-            do {
-                let completedCandidates = try modelContext.fetch(FetchDescriptor<Task>(predicate: predicate))
-                if completedCandidates.isEmpty { return }
+        let predicate = #Predicate<Task> { $0.isCompleted && !$0.isTemplateComponent }
+        do {
+            let completedCandidates = try modelContext.fetch(FetchDescriptor<Task>(predicate: predicate))
+            if completedCandidates.isEmpty { return }
 
-                let allowClearingStruckDescendants = UserDefaults.standard.bool(forKey: allowClearingStruckDescendantsPreferenceKey)
-                let targets: [Task]
-                if allowClearingStruckDescendants {
-                    targets = completedCandidates
-                } else {
-                    targets = completedCandidates.filter { isSubtreeCompleted($0) }
-                }
-                if targets.isEmpty { return }
-
-                let targetIDs = Set(targets.map { $0.id })
-                let topLevelDeletions = targets.filter { task in
-                    var current = task.parentTask
-                    while let parent = current {
-                        if targetIDs.contains(parent.id) { return false }
-                        current = parent.parentTask
-                    }
-                    return true
-                }
-                if topLevelDeletions.isEmpty { return }
-
-                let topLevelDeletionIDs = Set(topLevelDeletions.map { $0.id })
-                var parentIDsToResequence = Set<UUID?>()
-                for task in topLevelDeletions {
-                    if let parentID = task.parentTask?.id {
-                        if !topLevelDeletionIDs.contains(parentID) {
-                            parentIDsToResequence.insert(parentID)
-                        }
-                    } else {
-                        parentIDsToResequence.insert(nil)
-                    }
-                }
-
-                for task in topLevelDeletions {
-                    modelContext.delete(task)
-                }
-
-                try modelContext.save()
-                for parentID in parentIDsToResequence {
-                    let parentTask: Task?
-                    if let id = parentID {
-                        parentTask = try modelContext.fetch(FetchDescriptor<Task>(predicate: #Predicate { $0.id == id })).first
-                    } else {
-                        parentTask = nil
-                    }
-                    resequenceDisplayOrder(for: parentTask)
-                }
-                pruneCollapsedState()
-            } catch {
-                print("Error clearing completed tasks: \(error)")
+            let allowClearingStruckDescendants = UserDefaults.standard.bool(forKey: allowClearingStruckDescendantsPreferenceKey)
+            let targets: [Task]
+            if allowClearingStruckDescendants {
+                targets = completedCandidates
+            } else {
+                targets = completedCandidates.filter { isSubtreeCompleted($0) }
             }
+            if targets.isEmpty { return }
+
+            let targetIDs = Set(targets.map { $0.id })
+            let topLevelTasks = targets.filter { task in
+                var current = task.parentTask
+                while let parent = current {
+                    if targetIDs.contains(parent.id) { return false }
+                    current = parent.parentTask
+                }
+                return true
+            }
+            if topLevelTasks.isEmpty { return }
+
+            var uniqueTaskMap: [UUID: Task] = [:]
+            for task in topLevelTasks {
+                uniqueTaskMap[task.id] = task
+            }
+            let uniqueTasks = Array(uniqueTaskMap.values)
+            let result = deleteTasks(uniqueTasks)
+            finalizeDeletionBatch(result)
+        } catch {
+            print("Error clearing completed tasks: \(error)")
         }
     }
 
@@ -522,20 +464,119 @@ extension TaskManager {
     }
 
     private func deleteSubtree(_ task: Task) {
-        let children = task.subtasks ?? []
-        for child in children where !child.isTemplateComponent {
-            deleteSubtree(child)
-        }
         modelContext.delete(task)
     }
 
     private func collectSubtreeIDs(for task: Task) -> Set<UUID> {
         var identifiers: Set<UUID> = [task.id]
-        let children = task.subtasks ?? []
-        for child in children where !child.isTemplateComponent {
-            identifiers.formUnion(collectSubtreeIDs(for: child))
+        var stack: [Task] = [task]
+
+        while let current = stack.popLast() {
+            let children: [Task]
+            do {
+                children = try fetchSiblings(for: current, kind: .live)
+            } catch {
+                continue
+            }
+            for child in children where identifiers.insert(child.id).inserted {
+                stack.append(child)
+            }
         }
+
         return identifiers
+    }
+
+    private struct DeletionBatchResult {
+        let parentIDs: Set<UUID?>
+        let collapsedStateChanged: Bool
+    }
+
+    private func deleteTasks(_ tasks: [Task]) -> DeletionBatchResult {
+        guard !tasks.isEmpty else {
+            return DeletionBatchResult(parentIDs: [], collapsedStateChanged: false)
+        }
+
+        var parentIDs: Set<UUID?> = []
+        var collapsedStateChanged = false
+        var uniqueTasks: [Task] = []
+        var seenTaskIDs: Set<UUID> = []
+
+        for task in tasks {
+            guard !seenTaskIDs.contains(task.id) else { continue }
+            seenTaskIDs.insert(task.id)
+
+            let subtreeIDs = collectSubtreeIDs(for: task)
+            removeSubtreeState(for: subtreeIDs, collapsedChanged: &collapsedStateChanged)
+            parentIDs.insert(task.parentTask?.id)
+            uniqueTasks.append(task)
+        }
+
+        guard !uniqueTasks.isEmpty else {
+            return DeletionBatchResult(parentIDs: parentIDs, collapsedStateChanged: collapsedStateChanged)
+        }
+
+        performListMutation {
+            for task in uniqueTasks {
+                deleteSubtree(task)
+            }
+        }
+
+        return DeletionBatchResult(parentIDs: parentIDs, collapsedStateChanged: collapsedStateChanged)
+    }
+
+    private func finalizeDeletionBatch(_ result: DeletionBatchResult) {
+        do {
+            try modelContext.save()
+            modelContext.processPendingChanges()
+        } catch {
+            print("Error saving deletions: \(error)")
+            return
+        }
+
+        if result.collapsedStateChanged {
+            persistCollapsedState()
+        }
+
+        for parentID in result.parentIDs {
+            if let id = parentID {
+                if let parentTask = task(withID: id) {
+                    resequenceDisplayOrder(for: parentTask)
+                }
+            } else {
+                resequenceDisplayOrder(for: nil)
+            }
+        }
+
+        pruneCollapsedState()
+    }
+
+    private func removeSubtreeState(
+        for subtreeIDs: Set<UUID>,
+        collapsedChanged: inout Bool
+    ) {
+        guard !subtreeIDs.isEmpty else { return }
+
+        let previousCollapsed = collapsedTaskIDs
+        collapsedTaskIDs.subtract(subtreeIDs)
+        if collapsedTaskIDs != previousCollapsed {
+            collapsedChanged = true
+        }
+
+        if !selectedTaskIDs.isEmpty {
+            selectedTaskIDs.removeAll { subtreeIDs.contains($0) }
+        }
+
+        if let anchor = selectionAnchorID, subtreeIDs.contains(anchor) {
+            selectionAnchorID = nil
+        }
+
+        if let cursor = selectionCursorID, subtreeIDs.contains(cursor) {
+            selectionCursorID = nil
+        }
+
+        if let pending = pendingInlineEditTaskID, subtreeIDs.contains(pending) {
+            pendingInlineEditTaskID = nil
+        }
     }
 
     func getNextDisplayOrder(
@@ -564,8 +605,22 @@ extension TaskManager {
 
     func isSubtreeCompleted(_ task: Task) -> Bool {
         if !task.isCompleted { return false }
-        guard let subs = task.subtasks, !subs.isEmpty else { return true }
-        for child in subs { if !isSubtreeCompleted(child) { return false } }
+        var stack: [Task] = [task]
+
+        while let current = stack.popLast() {
+            let children: [Task]
+            do {
+                children = try fetchSiblings(for: current, kind: .live)
+            } catch {
+                return false
+            }
+
+            for child in children {
+                if !child.isCompleted { return false }
+                stack.append(child)
+            }
+        }
+
         return true
     }
 
@@ -585,9 +640,13 @@ extension TaskManager {
         )
         modelContext.insert(cloned)
 
-        let childCandidates = (source.subtasks ?? [])
-            .filter { !$0.isTemplateComponent }
-            .sorted { $0.displayOrder < $1.displayOrder }
+        let childCandidates: [Task]
+        do {
+            childCandidates = try fetchSiblings(for: source, kind: .live, order: .forward)
+        } catch {
+            return cloned
+        }
+
         for (index, child) in childCandidates.enumerated() {
             _ = cloneTaskSubtree(child, parent: cloned, displayOrder: index)
         }

@@ -117,45 +117,47 @@ extension TaskManager {
             }
 
             var currentParent: Task? = nil
-            var pendingInsertions: [Task] = []
-            for componentName in finalComponents {
-                if let existingTask = taskManager.findUserTask(named: componentName, under: currentParent) {
-                    currentParent = existingTask
-                    continue
-                }
-
-                let placeAtTop: Bool
-                if currentParent == nil {
-                    placeAtTop = UserDefaults.standard.bool(forKey: addRootTasksToTopPreferenceKey)
-                } else {
-                    placeAtTop = UserDefaults.standard.bool(forKey: addSubtasksToTopPreferenceKey)
-                }
-
-                let newDisplayOrder = taskManager.getDisplayOrderForInsertion(
-                    for: currentParent,
-                    placeAtTop: placeAtTop,
-                    in: taskManager.modelContext
-                )
-
-                let newTask = Task(
-                    name: componentName,
-                    displayOrder: newDisplayOrder,
-                    isTemplateComponent: false,
-                    parentTask: currentParent
-                )
-                pendingInsertions.append(newTask)
-                currentParent = newTask
-            }
-
-            if !pendingInsertions.isEmpty {
-                taskManager.performListMutation {
-                    for task in pendingInsertions {
-                        taskManager.modelContext.insert(task)
+            taskManager.performListMutation {
+                for componentName in finalComponents {
+                    if let existingTask = taskManager.findUserTask(named: componentName, under: currentParent) {
+                        currentParent = existingTask
+                        continue
                     }
+
+                    let placeAtTop: Bool
+                    if currentParent == nil {
+                        placeAtTop = UserDefaults.standard.bool(forKey: addRootTasksToTopPreferenceKey)
+                    } else {
+                        placeAtTop = UserDefaults.standard.bool(forKey: addSubtasksToTopPreferenceKey)
+                    }
+
+                    let newDisplayOrder = taskManager.getDisplayOrderForInsertion(
+                        for: currentParent,
+                        placeAtTop: placeAtTop,
+                        in: taskManager.modelContext
+                    )
+
+                    let newTask = Task(
+                        name: componentName,
+                        displayOrder: newDisplayOrder,
+                        isTemplateComponent: false,
+                        parentTask: currentParent
+                    )
+
+                    taskManager.modelContext.insert(newTask)
+
+                    do {
+                        try taskManager.modelContext.save()
+                        taskManager.modelContext.processPendingChanges()
+                    } catch {
+                        print("Error saving tasks for path \(pathToProcess): \(error)")
+                        return
+                    }
+
+                    currentParent = newTask
                 }
             }
 
-            try? taskManager.modelContext.save()
             taskManager.currentPathInput = ""
             clearAutocomplete()
         }

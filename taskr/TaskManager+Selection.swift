@@ -235,10 +235,12 @@ extension TaskManager {
     private func appendVisible(task: Task, accumulator: inout [Task]) {
         accumulator.append(task)
         guard isTaskExpanded(task.id) else { return }
-        let children = (task.subtasks ?? [])
-            .filter { !$0.isTemplateComponent }
-            .sorted { $0.displayOrder < $1.displayOrder }
-
+        let children: [Task]
+        do {
+            children = try fetchSiblings(for: task, kind: .live)
+        } catch {
+            return
+        }
         for child in children {
             appendVisible(task: child, accumulator: &accumulator)
         }

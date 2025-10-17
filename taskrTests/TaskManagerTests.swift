@@ -125,6 +125,73 @@ final class TaskManagerTests: XCTestCase {
         }
     }
 
+    func testDeepPathInsertionDoesNotProduceFutureBackings() throws {
+        let components = Array(repeating: "test", count: 12)
+        let deepPath = "/" + components.joined(separator: "/")
+
+        manager.addTaskFromPath(pathOverride: deepPath)
+
+        let descriptor = FetchDescriptor<Task>(predicate: #Predicate<Task> { !$0.isTemplateComponent })
+        let tasks = try container.mainContext.fetch(descriptor)
+        XCTAssertEqual(tasks.count, components.count)
+        for task in tasks {
+            _ = task.displayOrder
+        }
+
+        let visibleIDs = manager.snapshotVisibleTaskIDs()
+        XCTAssertEqual(visibleIDs.count, components.count)
+    }
+
+    func testClearingDeepCompletedTasksRemovesHierarchy() throws {
+        let components = Array(repeating: "test", count: 18)
+        let deepPath = "/" + components.joined(separator: "/")
+
+        manager.addTaskFromPath(pathOverride: deepPath)
+
+        let descriptor = FetchDescriptor<Task>(predicate: #Predicate<Task> { !$0.isTemplateComponent })
+        let tasks = try container.mainContext.fetch(descriptor)
+        XCTAssertEqual(tasks.count, components.count)
+
+        let visibleIDs = manager.snapshotVisibleTaskIDs()
+        XCTAssertEqual(visibleIDs.count, components.count)
+
+        for id in visibleIDs {
+            manager.toggleTaskCompletion(taskID: id)
+        }
+
+        manager.clearCompletedTasks()
+        container.mainContext.processPendingChanges()
+
+        let remaining = try container.mainContext.fetch(descriptor)
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertTrue(manager.snapshotVisibleTaskIDs().isEmpty)
+    }
+
+    func testClearingDeepCompletedTasksWithLeafFirstCompletion() throws {
+        let components = Array(repeating: "test", count: 18)
+        let deepPath = "/" + components.joined(separator: "/")
+
+        manager.addTaskFromPath(pathOverride: deepPath)
+
+        let descriptor = FetchDescriptor<Task>(predicate: #Predicate<Task> { !$0.isTemplateComponent })
+        let tasks = try container.mainContext.fetch(descriptor)
+        XCTAssertEqual(tasks.count, components.count)
+
+        let visibleIDs = manager.snapshotVisibleTaskIDs()
+        XCTAssertEqual(visibleIDs.count, components.count)
+
+        for id in visibleIDs.reversed() {
+            manager.toggleTaskCompletion(taskID: id)
+        }
+
+        manager.clearCompletedTasks()
+        container.mainContext.processPendingChanges()
+
+        let remaining = try container.mainContext.fetch(descriptor)
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertTrue(manager.snapshotVisibleTaskIDs().isEmpty)
+    }
+
     func testBulkDeletionResequencesAndPrunesCollapsedState() throws {
         let total = 50
         for index in 0..<total {
