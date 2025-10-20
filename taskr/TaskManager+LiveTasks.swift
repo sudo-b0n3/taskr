@@ -164,6 +164,54 @@ extension TaskManager {
         }
     }
 
+    func canMarkSelectedTasksCompleted() -> Bool {
+        selectedLiveTasks().contains { !$0.isCompleted }
+    }
+
+    func markSelectedTasksCompleted() {
+        let targets = selectedLiveTasks().filter { !$0.isCompleted }
+        guard !targets.isEmpty else { return }
+
+        performListMutation {
+            for task in targets {
+                task.isCompleted = true
+            }
+        }
+
+        completionMutationVersion &+= 1
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            print("Error marking selected tasks as completed: \(error)")
+        }
+    }
+
+    func canMarkSelectedTasksUncompleted() -> Bool {
+        selectedLiveTasks().contains { $0.isCompleted }
+    }
+
+    func markSelectedTasksUncompleted() {
+        let targets = selectedLiveTasks().filter { $0.isCompleted }
+        guard !targets.isEmpty else { return }
+
+        performListMutation {
+            for task in targets {
+                task.isCompleted = false
+            }
+        }
+
+        completionMutationVersion &+= 1
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            print("Error marking selected tasks as uncompleted: \(error)")
+        }
+    }
+
     func canDuplicateSelectedTasks() -> Bool {
         !selectedLiveTasks().isEmpty
     }

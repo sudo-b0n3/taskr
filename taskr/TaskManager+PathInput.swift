@@ -29,9 +29,10 @@ extension TaskManager {
 
     func copyTaskPath(_ task: Task) {
         let path = taskPath(for: task)
+        let pathWithTrailingSlash = path.hasSuffix("/") ? path : path + "/"
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(path, forType: .string)
+        pasteboard.setString(pathWithTrailingSlash, forType: .string)
     }
 
     func taskPath(for task: Task) -> String {

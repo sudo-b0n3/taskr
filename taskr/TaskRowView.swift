@@ -227,6 +227,8 @@ struct TaskRowView: View {
             let canMoveUp = multiSelectionActive ? taskManager.canMoveSelectedTasksUp() : taskManager.canMoveTaskUp(task)
             let canMoveDown = multiSelectionActive ? taskManager.canMoveSelectedTasksDown() : taskManager.canMoveTaskDown(task)
             let canDuplicate = multiSelectionActive ? taskManager.canDuplicateSelectedTasks() : true
+            let canMarkCompleted = multiSelectionActive ? taskManager.canMarkSelectedTasksCompleted() : false
+            let canMarkUncompleted = multiSelectionActive ? taskManager.canMarkSelectedTasksUncompleted() : false
 
             Button("Edit") {
                 taskManager.requestInlineEdit(for: task.id)
@@ -259,6 +261,16 @@ struct TaskRowView: View {
                 }
             }
             .disabled(!canDuplicate)
+            if multiSelectionActive {
+                Button("Mark as Completed") {
+                    taskManager.markSelectedTasksCompleted()
+                }
+                .disabled(!canMarkCompleted)
+                Button("Mark Uncompleted") {
+                    taskManager.markSelectedTasksUncompleted()
+                }
+                .disabled(!canMarkUncompleted)
+            }
             Button("Add Subtask") {
                 if let newTask = taskManager.addSubtask(to: task) {
                     taskManager.requestInlineEdit(for: newTask.id)
