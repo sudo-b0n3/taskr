@@ -512,6 +512,18 @@ extension TaskManager {
     }
 
     private func deleteSubtree(_ task: Task) {
+        let kind: TaskListKind = task.isTemplateComponent ? .template : .live
+        let children: [Task]
+        do {
+            children = try fetchSiblings(for: task, kind: kind)
+        } catch {
+            children = task.subtasks ?? []
+        }
+
+        for child in children {
+            deleteSubtree(child)
+        }
+
         modelContext.delete(task)
     }
 
