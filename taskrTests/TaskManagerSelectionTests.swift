@@ -220,6 +220,19 @@ final class TaskManagerSelectionTests: XCTestCase {
         XCTAssertEqual(manager.selectedTaskIDs, [one.id, tasks[1].id, three.id])
     }
 
+    func testShiftDragFromUnselectedStartKeepsOriginalAnchor() throws {
+        let tasks = try seedRootTasks(names: ["One", "Two", "Three"])
+        let one = tasks[0]
+        let three = tasks[2]
+
+        manager.replaceSelection(with: one.id)
+        manager.beginShiftSelection(at: three.id)
+        manager.endShiftSelection()
+
+        XCTAssertEqual(manager.selectedTaskIDs, [one.id, tasks[1].id, three.id])
+        XCTAssertEqual(manager.selectionAnchorID, one.id)
+    }
+
     func testShiftDragSelectionUsesExistingAnchor() throws {
         let tasks = try seedRootTasks(names: ["Alpha", "Beta", "Gamma", "Delta"])
         let beta = tasks[1]

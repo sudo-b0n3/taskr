@@ -188,8 +188,6 @@ extension TaskManager {
     func beginShiftSelection(at taskID: UUID) {
         if selectedTaskIDs.isEmpty {
             replaceSelection(with: taskID)
-        } else if !selectedTaskIDSet.contains(taskID) && selectedTaskIDs.count == 1 {
-            replaceSelection(with: taskID)
         } else if selectionAnchorID == nil {
             selectionAnchorID = selectedTaskIDs.first ?? taskID
         }
