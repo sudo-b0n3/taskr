@@ -84,6 +84,7 @@ struct taskrApp: App {
         WindowGroup("Taskr", id: "MainWindow") {
             ContentView(isStandalone: true)
                 .environmentObject(taskManager)
+                .environmentObject(taskManager.inputState)
                 .modelContainer(container)
                 .environmentObject(appDelegate)
                 .background(WindowConfigurator(
@@ -107,6 +108,7 @@ struct taskrApp: App {
         }
         .modelContainer(container)
         .environmentObject(taskManager)
+        .environmentObject(taskManager.inputState)
         .commands {
             CommandGroup(replacing: .help) {
                 Button("taskr Help…") {

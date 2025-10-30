@@ -64,6 +64,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         popover?.contentViewController = NSHostingController(
             rootView: ContentView()
                 .environmentObject(taskManager)
+                .environmentObject(taskManager.inputState)
                 .modelContainer(modelContainer)
                 .environmentObject(self)
         )

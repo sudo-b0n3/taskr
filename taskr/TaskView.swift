@@ -5,6 +5,7 @@ import AppKit
 
 struct TaskView: View {
     @EnvironmentObject var taskManager: TaskManager
+    @EnvironmentObject var inputState: TaskInputState
     @Environment(\.modelContext) private var modelContext
     // Fetch tasks sorted by displayOrder for stable UI diffs
     @Query(
@@ -41,12 +42,12 @@ struct TaskView: View {
                 // Input Field Row
                 HStack {
                     CustomTextField(
-                        text: $taskManager.currentPathInput,
+                        text: $inputState.text,
                         placeholder: "Type task or path /task/subtask",
                         onCommit: { taskManager.addTaskFromPath(); isInputFocused = true },
                         onTextChange: { newText in taskManager.updateAutocompleteSuggestions(for: newText) },
-                        onTab: { if !taskManager.autocompleteSuggestions.isEmpty { taskManager.applySelectedSuggestion(); isInputFocused = true }},
-                        onShiftTab: { if !taskManager.autocompleteSuggestions.isEmpty { taskManager.selectPreviousSuggestion() }},
+                        onTab: { if inputState.hasSuggestions { taskManager.applySelectedSuggestion(); isInputFocused = true }},
+                        onShiftTab: { if inputState.hasSuggestions { taskManager.selectPreviousSuggestion() }},
                         onArrowDown: { taskManager.selectNextSuggestion() },
                         onArrowUp: { taskManager.selectPreviousSuggestion() },
                         fieldBackgroundColor: palette.inputBackground,
@@ -67,15 +68,15 @@ struct TaskView: View {
                         .foregroundColor(palette.primaryTextColor)
                 }
                 // Autocomplete Suggestions List
-                if !taskManager.autocompleteSuggestions.isEmpty {
-                    List(selection: $taskManager.selectedSuggestionIndex) {
-                        ForEach(0..<taskManager.autocompleteSuggestions.count, id: \.self) { index in
-                            Text(taskManager.autocompleteSuggestions[index])
+                if !inputState.suggestions.isEmpty {
+                    List(selection: $inputState.selectedSuggestionIndex) {
+                        ForEach(0..<inputState.suggestions.count, id: \.self) { index in
+                            Text(inputState.suggestions[index])
                                 .padding(.vertical, 2)
                                 .foregroundColor(palette.primaryTextColor)
-                                .listRowBackground(taskManager.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
+                                .listRowBackground(inputState.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
                                 .onTapGesture {
-                                    taskManager.selectedSuggestionIndex = index
+                                    inputState.selectedSuggestionIndex = index
                                     taskManager.applySelectedSuggestion()
                                     isInputFocused = true
                                 }
@@ -192,6 +193,7 @@ struct TaskView_Previews: PreviewProvider {
         return TaskView()
             .modelContainer(container)
             .environmentObject(taskManager)
+            .environmentObject(taskManager.inputState)
             .frame(width: 380, height: 400) // Standard preview frame
             .background(taskManager.themePalette.backgroundColor) // Match background
     }

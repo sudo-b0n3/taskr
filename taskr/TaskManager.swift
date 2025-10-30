@@ -13,10 +13,7 @@ class TaskManager: ObservableObject {
     let modelContext: ModelContext
     private let defaults: UserDefaults
 
-    @Published var currentPathInput: String = ""
     @Published var newTemplateName: String = ""
-    @Published var autocompleteSuggestions: [String] = []
-    @Published var selectedSuggestionIndex: Int? = nil
     @Published var completionMutationVersion: Int = 0
     @Published var pendingInlineEditTaskID: UUID? = nil
     @Published var collapsedTaskIDs: Set<UUID> = []
@@ -33,6 +30,7 @@ class TaskManager: ObservableObject {
     @Published private(set) var collapseAnimationsEnabled: Bool
 
     lazy var pathCoordinator = PathInputCoordinator(taskManager: self)
+    let inputState: TaskInputState
 
     var themePalette: ThemePalette { selectedTheme.palette }
     var selectedTaskIDSet: Set<UUID> = []
@@ -44,6 +42,7 @@ class TaskManager: ObservableObject {
     init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
         self.modelContext = modelContext
         self.defaults = defaults
+        self.inputState = TaskInputState()
         let storedTheme = defaults.string(forKey: selectedThemePreferenceKey) ?? ""
         self.selectedTheme = AppTheme(rawValue: storedTheme) ?? .system
         self.frostedBackgroundEnabled = defaults.bool(forKey: frostedBackgroundPreferenceKey)
@@ -122,6 +121,30 @@ class TaskManager: ObservableObject {
         selectionInteractionCaptured = false
     }
 
+    var currentPathInput: String {
+        get { inputState.text }
+        set {
+            guard inputState.text != newValue else { return }
+            inputState.text = newValue
+        }
+    }
+
+    var autocompleteSuggestions: [String] {
+        get { inputState.suggestions }
+        set {
+            guard inputState.suggestions != newValue else { return }
+            inputState.suggestions = newValue
+        }
+    }
+
+    var selectedSuggestionIndex: Int? {
+        get { inputState.selectedSuggestionIndex }
+        set {
+            guard inputState.selectedSuggestionIndex != newValue else { return }
+            inputState.selectedSuggestionIndex = newValue
+        }
+    }
+
     @discardableResult
     func performListMutation<Result>(_ body: () -> Result) -> Result {
         performAnimation(isEnabled: listAnimationsEnabled, body)
@@ -140,5 +163,17 @@ class TaskManager: ObservableObject {
             return withTransaction(transaction) { body() }
         }
         return withAnimation(.default) { body() }
+    }
+
+    func childTasks(for parent: Task, kind: TaskListKind) -> [Task] {
+        let children = parent.subtasks ?? []
+        let filtered: [Task]
+        switch kind {
+        case .live:
+            filtered = children.filter { !$0.isTemplateComponent }
+        case .template:
+            filtered = children.filter { $0.isTemplateComponent }
+        }
+        return filtered.sorted { $0.displayOrder < $1.displayOrder }
     }
 }

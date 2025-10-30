@@ -10,31 +10,14 @@ struct TaskRowView: View {
     var mode: RowMode = .live
     var releaseInputFocus: (() -> Void)? = nil
     @EnvironmentObject var taskManager: TaskManager
-    @Environment(\.modelContext) private var modelContext
 
     @AppStorage(completionAnimationsEnabledPreferenceKey) private var completionAnimationsEnabled: Bool = true
     @AppStorage(checkboxTopAlignedPreferenceKey) private var checkboxTopAligned: Bool = true
-    @Query private var liveChildTasks: [Task]
-    @Query private var templateChildTasks: [Task]
 
     init(task: Task, mode: RowMode = .live, releaseInputFocus: (() -> Void)? = nil) {
         self._task = Bindable(task)
         self.mode = mode
         self.releaseInputFocus = releaseInputFocus
-
-        let parentID = task.id
-        _liveChildTasks = Query(
-            filter: #Predicate<Task> {
-                !$0.isTemplateComponent && $0.parentTask?.id == parentID
-            },
-            sort: [SortDescriptor(\Task.displayOrder, order: .forward)]
-        )
-        _templateChildTasks = Query(
-            filter: #Predicate<Task> {
-                $0.isTemplateComponent && $0.parentTask?.id == parentID
-            },
-            sort: [SortDescriptor(\Task.displayOrder, order: .forward)]
-        )
     }
 
     private var isExpanded: Bool {
@@ -49,12 +32,8 @@ struct TaskRowView: View {
 
     private var displaySubtasks: [Task] {
         guard task.modelContext != nil else { return [] }
-        switch mode {
-        case .live:
-            return liveChildTasks
-        case .template:
-            return templateChildTasks
-        }
+        let listKind: TaskManager.TaskListKind = mode == .live ? .live : .template
+        return taskManager.childTasks(for: task, kind: listKind)
     }
 
     private var hasExpandableChildren: Bool {
@@ -364,7 +343,10 @@ struct TaskRowView: View {
             let originalName = task.name
             task.name = trimmedText
             do {
-                try modelContext.save()
+                if let context = task.modelContext {
+                    try context.save()
+                    context.processPendingChanges()
+                }
             } catch {
                 task.name = originalName
                 editText = originalName
