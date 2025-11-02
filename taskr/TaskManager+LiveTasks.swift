@@ -486,7 +486,7 @@ extension TaskManager {
                 let siblings = try modelContext.fetch(
                     FetchDescriptor<Task>(
                         predicate: predicate,
-                        sortBy: [SortDescriptor(\.displayOrder, order: .reverse)]
+                        sortBy: [SortDescriptor(\.displayOrder, order: .forward)]
                     )
                 )
                 var hasChanges = false
