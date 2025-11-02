@@ -38,6 +38,7 @@ class TaskManager: ObservableObject {
     var selectionCursorID: UUID?
     private var selectionInteractionCaptured: Bool = false
     var shiftSelectionActive: Bool = false
+    private var orphanedTaskLog: Set<UUID> = []
 
     init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
         self.modelContext = modelContext
@@ -165,15 +166,66 @@ class TaskManager: ObservableObject {
         return withAnimation(.default) { body() }
     }
 
-    func childTasks(for parent: Task, kind: TaskListKind) -> [Task] {
-        let children = parent.subtasks ?? []
-        let filtered: [Task]
-        switch kind {
-        case .live:
-            filtered = children.filter { !$0.isTemplateComponent }
-        case .template:
-            filtered = children.filter { $0.isTemplateComponent }
+    func childTasks(forParentID parentID: UUID, kind: TaskListKind) -> [Task] {
+        guard let parentTask = task(withID: parentID) else {
+            noteOrphanedTask(id: parentID, context: "childTasks(\(kind))")
+            return []
         }
-        return filtered.sorted { $0.displayOrder < $1.displayOrder }
+
+        do {
+            return try fetchSiblings(for: parentTask, kind: kind)
+        } catch {
+            #if DEBUG
+            print("TaskManager warning: fetchSiblings failed for parent \(parentID) (\(kind)): \(error)")
+            #endif
+            let children = parentTask.subtasks ?? []
+            let filtered: [Task]
+            switch kind {
+            case .live:
+                filtered = children.filter { !$0.isTemplateComponent && $0.modelContext != nil }
+            case .template:
+                filtered = children.filter { $0.isTemplateComponent && $0.modelContext != nil }
+            }
+            return filtered.sorted { $0.displayOrder < $1.displayOrder }
+        }
+    }
+
+    func hasCompletedAncestor(for taskID: UUID, kind: TaskListKind) -> Bool {
+        guard kind == .live else { return false }
+
+        guard let startingTask = task(withID: taskID) else {
+            noteOrphanedTask(id: taskID, context: "hasCompletedAncestor:start")
+            return false
+        }
+
+        var visited = Set<UUID>()
+        var parentID = startingTask.parentTask?.id
+
+        while let currentParentID = parentID {
+            if !visited.insert(currentParentID).inserted {
+                break
+            }
+
+            guard let parentTask = task(withID: currentParentID) else {
+                noteOrphanedTask(id: currentParentID, context: "hasCompletedAncestor:lookup")
+                break
+            }
+
+            if parentTask.isCompleted {
+                return true
+            }
+
+            parentID = parentTask.parentTask?.id
+        }
+
+        return false
+    }
+
+    func noteOrphanedTask(id: UUID, context: String) {
+        guard !orphanedTaskLog.contains(id) else { return }
+        orphanedTaskLog.insert(id)
+#if DEBUG
+        print("TaskManager notice: encountered orphaned task \(id) during \(context)")
+#endif
     }
 }

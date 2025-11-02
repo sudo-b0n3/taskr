@@ -14,14 +14,17 @@ struct TaskRowView: View {
     @AppStorage(completionAnimationsEnabledPreferenceKey) private var completionAnimationsEnabled: Bool = true
     @AppStorage(checkboxTopAlignedPreferenceKey) private var checkboxTopAligned: Bool = true
 
+    private let taskID: UUID
+
     init(task: Task, mode: RowMode = .live, releaseInputFocus: (() -> Void)? = nil) {
         self._task = Bindable(task)
         self.mode = mode
         self.releaseInputFocus = releaseInputFocus
+        self.taskID = task.id
     }
 
     private var isExpanded: Bool {
-        taskManager.isTaskExpanded(task.id)
+        taskManager.isTaskExpanded(taskID)
     }
 
     @State private var isEditing: Bool = false
@@ -31,9 +34,11 @@ struct TaskRowView: View {
     @State private var didStartShiftDrag: Bool = false
 
     private var displaySubtasks: [Task] {
-        guard task.modelContext != nil else { return [] }
         let listKind: TaskManager.TaskListKind = mode == .live ? .live : .template
-        return taskManager.childTasks(for: task, kind: listKind)
+        if task.modelContext == nil {
+            taskManager.noteOrphanedTask(id: taskID, context: "TaskRowView.displaySubtasks")
+        }
+        return taskManager.childTasks(forParentID: taskID, kind: listKind)
     }
 
     private var hasExpandableChildren: Bool {
@@ -42,7 +47,7 @@ struct TaskRowView: View {
 
     private var palette: ThemePalette { taskManager.themePalette }
     private var isSelected: Bool {
-        taskManager.isTaskSelected(task.id)
+        taskManager.isTaskSelected(taskID)
     }
     private var highlightColor: Color {
         if isSelected {
@@ -90,7 +95,7 @@ struct TaskRowView: View {
                         .onTapGesture {
                             releaseInputFocus?()
                             taskManager.registerUserInteractionTap()
-                            taskManager.toggleTaskCompletion(taskID: task.id)
+                            taskManager.toggleTaskCompletion(taskID: taskID)
                         }
                 } else {
                     Text("•").foregroundColor(palette.secondaryTextColor)
@@ -138,7 +143,7 @@ struct TaskRowView: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         taskManager.registerUserInteractionTap()
-                        taskManager.toggleTaskExpansion(task.id)
+                        taskManager.toggleTaskExpansion(taskID)
                     }
             }
 
@@ -161,7 +166,7 @@ struct TaskRowView: View {
         .onHover { hovering in
             isHoveringRow = hovering
             if hovering && taskManager.isShiftSelectionInProgress {
-                taskManager.updateShiftSelection(to: task.id)
+                taskManager.updateShiftSelection(to: taskID)
             }
         }
         .onDisappear {
@@ -199,9 +204,9 @@ struct TaskRowView: View {
     @ViewBuilder
     private func menuContent() -> some View {
         if mode == .live {
-            SelectionContextPrimingView(taskManager: taskManager, taskID: task.id)
+            SelectionContextPrimingView(taskManager: taskManager, taskID: taskID)
             let selectedCount = taskManager.selectedTaskIDs.count
-            let isRowSelected = taskManager.isTaskSelected(task.id)
+            let isRowSelected = taskManager.isTaskSelected(taskID)
             let multiSelectionActive = selectedCount > 1 && isRowSelected
             let canMoveUp = multiSelectionActive ? taskManager.canMoveSelectedTasksUp() : taskManager.canMoveTaskUp(task)
             let canMoveDown = multiSelectionActive ? taskManager.canMoveSelectedTasksDown() : taskManager.canMoveTaskDown(task)
@@ -210,7 +215,7 @@ struct TaskRowView: View {
             let canMarkUncompleted = multiSelectionActive ? taskManager.canMarkSelectedTasksUncompleted() : false
 
             Button("Edit") {
-                taskManager.requestInlineEdit(for: task.id)
+                taskManager.requestInlineEdit(for: taskID)
             }
             .disabled(multiSelectionActive)
             Menu("Move") {
@@ -278,7 +283,7 @@ struct TaskRowView: View {
             }
         } else if mode == .template {
             Button("Edit") {
-                taskManager.requestInlineEdit(for: task.id)
+                taskManager.requestInlineEdit(for: taskID)
             }
             Menu("Move") {
                 Button("↑ Up") {
@@ -313,12 +318,11 @@ struct TaskRowView: View {
     }
 
     private var hasCompletedAncestor: Bool {
-        var cur = task.parentTask
-        while let t = cur {
-            if t.isCompleted { return true }
-            cur = t.parentTask
+        let listKind: TaskManager.TaskListKind = mode == .live ? .live : .template
+        if task.modelContext == nil {
+            taskManager.noteOrphanedTask(id: taskID, context: "TaskRowView.hasCompletedAncestor")
         }
-        return false
+        return taskManager.hasCompletedAncestor(for: taskID, kind: listKind)
     }
 
     private func startEditing() {
@@ -359,7 +363,7 @@ struct TaskRowView: View {
     }
 
     private func handleInlineEditRequestIfNeeded() {
-        if taskManager.pendingInlineEditTaskID == task.id {
+        if taskManager.pendingInlineEditTaskID == taskID {
             startEditing()
             taskManager.pendingInlineEditTaskID = nil
         }
@@ -371,11 +375,11 @@ struct TaskRowView: View {
         let modifiers = currentModifierFlags()
 
         if modifiers.contains(.shift) {
-            taskManager.extendSelection(to: task.id)
+            taskManager.extendSelection(to: taskID)
         } else if modifiers.contains(.command) {
-            taskManager.toggleSelection(for: task.id)
+            taskManager.toggleSelection(for: taskID)
         } else {
-            taskManager.replaceSelection(with: task.id)
+            taskManager.replaceSelection(with: taskID)
         }
     }
 
@@ -400,7 +404,7 @@ struct TaskRowView: View {
 
                 if !didStartShiftDrag {
                     didStartShiftDrag = true
-                    taskManager.beginShiftSelection(at: task.id)
+                    taskManager.beginShiftSelection(at: taskID)
                 }
             }
             .onEnded { _ in
