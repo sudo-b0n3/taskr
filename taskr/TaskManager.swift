@@ -38,6 +38,7 @@ class TaskManager: ObservableObject {
     var selectionCursorID: UUID?
     private var selectionInteractionCaptured: Bool = false
     var shiftSelectionActive: Bool = false
+    private var rowHeightCache: [UUID: CGFloat] = [:]
     private var orphanedTaskLog: Set<UUID> = []
 
     init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
@@ -120,6 +121,18 @@ class TaskManager: ObservableObject {
 
     func resetTapInteractionCapture() {
         selectionInteractionCaptured = false
+    }
+
+    func setRowHeight(_ height: CGFloat, for taskID: UUID) {
+        rowHeightCache[taskID] = height
+    }
+
+    func clearRowHeight(for taskID: UUID) {
+        rowHeightCache.removeValue(forKey: taskID)
+    }
+
+    func rowHeight(for taskID: UUID) -> CGFloat? {
+        rowHeightCache[taskID]
     }
 
     var currentPathInput: String {

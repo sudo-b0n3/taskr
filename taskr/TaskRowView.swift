@@ -32,6 +32,9 @@ struct TaskRowView: View {
     @FocusState private var isTextFieldFocused: Bool
     @State private var isHoveringRow: Bool = false
     @State private var didStartShiftDrag: Bool = false
+    @State private var rowHeight: CGFloat = 0
+    @State private var shiftDragStartIndex: Int?
+    @State private var shiftDragLastIndex: Int?
 
     private var displaySubtasks: [Task] {
         let listKind: TaskManager.TaskListKind = mode == .live ? .live : .template
@@ -200,6 +203,13 @@ struct TaskRowView: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(highlightColor)
         )
+        .background(rowHeightReporter)
+        .onPreferenceChange(RowHeightPreferenceKey.self) { heights in
+            if let height = heights[taskID], height > 0 {
+                rowHeight = height
+                taskManager.setRowHeight(height, for: taskID)
+            }
+        }
         .foregroundColor(rowForegroundColor)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -214,6 +224,8 @@ struct TaskRowView: View {
         }
         .onDisappear {
             isHoveringRow = false
+            taskManager.clearRowHeight(for: taskID)
+            resetShiftDragTracking()
         }
         .simultaneousGesture(shiftSelectionGesture)
     }
@@ -434,12 +446,13 @@ struct TaskRowView: View {
 
     private var shiftSelectionGesture: some Gesture {
         DragGesture(minimumDistance: 2)
-            .onChanged { _ in
+            .onChanged { value in
                 let shiftDown = currentModifierFlags().contains(.shift)
                 if !shiftDown {
                     if didStartShiftDrag {
                         didStartShiftDrag = false
                         taskManager.endShiftSelection()
+                        resetShiftDragTracking()
                     }
                     return
                 }
@@ -448,12 +461,14 @@ struct TaskRowView: View {
                     didStartShiftDrag = true
                     taskManager.beginShiftSelection(at: taskID)
                 }
+                handleShiftDragChange(value)
             }
             .onEnded { _ in
                 if didStartShiftDrag {
                     didStartShiftDrag = false
                     taskManager.endShiftSelection()
                 }
+                resetShiftDragTracking()
             }
     }
 
@@ -506,5 +521,97 @@ private struct AnimatedStrikeText: View {
                 .accessibilityHidden(true)
         }
         .animation(enabled ? animation : .none, value: isStruck)
+    }
+}
+
+private extension TaskRowView {
+    private struct RowHeightPreferenceKey: PreferenceKey {
+        static var defaultValue: [UUID: CGFloat] = [:]
+        static func reduce(value: inout [UUID: CGFloat], nextValue: () -> [UUID: CGFloat]) {
+            value.merge(nextValue(), uniquingKeysWith: { $1 })
+        }
+    }
+
+    private var effectiveRowHeight: CGFloat {
+        rowHeight > 0 ? rowHeight : 28
+    }
+
+    private var rowHeightReporter: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .preference(key: RowHeightPreferenceKey.self, value: [taskID: proxy.size.height])
+        }
+    }
+
+    private func handleShiftDragChange(_ value: DragGesture.Value) {
+        let visibleIDs = taskManager.snapshotVisibleTaskIDs()
+
+        guard let startIndex = calibrateShiftDragStartIndex(with: visibleIDs) else {
+            return
+        }
+
+        var targetIndex = startIndex
+        let currentOffset = value.location.y
+
+        if currentOffset >= 0 {
+            var remaining = currentOffset
+            while targetIndex < visibleIDs.count - 1 {
+                let height = cachedHeight(for: visibleIDs[targetIndex])
+                if remaining < height {
+                    break
+                }
+                remaining -= height
+                targetIndex += 1
+            }
+        } else {
+            var remaining = currentOffset
+            while targetIndex > 0 {
+                let previousIndex = targetIndex - 1
+                let height = cachedHeight(for: visibleIDs[previousIndex])
+                remaining += height
+                targetIndex = previousIndex
+                if remaining >= 0 {
+                    break
+                }
+            }
+        }
+
+        if shiftDragLastIndex != targetIndex {
+            shiftDragLastIndex = targetIndex
+            let targetID = visibleIDs[targetIndex]
+            taskManager.updateShiftSelection(to: targetID)
+        }
+    }
+
+    private func calibrateShiftDragStartIndex(with visibleIDs: [UUID]) -> Int? {
+        if let existing = shiftDragStartIndex,
+           visibleIDs.indices.contains(existing),
+           visibleIDs[existing] == taskID {
+            if shiftDragLastIndex == nil {
+                shiftDragLastIndex = existing
+            }
+            return existing
+        }
+
+        if let index = visibleIDs.firstIndex(of: taskID) {
+            shiftDragStartIndex = index
+            if shiftDragLastIndex == nil {
+                shiftDragLastIndex = index
+            }
+            return index
+        }
+
+        shiftDragStartIndex = nil
+        shiftDragLastIndex = nil
+        return nil
+    }
+
+    private func resetShiftDragTracking() {
+        shiftDragStartIndex = nil
+        shiftDragLastIndex = nil
+    }
+
+    private func cachedHeight(for id: UUID) -> CGFloat {
+        taskManager.rowHeight(for: id) ?? effectiveRowHeight
     }
 }
