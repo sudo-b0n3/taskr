@@ -14,6 +14,7 @@ let addSubtasksToTopPreferenceKey = "addSubtasksToTopPreference"
 let collapsedTaskIDsPreferenceKey = "collapsedTaskIDsPreference" // Persist collapsed state
 let completionAnimationsEnabledPreferenceKey = "completionAnimationsEnabledPreference" // Toggle subtle completion animations
 let allowClearingStruckDescendantsPreferenceKey = "allowClearingStruckDescendantsPreference" // Allow clearing children under completed parents
+let skipClearingHiddenDescendantsPreferenceKey = "skipClearingHiddenDescendantsPreference" // Avoid clearing completed descendants hidden under collapsed incomplete parents
 let normalizedDisplayOrderMigrationDoneKey = "normalizedDisplayOrderMigrationDone"
 let checkboxTopAlignedPreferenceKey = "checkboxTopAlignedPreference" // Align checkbox with first line
 let selectedThemePreferenceKey = "selectedThemePreference" // Active visual theme
@@ -122,6 +123,13 @@ final class PreferencesStore: ObservableObject {
         }
     }
 
+    @Published var skipClearingHiddenDescendants: Bool {
+        didSet {
+            guard oldValue != skipClearingHiddenDescendants else { return }
+            defaults.set(skipClearingHiddenDescendants, forKey: skipClearingHiddenDescendantsPreferenceKey)
+        }
+    }
+
     @Published var checkboxTopAligned: Bool {
         didSet {
             guard oldValue != checkboxTopAligned else { return }
@@ -170,6 +178,7 @@ final class PreferencesStore: ObservableObject {
         addSubtasksToTop = defaults.bool(forKey: addSubtasksToTopPreferenceKey)
         completionAnimationsEnabled = defaults.object(forKey: completionAnimationsEnabledPreferenceKey) as? Bool ?? true
         allowClearingStruckDescendants = defaults.bool(forKey: allowClearingStruckDescendantsPreferenceKey)
+        skipClearingHiddenDescendants = defaults.object(forKey: skipClearingHiddenDescendantsPreferenceKey) as? Bool ?? true
         checkboxTopAligned = defaults.object(forKey: checkboxTopAlignedPreferenceKey) as? Bool ?? true
         enableFrostedBackground = defaults.bool(forKey: frostedBackgroundPreferenceKey)
         listAnimationsEnabled = defaults.object(forKey: listAnimationsEnabledPreferenceKey) as? Bool ?? true
@@ -186,6 +195,9 @@ final class PreferencesStore: ObservableObject {
         }
         if defaults.object(forKey: completionAnimationsEnabledPreferenceKey) == nil {
             defaults.set(true, forKey: completionAnimationsEnabledPreferenceKey)
+        }
+        if defaults.object(forKey: skipClearingHiddenDescendantsPreferenceKey) == nil {
+            defaults.set(true, forKey: skipClearingHiddenDescendantsPreferenceKey)
         }
         if defaults.object(forKey: checkboxTopAlignedPreferenceKey) == nil {
             defaults.set(true, forKey: checkboxTopAlignedPreferenceKey)

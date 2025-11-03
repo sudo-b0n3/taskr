@@ -270,16 +270,29 @@ struct SettingsView: View {
 
                 Divider().background(palette.dividerColor)
 
-                SettingsSection(caption: "When clearing, remove completed parents and all subtasks even if subtasks aren't completed.") {
-                    HStack {
-                        Text("Clear Crossed-out Descendants")
-                        Spacer()
-                        Toggle(isOn: $preferences.allowClearingStruckDescendants) {
-                            EmptyView()
+                SettingsSection(caption: "Choose which completed tasks Clear Completed removes.") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Clear Crossed-out Descendants")
+                            Spacer()
+                            Toggle(isOn: $preferences.allowClearingStruckDescendants) {
+                                EmptyView()
+                            }
+                            .labelsHidden()
+                            .toggleStyle(checkboxToggleStyle)
+                            .accessibilityLabel(Text("Clear crossed-out descendants"))
                         }
-                        .labelsHidden()
-                        .toggleStyle(checkboxToggleStyle)
-                        .accessibilityLabel(Text("Clear crossed-out descendants"))
+
+                        HStack {
+                            Text("Skip Hidden Descendants")
+                            Spacer()
+                            Toggle(isOn: $preferences.skipClearingHiddenDescendants) {
+                                EmptyView()
+                            }
+                            .labelsHidden()
+                            .toggleStyle(checkboxToggleStyle)
+                            .accessibilityLabel(Text("Skip clearing hidden completed subtasks"))
+                        }
                     }
                 }
 

@@ -443,8 +443,41 @@ extension TaskManager {
             }
             if targets.isEmpty { return }
 
-            let targetIDs = Set(targets.map { $0.id })
-            let topLevelTasks = targets.filter { task in
+            let skipClearingHiddenDescendants = UserDefaults.standard.object(forKey: skipClearingHiddenDescendantsPreferenceKey) as? Bool ?? true
+            let visibleTargets: [Task]
+            if skipClearingHiddenDescendants {
+                let collapsedIDs = collapsedTaskIDs
+                var ancestorVisibilityCache: [UUID: Bool] = [:]
+
+                func branchVisible(_ task: Task) -> Bool {
+                    if let cached = ancestorVisibilityCache[task.id] {
+                        return cached
+                    }
+                    let visible: Bool
+                    if collapsedIDs.contains(task.id) && !task.isCompleted {
+                        visible = false
+                    } else if let parent = task.parentTask {
+                        visible = branchVisible(parent)
+                    } else {
+                        visible = true
+                    }
+                    ancestorVisibilityCache[task.id] = visible
+                    return visible
+                }
+
+                func isVisible(_ task: Task) -> Bool {
+                    guard let parent = task.parentTask else { return true }
+                    return branchVisible(parent)
+                }
+
+                visibleTargets = targets.filter { isVisible($0) }
+            } else {
+                visibleTargets = targets
+            }
+            if visibleTargets.isEmpty { return }
+
+            let targetIDs = Set(visibleTargets.map { $0.id })
+            let topLevelTasks = visibleTargets.filter { task in
                 var current = task.parentTask
                 while let parent = current {
                     if targetIDs.contains(parent.id) { return false }

@@ -9,6 +9,8 @@ final class TaskManagerTests: XCTestCase {
     private var originalAddRootTasksToTop: Bool?
     private var originalAddSubtasksToTop: Bool?
     private var originalCollapsedTaskIDs: [String]?
+    private var originalAllowClearingStruckDescendants: Bool?
+    private var originalSkipClearingHiddenDescendants: Bool?
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -19,9 +21,13 @@ final class TaskManagerTests: XCTestCase {
         originalAddRootTasksToTop = UserDefaults.standard.object(forKey: addRootTasksToTopPreferenceKey) as? Bool
         originalAddSubtasksToTop = UserDefaults.standard.object(forKey: addSubtasksToTopPreferenceKey) as? Bool
         originalCollapsedTaskIDs = UserDefaults.standard.array(forKey: collapsedTaskIDsPreferenceKey) as? [String]
+        originalAllowClearingStruckDescendants = UserDefaults.standard.object(forKey: allowClearingStruckDescendantsPreferenceKey) as? Bool
+        originalSkipClearingHiddenDescendants = UserDefaults.standard.object(forKey: skipClearingHiddenDescendantsPreferenceKey) as? Bool
         UserDefaults.standard.set(false, forKey: addRootTasksToTopPreferenceKey)
         UserDefaults.standard.set(false, forKey: addSubtasksToTopPreferenceKey)
         UserDefaults.standard.removeObject(forKey: collapsedTaskIDsPreferenceKey)
+        UserDefaults.standard.set(false, forKey: allowClearingStruckDescendantsPreferenceKey)
+        UserDefaults.standard.set(true, forKey: skipClearingHiddenDescendantsPreferenceKey)
     }
 
     override func tearDownWithError() throws {
@@ -41,6 +47,18 @@ final class TaskManagerTests: XCTestCase {
             UserDefaults.standard.set(originalCollapsedTaskIDs, forKey: collapsedTaskIDsPreferenceKey)
         } else {
             UserDefaults.standard.removeObject(forKey: collapsedTaskIDsPreferenceKey)
+        }
+
+        if let originalAllowClearingStruckDescendants = originalAllowClearingStruckDescendants {
+            UserDefaults.standard.set(originalAllowClearingStruckDescendants, forKey: allowClearingStruckDescendantsPreferenceKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: allowClearingStruckDescendantsPreferenceKey)
+        }
+
+        if let originalSkipClearingHiddenDescendants = originalSkipClearingHiddenDescendants {
+            UserDefaults.standard.set(originalSkipClearingHiddenDescendants, forKey: skipClearingHiddenDescendantsPreferenceKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: skipClearingHiddenDescendantsPreferenceKey)
         }
 
         manager = nil
@@ -190,6 +208,60 @@ final class TaskManagerTests: XCTestCase {
         let remaining = try container.mainContext.fetch(descriptor)
         XCTAssertTrue(remaining.isEmpty)
         XCTAssertTrue(manager.snapshotVisibleTaskIDs().isEmpty)
+    }
+
+    func testClearCompletedSkipsHiddenDescendants() throws {
+        manager.addTaskFromPath(pathOverride: "/Parent/Child")
+
+        let parentDescriptor = FetchDescriptor<Task>(predicate: #Predicate<Task> {
+            !$0.isTemplateComponent && $0.parentTask == nil && $0.name == "Parent"
+        })
+
+        guard let parent = try container.mainContext.fetch(parentDescriptor).first,
+              let child = parent.subtasks?.first else {
+            return XCTFail("Expected Parent with Child hierarchy")
+        }
+
+        manager.toggleTaskCompletion(taskID: child.id)
+        manager.setTaskExpanded(parent.id, expanded: false)
+
+        manager.clearCompletedTasks()
+        container.mainContext.processPendingChanges()
+
+        let remainingDescriptor = FetchDescriptor<Task>(predicate: #Predicate<Task> { !$0.isTemplateComponent })
+        let remaining = try container.mainContext.fetch(remainingDescriptor)
+        XCTAssertEqual(remaining.count, 2)
+
+        let childFetch = FetchDescriptor<Task>(predicate: #Predicate<Task> {
+            !$0.isTemplateComponent && $0.id == child.id
+        })
+        let childResult = try container.mainContext.fetch(childFetch)
+        XCTAssertEqual(childResult.count, 1)
+    }
+
+    func testClearCompletedRemovesHiddenDescendantsWhenPreferenceDisabled() throws {
+        manager.addTaskFromPath(pathOverride: "/Parent/Child")
+
+        let parentDescriptor = FetchDescriptor<Task>(predicate: #Predicate<Task> {
+            !$0.isTemplateComponent && $0.parentTask == nil && $0.name == "Parent"
+        })
+
+        guard let parent = try container.mainContext.fetch(parentDescriptor).first,
+              let child = parent.subtasks?.first else {
+            return XCTFail("Expected Parent with Child hierarchy")
+        }
+
+        manager.toggleTaskCompletion(taskID: child.id)
+        manager.setTaskExpanded(parent.id, expanded: false)
+        UserDefaults.standard.set(false, forKey: skipClearingHiddenDescendantsPreferenceKey)
+
+        manager.clearCompletedTasks()
+        container.mainContext.processPendingChanges()
+
+        let remainingDescriptor = FetchDescriptor<Task>(predicate: #Predicate<Task> { !$0.isTemplateComponent })
+        let remaining = try container.mainContext.fetch(remainingDescriptor)
+        XCTAssertEqual(remaining.count, 1)
+        XCTAssertEqual(remaining.first?.id, parent.id)
     }
 
     func testBulkDeletionResequencesAndPrunesCollapsedState() throws {
