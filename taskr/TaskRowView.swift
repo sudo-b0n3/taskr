@@ -51,13 +51,34 @@ struct TaskRowView: View {
     }
     private var highlightColor: Color {
         if isSelected {
-            let activeOpacity = (taskManager.isApplicationActive && taskManager.isTaskWindowKey) ? 1.0 : 0.35
-            return palette.hoverBackgroundColor.opacity(activeOpacity)
+            return selectionBackgroundColor
         }
         if isHoveringRow {
-            return palette.hoverBackgroundColor
+            return palette.hoverBackgroundColor.opacity(0.6)
         }
         return Color.clear
+    }
+
+    private var selectionBackgroundColor: Color {
+        if taskManager.isApplicationActive && taskManager.isTaskWindowKey {
+            return Color(nsColor: NSColor.selectedContentBackgroundColor)
+        }
+        return Color(nsColor: NSColor.unemphasizedSelectedContentBackgroundColor)
+    }
+
+    private var rowForegroundColor: Color {
+        guard isSelected else { return palette.primaryTextColor }
+        if taskManager.isApplicationActive && taskManager.isTaskWindowKey {
+            return Color(nsColor: NSColor.alternateSelectedControlTextColor)
+        }
+        return palette.primaryTextColor
+    }
+
+    private var rowSecondaryColor: Color {
+        if isSelected && taskManager.isApplicationActive && taskManager.isTaskWindowKey {
+            return rowForegroundColor.opacity(0.75)
+        }
+        return palette.secondaryTextColor
     }
 
     var body: some View {
@@ -109,7 +130,7 @@ struct TaskRowView: View {
                     AnimatedCheckCircle(
                         isOn: task.isCompleted,
                         enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
-                        baseColor: palette.secondaryTextColor,
+                        baseColor: rowSecondaryColor,
                         accentColor: palette.accentColor
                     )
                         .frame(width: 16, height: 16)
@@ -143,7 +164,7 @@ struct TaskRowView: View {
                         text: task.name,
                         isStruck: task.isCompleted || hasCompletedAncestor,
                         enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
-                        strikeColor: palette.secondaryTextColor
+                        strikeColor: rowSecondaryColor
                     )
                     .font(.body)
                     .padding(.horizontal, 2)
@@ -179,7 +200,7 @@ struct TaskRowView: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(highlightColor)
         )
-        .foregroundColor(palette.primaryTextColor)
+        .foregroundColor(rowForegroundColor)
         .contentShape(Rectangle())
         .onTapGesture {
             taskManager.registerUserInteractionTap()
@@ -330,8 +351,7 @@ struct TaskRowView: View {
                 .frame(width: 0, height: 0)
                 .onAppear {
                     DispatchQueue.main.async {
-                        if !taskManager.isTaskSelected(taskID),
-                           taskManager.selectedTaskIDs.count <= 1 {
+                        if !taskManager.isTaskSelected(taskID) {
                             taskManager.replaceSelection(with: taskID)
                         }
                     }
