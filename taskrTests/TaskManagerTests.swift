@@ -232,8 +232,9 @@ final class TaskManagerTests: XCTestCase {
         let remaining = try container.mainContext.fetch(remainingDescriptor)
         XCTAssertEqual(remaining.count, 2)
 
+        let childID = child.id
         let childFetch = FetchDescriptor<Task>(predicate: #Predicate<Task> {
-            !$0.isTemplateComponent && $0.id == child.id
+            !$0.isTemplateComponent && $0.id == childID
         })
         let childResult = try container.mainContext.fetch(childFetch)
         XCTAssertEqual(childResult.count, 1)
