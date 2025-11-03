@@ -61,6 +61,28 @@ struct TaskRowView: View {
     }
 
     var body: some View {
+        Group {
+            if isDetached {
+                orphanedRowFallback
+            } else {
+                renderedRow
+            }
+        }
+    }
+
+    private var isDetached: Bool {
+        task.modelContext == nil
+    }
+
+    private var orphanedRowFallback: some View {
+        EmptyView()
+            .frame(width: 0, height: 0)
+            .onAppear {
+                taskManager.noteOrphanedTask(id: taskID, context: "TaskRowView.body")
+            }
+    }
+
+    private var renderedRow: some View {
         VStack(alignment: .leading, spacing: 0) {
             rowContent
 

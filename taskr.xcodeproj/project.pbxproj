@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3F9BECD028E059F2A6A2B4DA /* TaskRowViewFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F9BECCF28E059F2A6A2B4DA /* TaskRowViewFallbackTests.swift */; };
 		6D8F4B0223AB4567890C1DEF /* TaskManagerThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D8F4B0123AB4567890C1DEF /* TaskManagerThemeTests.swift */; };
 		BA528B8092C649F88D94C7BC /* TaskManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239E977365004E86AF34518C /* TaskManagerTests.swift */; };
 		E9A7FB042DE1C0C700AA11BB /* TaskrScreenshotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */; };
@@ -32,6 +33,7 @@
 /* Begin PBXFileReference section */
 		239E977365004E86AF34518C /* TaskManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskManagerTests.swift; sourceTree = "<group>"; };
 		31CF3FC82DCCEDF70035AF5B /* taskr.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = taskr.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3F9BECCF28E059F2A6A2B4DA /* TaskRowViewFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowViewFallbackTests.swift; sourceTree = "<group>"; };
 		6D8F4B0123AB4567890C1DEF /* TaskManagerThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskManagerThemeTests.swift; sourceTree = "<group>"; };
 		D562EF14BCB34A6581EA90B8 /* taskrTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9A7FB012DE1C0C700AA11BB /* taskrUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -109,6 +111,7 @@
 			children = (
 				239E977365004E86AF34518C /* TaskManagerTests.swift */,
 				6D8F4B0123AB4567890C1DEF /* TaskManagerThemeTests.swift */,
+				3F9BECCF28E059F2A6A2B4DA /* TaskRowViewFallbackTests.swift */,
 			);
 			path = taskrTests;
 			sourceTree = "<group>";
@@ -246,6 +249,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3F9BECD028E059F2A6A2B4DA /* TaskRowViewFallbackTests.swift in Sources */,
 				6D8F4B0223AB4567890C1DEF /* TaskManagerThemeTests.swift in Sources */,
 				BA528B8092C649F88D94C7BC /* TaskManagerTests.swift in Sources */,
 			);
@@ -421,7 +425,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.77;
+				MARKETING_VERSION = 0.78;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bone.taskr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -462,7 +466,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.77;
+				MARKETING_VERSION = 0.78;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bone.taskr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
