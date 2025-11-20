@@ -39,6 +39,7 @@ class TaskManager: ObservableObject {
     private var selectionInteractionCaptured: Bool = false
     var shiftSelectionActive: Bool = false
     private var rowHeightCache: [UUID: CGFloat] = [:]
+    var visibleLiveTasksCache: [Task]? = nil
     private var orphanedTaskLog: Set<UUID> = []
 
     init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
@@ -135,6 +136,10 @@ class TaskManager: ObservableObject {
         rowHeightCache[taskID]
     }
 
+    func invalidateVisibleTasksCache() {
+        visibleLiveTasksCache = nil
+    }
+
     var currentPathInput: String {
         get { inputState.text }
         set {
@@ -161,12 +166,14 @@ class TaskManager: ObservableObject {
 
     @discardableResult
     func performListMutation<Result>(_ body: () -> Result) -> Result {
-        performAnimation(isEnabled: listAnimationsEnabled, body)
+        invalidateVisibleTasksCache()
+        return performAnimation(isEnabled: listAnimationsEnabled, body)
     }
 
     @discardableResult
     func performCollapseTransition<Result>(_ body: () -> Result) -> Result {
-        performAnimation(isEnabled: collapseAnimationsEnabled, body)
+        invalidateVisibleTasksCache()
+        return performAnimation(isEnabled: collapseAnimationsEnabled, body)
     }
 
     @discardableResult

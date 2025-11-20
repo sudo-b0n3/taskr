@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SwiftData
+import SwiftUI
 
 extension TaskManager {
     enum SelectionDirection {
@@ -26,26 +27,35 @@ extension TaskManager {
         let visibleIDs = snapshotVisibleTaskIDs()
         var orderedCandidates = selectedTaskIDs
 
+        let wasSelected = selectedTaskIDSet.contains(taskID)
+
         if let existingIndex = orderedCandidates.firstIndex(of: taskID) {
             orderedCandidates.remove(at: existingIndex)
-            applySelection(
-                candidateIDs: orderedCandidates,
-                anchor: selectionAnchorID == taskID ? nil : selectionAnchorID,
-                cursor: selectionCursorID == taskID ? nil : selectionCursorID,
-                visibleIDs: visibleIDs
-            )
         } else {
             orderedCandidates.append(taskID)
-            let anchorCandidate = selectionAnchorID
-                ?? selectedTaskIDs.first
-                ?? taskID
-            applySelection(
-                candidateIDs: orderedCandidates,
-                anchor: anchorCandidate,
-                cursor: taskID,
-                visibleIDs: visibleIDs
-            )
         }
+
+        let ordered = orderedSelection(from: orderedCandidates, visibleIDs: visibleIDs)
+
+        if !wasSelected {
+            // New click becomes the anchor/cursor like macOS list behavior
+            applySelection(
+                orderedIDs: ordered,
+                anchor: taskID,
+                cursor: taskID
+            )
+            return
+        }
+
+        // For removals, preserve prior anchor/cursor if still valid; otherwise fall back to last selected
+        let preservedAnchor = selectionAnchorID.flatMap { ordered.contains($0) ? $0 : nil }
+        let preservedCursor = selectionCursorID.flatMap { ordered.contains($0) ? $0 : nil }
+        let fallback = ordered.last
+        applySelection(
+            orderedIDs: ordered,
+            anchor: preservedAnchor ?? fallback,
+            cursor: preservedCursor ?? fallback
+        )
     }
 
     func extendSelection(to taskID: UUID) {
@@ -212,6 +222,9 @@ extension TaskManager {
     // MARK: - Helper routines
 
     private func snapshotVisibleTasks() -> [Task] {
+        if let cached = visibleLiveTasksCache {
+            return cached
+        }
         let roots: [Task]
         do {
             roots = try fetchSiblings(for: nil, kind: .live, order: .forward)
@@ -223,6 +236,7 @@ extension TaskManager {
         for root in roots.sorted(by: { $0.displayOrder < $1.displayOrder }) {
             appendVisible(task: root, accumulator: &flattened)
         }
+        visibleLiveTasksCache = flattened
         return flattened
     }
 
@@ -259,17 +273,21 @@ extension TaskManager {
         anchor: UUID?,
         cursor: UUID?
     ) {
-        selectedTaskIDs = orderedIDs
-        if orderedIDs.isEmpty {
-            selectionAnchorID = nil
-            selectionCursorID = nil
-            return
-        }
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            selectedTaskIDs = orderedIDs
+            if orderedIDs.isEmpty {
+                selectionAnchorID = nil
+                selectionCursorID = nil
+                return
+            }
 
-        let anchorID = anchor.flatMap { orderedIDs.contains($0) ? $0 : nil } ?? orderedIDs.first
-        let cursorID = cursor.flatMap { orderedIDs.contains($0) ? $0 : nil } ?? orderedIDs.last
-        selectionAnchorID = anchorID
-        selectionCursorID = cursorID
+            let anchorID = anchor.flatMap { orderedIDs.contains($0) ? $0 : nil } ?? orderedIDs.first
+            let cursorID = cursor.flatMap { orderedIDs.contains($0) ? $0 : nil } ?? orderedIDs.last
+            selectionAnchorID = anchorID
+            selectionCursorID = cursorID
+        }
     }
 
     private func orderedSelection(from candidates: [UUID], visibleIDs: [UUID]) -> [UUID] {

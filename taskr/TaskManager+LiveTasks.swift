@@ -528,15 +528,17 @@ extension TaskManager {
                         t.displayOrder = i
                         hasChanges = true
                     }
-                }
-                if hasChanges { try modelContext.save() }
             }
-            defaults.set(true, forKey: normalizedDisplayOrderMigrationDoneKey)
-        } catch {
-            print("Normalization migration failed: \(error)")
-            defaults.set(true, forKey: normalizedDisplayOrderMigrationDoneKey)
+            if hasChanges { try modelContext.save() }
         }
+        defaults.set(true, forKey: normalizedDisplayOrderMigrationDoneKey)
+        invalidateVisibleTasksCache()
+    } catch {
+        print("Normalization migration failed: \(error)")
+        defaults.set(true, forKey: normalizedDisplayOrderMigrationDoneKey)
+        invalidateVisibleTasksCache()
     }
+}
 
     // MARK: - Helpers
 

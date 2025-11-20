@@ -32,6 +32,7 @@ struct TaskRowView: View {
     @FocusState private var isTextFieldFocused: Bool
     @State private var isHoveringRow: Bool = false
     @State private var didStartShiftDrag: Bool = false
+    @State private var lastShiftHoverUpdate: TimeInterval = 0
     @State private var rowHeight: CGFloat = 0
     @State private var shiftDragStartIndex: Int?
     @State private var shiftDragLastIndex: Int?
@@ -206,8 +207,11 @@ struct TaskRowView: View {
         .background(rowHeightReporter)
         .onPreferenceChange(RowHeightPreferenceKey.self) { heights in
             if let height = heights[taskID], height > 0 {
-                rowHeight = height
-                taskManager.setRowHeight(height, for: taskID)
+                let needsUpdate = rowHeight == 0 || abs(rowHeight - height) > 0.5
+                if needsUpdate {
+                    rowHeight = height
+                    taskManager.setRowHeight(height, for: taskID)
+                }
             }
         }
         .foregroundColor(rowForegroundColor)
@@ -219,7 +223,11 @@ struct TaskRowView: View {
         .onHover { hovering in
             isHoveringRow = hovering
             if hovering && taskManager.isShiftSelectionInProgress {
-                taskManager.updateShiftSelection(to: taskID)
+                let now = ProcessInfo.processInfo.systemUptime
+                if now - lastShiftHoverUpdate >= 0.03 {
+                    lastShiftHoverUpdate = now
+                    taskManager.updateShiftSelection(to: taskID)
+                }
             }
         }
         .onDisappear {

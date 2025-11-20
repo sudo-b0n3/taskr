@@ -53,6 +53,7 @@ extension TaskManager {
             if pruned != collapsedTaskIDs {
                 collapsedTaskIDs = pruned
                 persistCollapsedState()
+                invalidateVisibleTasksCache()
             }
         } catch {
             print("Error pruning collapsed state: \(error)")
