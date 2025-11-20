@@ -69,22 +69,27 @@ struct TaskView: View {
                 }
                 // Autocomplete Suggestions List
                 if !inputState.suggestions.isEmpty {
-                    List(selection: $inputState.selectedSuggestionIndex) {
-                        ForEach(0..<inputState.suggestions.count, id: \.self) { index in
-                            Text(inputState.suggestions[index])
-                                .padding(.vertical, 2)
-                                .foregroundColor(palette.primaryTextColor)
-                                .listRowBackground(inputState.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
-                                .onTapGesture {
-                                    inputState.selectedSuggestionIndex = index
-                                    taskManager.applySelectedSuggestion()
-                                    isInputFocused = true
-                                }
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(inputState.suggestions.enumerated()), id: \.0) { index, suggestion in
+                                Text(suggestion)
+                                    .foregroundColor(palette.primaryTextColor)
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(
+                                        (inputState.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
+                                    )
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        inputState.selectedSuggestionIndex = index
+                                        taskManager.applySelectedSuggestion()
+                                        isInputFocused = true
+                                    }
+                            }
                         }
                     }
-                    .listStyle(.plain)
                     .frame(maxHeight: 100)
-                    .scrollContentBackground(.hidden)
                     .background(palette.controlBackgroundColor)
                     .cornerRadius(5)
                     .overlay(RoundedRectangle(cornerRadius: 5).stroke(palette.dividerColor.opacity(0.7), lineWidth: 1))

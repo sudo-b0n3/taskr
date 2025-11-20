@@ -74,6 +74,7 @@ extension TaskManager {
             if originalParent?.id != newParent?.id {
                 resequenceTemplateDisplayOrder(for: originalParent)
             }
+            invalidateChildTaskCache(for: .template)
         } catch {
             print("Error moving template task with ID \(draggedTaskID): \(error)")
         }
@@ -100,6 +101,7 @@ extension TaskManager {
             if originalParent?.id != newParent?.id {
                 resequenceTemplateDisplayOrder(for: originalParent)
             }
+            invalidateChildTaskCache(for: .template)
         } catch {
             print("Error reparenting template task with ID \(draggedTaskID): \(error)")
         }
@@ -122,6 +124,7 @@ extension TaskManager {
         modelContext.insert(newTemplate)
         try? modelContext.save()
         newTemplateName = ""
+        invalidateChildTaskCache(for: .template)
     }
 
     func applyTemplate(_ template: TaskTemplate) {
@@ -133,6 +136,8 @@ extension TaskManager {
             applyTemplateTaskRecursively(templateTask: taskToInstantiate, parentTask: nil)
         }
         try? modelContext.save()
+        invalidateVisibleTasksCache()
+        invalidateChildTaskCache(for: .live)
     }
 
     private func applyTemplateTaskRecursively(templateTask: Task, parentTask: Task?) {
@@ -183,6 +188,7 @@ extension TaskManager {
             parent.subtasks?.append(newTask)
         }
         try? modelContext.save()
+        invalidateChildTaskCache(for: .template)
     }
 
     func addTemplateRootTask(to template: TaskTemplate, name: String = "New Task") {
@@ -198,6 +204,7 @@ extension TaskManager {
             try modelContext.save()
             resequenceTemplateDisplayOrder(for: parent)
             pruneCollapsedState()
+            invalidateChildTaskCache(for: .template)
         } catch {
             print("Error deleting template task: \(error)")
         }

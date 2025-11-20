@@ -225,16 +225,14 @@ extension TaskManager {
         if let cached = visibleLiveTasksCache {
             return cached
         }
-        let roots: [Task]
-        do {
-            roots = try fetchSiblings(for: nil, kind: .live, order: .forward)
-        } catch {
-            return []
-        }
+
+        ensureChildCache(for: .live)
+        let childMap = childTaskCache[.live] ?? [:]
+        let roots = childMap[nil as UUID?] ?? []
 
         var flattened: [Task] = []
         for root in roots.sorted(by: { $0.displayOrder < $1.displayOrder }) {
-            appendVisible(task: root, accumulator: &flattened)
+            appendVisible(task: root, accumulator: &flattened, childMap: childMap)
         }
         visibleLiveTasksCache = flattened
         return flattened
@@ -244,17 +242,12 @@ extension TaskManager {
         snapshotVisibleTasks().map(\.id)
     }
 
-    private func appendVisible(task: Task, accumulator: inout [Task]) {
+    private func appendVisible(task: Task, accumulator: inout [Task], childMap: [UUID?: [Task]]) {
         accumulator.append(task)
         guard isTaskExpanded(task.id) else { return }
-        let children: [Task]
-        do {
-            children = try fetchSiblings(for: task, kind: .live)
-        } catch {
-            return
-        }
+        let children = childMap[task.id] ?? []
         for child in children {
-            appendVisible(task: child, accumulator: &accumulator)
+            appendVisible(task: child, accumulator: &accumulator, childMap: childMap)
         }
     }
 

@@ -414,16 +414,18 @@ extension TaskManager {
     }
 
     func toggleTaskCompletion(taskID: UUID) {
-        let descriptor = FetchDescriptor<Task>(predicate: #Predicate {
-            $0.id == taskID && !$0.isTemplateComponent
-        })
+        guard let task = task(withID: taskID) else { return }
+        toggleTaskCompletion(task: task)
+    }
+
+    func toggleTaskCompletion(task: Task) {
+        guard !task.isTemplateComponent else { return }
+        task.isCompleted.toggle()
+        completionMutationVersion &+= 1
         do {
-            if let taskToToggle = try modelContext.fetch(descriptor).first {
-                taskToToggle.isCompleted.toggle()
-                completionMutationVersion &+= 1
-                try modelContext.save()
-            }
+            try modelContext.save()
         } catch {
+            modelContext.rollback()
             print("Error toggling task: \(error)")
         }
     }
@@ -533,10 +535,12 @@ extension TaskManager {
         }
         defaults.set(true, forKey: normalizedDisplayOrderMigrationDoneKey)
         invalidateVisibleTasksCache()
+        invalidateChildTaskCache(for: .live)
     } catch {
         print("Normalization migration failed: \(error)")
         defaults.set(true, forKey: normalizedDisplayOrderMigrationDoneKey)
         invalidateVisibleTasksCache()
+        invalidateChildTaskCache(for: .live)
     }
 }
 

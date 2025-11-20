@@ -40,6 +40,8 @@ class TaskManager: ObservableObject {
     var shiftSelectionActive: Bool = false
     private var rowHeightCache: [UUID: CGFloat] = [:]
     var visibleLiveTasksCache: [Task]? = nil
+    var childTaskCache: [TaskListKind: [UUID?: [Task]]] = [:]
+    var taskIndexCache: [TaskListKind: [UUID: Task]] = [:]
     private var orphanedTaskLog: Set<UUID> = []
 
     init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
@@ -140,6 +142,57 @@ class TaskManager: ObservableObject {
         visibleLiveTasksCache = nil
     }
 
+    func invalidateChildTaskCache(for kind: TaskListKind? = nil) {
+        if let specificKind = kind {
+            childTaskCache.removeValue(forKey: specificKind)
+            taskIndexCache.removeValue(forKey: specificKind)
+        } else {
+            childTaskCache.removeAll()
+            taskIndexCache.removeAll()
+        }
+    }
+
+    func ensureChildCache(for kind: TaskListKind) {
+        if childTaskCache[kind] != nil { return }
+        rebuildChildCache(for: kind)
+    }
+
+    func rebuildChildCache(for kind: TaskListKind) {
+        let kindPredicate: Predicate<Task> = {
+            switch kind {
+            case .live:
+                return #Predicate { !$0.isTemplateComponent }
+            case .template:
+                return #Predicate { $0.isTemplateComponent }
+            }
+        }()
+        let descriptor = FetchDescriptor<Task>(
+            predicate: kindPredicate,
+            sortBy: [SortDescriptor(\.displayOrder, order: .forward)]
+        )
+
+        do {
+            let tasks = try modelContext.fetch(descriptor)
+            var map: [UUID?: [Task]] = [:]
+            var index: [UUID: Task] = [:]
+            for task in tasks {
+                index[task.id] = task
+                map[task.parentTask?.id, default: []].append(task)
+            }
+            for (key, children) in map {
+                map[key] = children.sorted { $0.displayOrder < $1.displayOrder }
+            }
+            childTaskCache[kind] = map
+            taskIndexCache[kind] = index
+        } catch {
+        #if DEBUG
+            print("TaskManager warning: failed to rebuild child cache for \(kind): \(error)")
+        #endif
+            childTaskCache[kind] = [:]
+            taskIndexCache[kind] = [:]
+        }
+    }
+
     var currentPathInput: String {
         get { inputState.text }
         set {
@@ -167,6 +220,7 @@ class TaskManager: ObservableObject {
     @discardableResult
     func performListMutation<Result>(_ body: () -> Result) -> Result {
         invalidateVisibleTasksCache()
+        invalidateChildTaskCache(for: nil)
         return performAnimation(isEnabled: listAnimationsEnabled, body)
     }
 
@@ -187,26 +241,25 @@ class TaskManager: ObservableObject {
     }
 
     func childTasks(forParentID parentID: UUID, kind: TaskListKind) -> [Task] {
+        ensureChildCache(for: kind)
+        if let cached = childTaskCache[kind]?[parentID] {
+            return cached
+        }
+
+        // Fallback: log and attempt fetch once if cache is missing an entry
         guard let parentTask = task(withID: parentID) else {
             noteOrphanedTask(id: parentID, context: "childTasks(\(kind))")
             return []
         }
 
         do {
-            return try fetchSiblings(for: parentTask, kind: kind)
+            let siblings = try fetchSiblings(for: parentTask, kind: kind)
+            return siblings
         } catch {
             #if DEBUG
-            print("TaskManager warning: fetchSiblings failed for parent \(parentID) (\(kind)): \(error)")
+            print("TaskManager warning: fetchSiblings fallback failed for parent \(parentID) (\(kind)): \(error)")
             #endif
-            let children = parentTask.subtasks ?? []
-            let filtered: [Task]
-            switch kind {
-            case .live:
-                filtered = children.filter { !$0.isTemplateComponent && $0.modelContext != nil }
-            case .template:
-                filtered = children.filter { $0.isTemplateComponent && $0.modelContext != nil }
-            }
-            return filtered.sorted { $0.displayOrder < $1.displayOrder }
+            return []
         }
     }
 
@@ -236,6 +289,29 @@ class TaskManager: ObservableObject {
             }
 
             parentID = parentTask.parentTask?.id
+        }
+
+        return false
+    }
+
+    func hasCompletedAncestorCached(for taskID: UUID, kind: TaskListKind) -> Bool {
+        guard kind == .live else { return false }
+        ensureChildCache(for: kind)
+        guard let index = taskIndexCache[kind], let task = index[taskID] else {
+            return hasCompletedAncestor(for: taskID, kind: kind)
+        }
+
+        var visited = Set<UUID>()
+        var current = task.parentTask
+
+        while let parent = current {
+            if !visited.insert(parent.id).inserted {
+                break
+            }
+            if parent.isCompleted {
+                return true
+            }
+            current = parent.parentTask
         }
 
         return false

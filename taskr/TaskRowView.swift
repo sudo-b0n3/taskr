@@ -142,7 +142,7 @@ struct TaskRowView: View {
                         .onTapGesture {
                             releaseInputFocus?()
                             taskManager.registerUserInteractionTap()
-                            taskManager.toggleTaskCompletion(taskID: taskID)
+                            taskManager.toggleTaskCompletion(task: task)
                         }
                 } else {
                     Text("•").foregroundColor(palette.secondaryTextColor)
@@ -204,7 +204,13 @@ struct TaskRowView: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(highlightColor)
         )
-        .background(rowHeightReporter)
+        .background(
+            Group {
+                if shouldReportRowHeight {
+                    rowHeightReporter
+                }
+            }
+        )
         .onPreferenceChange(RowHeightPreferenceKey.self) { heights in
             if let height = heights[taskID], height > 0 {
                 let needsUpdate = rowHeight == 0 || abs(rowHeight - height) > 0.5
@@ -384,7 +390,7 @@ struct TaskRowView: View {
         if task.modelContext == nil {
             taskManager.noteOrphanedTask(id: taskID, context: "TaskRowView.hasCompletedAncestor")
         }
-        return taskManager.hasCompletedAncestor(for: taskID, kind: listKind)
+        return taskManager.hasCompletedAncestorCached(for: taskID, kind: listKind)
     }
 
     private func startEditing() {
@@ -542,6 +548,10 @@ private extension TaskRowView {
 
     private var effectiveRowHeight: CGFloat {
         rowHeight > 0 ? rowHeight : 28
+    }
+
+    private var shouldReportRowHeight: Bool {
+        taskManager.isShiftSelectionInProgress || taskManager.rowHeight(for: taskID) == nil
     }
 
     private var rowHeightReporter: some View {
