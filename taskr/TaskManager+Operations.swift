@@ -27,6 +27,9 @@ extension TaskManager {
         do {
             try modelContext.save()
             
+            // Ensure all cascade deletes are fully processed
+            modelContext.processPendingChanges()
+            
             // Resequence siblings for each affected parent
             for (parent, _) in tasksByParent {
                 if let first = tasks.first {
