@@ -13,11 +13,12 @@ struct CustomTextField: NSViewRepresentable {
     var onArrowUp: () -> Void
     var fieldBackgroundColor: NSColor? = nil
     var fieldTextColor: NSColor? = nil
+    var placeholderTextColor: NSColor? = nil
 
     func makeNSView(context: Context) -> NSTextField {
         let textField = NSTextField()
         textField.delegate = context.coordinator
-        textField.placeholderString = placeholder
+        applyPlaceholder(to: textField)
         textField.isBordered = true
         textField.drawsBackground = true
         textField.backgroundColor = fieldBackgroundColor ?? NSColor.textBackgroundColor // Standard background
@@ -49,10 +50,19 @@ struct CustomTextField: NSViewRepresentable {
         if let fg = fieldTextColor, nsView.textColor != fg {
             nsView.textColor = fg
         }
+        applyPlaceholder(to: nsView)
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
+    }
+
+    private func applyPlaceholder(to textField: NSTextField) {
+        let placeholderColor = placeholderTextColor ?? NSColor.placeholderTextColor
+        textField.placeholderAttributedString = NSAttributedString(
+            string: placeholder,
+            attributes: [.foregroundColor: placeholderColor]
+        )
     }
 
     class Coordinator: NSObject, NSTextFieldDelegate {

@@ -51,7 +51,8 @@ struct TaskView: View {
                         onArrowDown: { taskManager.selectNextSuggestion() },
                         onArrowUp: { taskManager.selectPreviousSuggestion() },
                         fieldBackgroundColor: palette.inputBackground,
-                        fieldTextColor: palette.primaryText
+                        fieldTextColor: palette.primaryText,
+                        placeholderTextColor: palette.secondaryText
                     )
                     .focused($isInputFocused).frame(height: 22)
                     Button(action: { taskManager.addTaskFromPath(); isInputFocused = true }) {
