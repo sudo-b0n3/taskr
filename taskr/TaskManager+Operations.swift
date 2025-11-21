@@ -7,27 +7,53 @@ extension TaskManager {
     func deleteTasks(_ tasks: [Task]) {
         guard !tasks.isEmpty else { return }
         
-        // Collect all IDs that will be deleted (including descendants via cascade)
-        // BEFORE we delete, so we can properly clean up collapsed state
+        // Collect all tasks to delete (including descendants)
+        var allTasksToDelete: [Task] = []
         var allIDsToDelete = Set<UUID>()
-        for task in tasks {
+        
+        func collectTasksRecursively(_ task: Task) {
+            allTasksToDelete.append(task)
             allIDsToDelete.insert(task.id)
-            // Recursively collect all descendant IDs
-            collectDescendantIDs(of: task, into: &allIDsToDelete)
+            
+            // Recursively collect descendants
+            if let children = task.subtasks {
+                for child in children {
+                    collectTasksRecursively(child)
+                }
+            }
         }
         
-        // Group by parent to handle resequencing efficiently
+        // Collect all tasks and their descendants
+        for task in tasks {
+            collectTasksRecursively(task)
+        }
+        
+        // Group by parent to handle resequencing efficiently (only for top-level tasks)
         let tasksByParent = Dictionary(grouping: tasks) { $0.parentTask }
         
-        // Delete the tasks (cascade will handle children)
-        for task in tasks {
+        // Delete all tasks explicitly (children first to avoid issues)
+        // Sort by depth (deepest first) to delete children before parents
+        let sortedTasks = allTasksToDelete.sorted { task1, task2 in
+            func depth(of task: Task) -> Int {
+                var count = 0
+                var current = task.parentTask
+                while current != nil {
+                    count += 1
+                    current = current?.parentTask
+                }
+                return count
+            }
+            return depth(of: task1) > depth(of: task2)
+        }
+        
+        for task in sortedTasks {
             modelContext.delete(task)
         }
         
         do {
             try modelContext.save()
             
-            // Ensure all cascade deletes are fully processed
+            // Ensure all deletes are fully processed
             modelContext.processPendingChanges()
             
             // Resequence siblings for each affected parent
@@ -47,14 +73,6 @@ extension TaskManager {
             
         } catch {
             print("Error deleting tasks: \(error)")
-        }
-    }
-    
-    private func collectDescendantIDs(of task: Task, into set: inout Set<UUID>) {
-        guard let children = task.subtasks else { return }
-        for child in children {
-            set.insert(child.id)
-            collectDescendantIDs(of: child, into: &set)
         }
     }
     
