@@ -261,11 +261,11 @@ extension TaskView {
 
         switch event.keyCode {
         case 125: // Down arrow
-            guard !commandPressed || shiftPressed else { return false }
+            guard !commandPressed else { return false }
             taskManager.stepSelection(.down, extend: shiftPressed)
             return true
         case 126: // Up arrow
-            guard !commandPressed || shiftPressed else { return false }
+            guard !commandPressed else { return false }
             taskManager.stepSelection(.up, extend: shiftPressed)
             return true
         case 53: // Escape
