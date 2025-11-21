@@ -96,19 +96,12 @@ struct taskrApp: App {
                 ))
         }
         Settings {
-            SettingsView(
-                updateIconAction: appDelegate.updateStatusItemIcon,
-                setDockIconVisibilityAction: appDelegate.setDockIconVisibility,
-                // Wrap the call to match the expected (Bool) -> Bool signature
-                enableGlobalHotkeyAction: { enable in
-                    // When called from SettingsView, we want the alert if permissions fail
-                    return appDelegate.enableGlobalHotkey(enable, showAlertIfNotGranted: true)
-                }
-            )
+            SettingsView()
         }
         .modelContainer(container)
         .environmentObject(taskManager)
         .environmentObject(taskManager.inputState)
+        .environmentObject(appDelegate)
         .commands {
             CommandGroup(replacing: .help) {
                 Button("taskr Help…") {

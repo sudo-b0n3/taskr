@@ -74,10 +74,14 @@ extension TaskManager {
 
         guard !rootIDs.isEmpty else { return }
 
+        var tasksToDelete: [Task] = []
         for id in rootIDs {
             guard let task = task(withID: id) else { continue }
-            deleteTask(task)
+            tasksToDelete.append(task)
         }
+        
+        // Use generic helper
+        deleteTasks(tasksToDelete)
     }
 
     func duplicateSelectedTasks() {
@@ -288,93 +292,6 @@ extension TaskManager {
         applySiblingOrder(reordered, parent: context.parent, selectedSet: context.selectedSet)
     }
 
-    func moveTask(
-        draggedTaskID: UUID,
-        targetTaskID: UUID,
-        parentOfList: Task?,
-        moveBeforeTarget: Bool
-    ) {
-        if draggedTaskID == targetTaskID { return }
-
-        let predicate: Predicate<Task>
-        if let parentId = parentOfList?.id {
-            predicate = #Predicate<Task> {
-                !$0.isTemplateComponent && $0.parentTask?.id == parentId
-            }
-        } else {
-            predicate = #Predicate<Task> {
-                !$0.isTemplateComponent && $0.parentTask == nil
-            }
-        }
-        let descriptor = FetchDescriptor<Task>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\.displayOrder)]
-        )
-
-        performListMutation {
-            do {
-                var currentSiblings = try modelContext.fetch(descriptor)
-
-                guard let draggedTaskIndex = currentSiblings.firstIndex(where: { $0.id == draggedTaskID }) else {
-                    print("Error: Dragged task (ID: \(draggedTaskID)) not found among siblings.")
-                    return
-                }
-                let taskToMove = currentSiblings.remove(at: draggedTaskIndex)
-
-                guard let targetTaskNewIndexInModifiedList = currentSiblings.firstIndex(where: { $0.id == targetTaskID }) else {
-                    print("Error: Target task (ID: \(targetTaskID)) not found after removing dragged task.")
-                    currentSiblings.insert(taskToMove, at: min(draggedTaskIndex, currentSiblings.count))
-                    for (newOrder, task) in currentSiblings.enumerated() where task.displayOrder != newOrder {
-                        task.displayOrder = newOrder
-                    }
-                    try? modelContext.save()
-                    return
-                }
-
-                var insertionIndex = targetTaskNewIndexInModifiedList
-                if !moveBeforeTarget {
-                    insertionIndex += 1
-                }
-
-                insertionIndex = max(0, min(insertionIndex, currentSiblings.count))
-
-                currentSiblings.insert(taskToMove, at: insertionIndex)
-                guard let updatedIndex = currentSiblings.firstIndex(where: { $0.id == draggedTaskID }) else {
-                    print("Error: Unable to locate dragged task after reinsertion.")
-                    return
-                }
-
-                if updatedIndex == draggedTaskIndex {
-                    return
-                }
-
-                let start = min(draggedTaskIndex, updatedIndex)
-                let end = max(draggedTaskIndex, updatedIndex)
-
-                var didUpdateOrder = false
-                for idx in start...end {
-                    let task = currentSiblings[idx]
-                    if task.displayOrder != idx {
-                        task.displayOrder = idx
-                        didUpdateOrder = true
-                    }
-                }
-
-                guard didUpdateOrder else { return }
-
-                do {
-                    try modelContext.save()
-                } catch {
-                    modelContext.rollback()
-                    print("Error saving task reorder for parent \(parentOfList?.name ?? "nil"): \(error)")
-                }
-            }
-            catch {
-                print("Error moving task with ID \(draggedTaskID): \(error)")
-            }
-        }
-    }
-
     @discardableResult
     func addSubtask(to parent: Task) -> Task? {
         guard !parent.isTemplateComponent else { return nil }
@@ -409,8 +326,8 @@ extension TaskManager {
 
     func deleteTask(_ task: Task) {
         guard !task.isTemplateComponent else { return }
-        let result = deleteTasks([task])
-        finalizeDeletionBatch(result)
+        // Use generic helper
+        deleteTasks([task])
     }
 
     func toggleTaskCompletion(taskID: UUID) {
@@ -494,8 +411,9 @@ extension TaskManager {
                 uniqueTaskMap[task.id] = task
             }
             let uniqueTasks = Array(uniqueTaskMap.values)
-            let result = deleteTasks(uniqueTasks)
-            finalizeDeletionBatch(result)
+            
+            // Use generic helper
+            deleteTasks(uniqueTasks)
         } catch {
             print("Error clearing completed tasks: \(error)")
         }
@@ -530,40 +448,24 @@ extension TaskManager {
                         t.displayOrder = i
                         hasChanges = true
                     }
+                }
+                if hasChanges { try modelContext.save() }
             }
-            if hasChanges { try modelContext.save() }
+            defaults.set(true, forKey: normalizedDisplayOrderMigrationDoneKey)
+            invalidateVisibleTasksCache()
+            invalidateChildTaskCache(for: .live)
+        } catch {
+            print("Normalization migration failed: \(error)")
+            defaults.set(true, forKey: normalizedDisplayOrderMigrationDoneKey)
+            invalidateVisibleTasksCache()
+            invalidateChildTaskCache(for: .live)
         }
-        defaults.set(true, forKey: normalizedDisplayOrderMigrationDoneKey)
-        invalidateVisibleTasksCache()
-        invalidateChildTaskCache(for: .live)
-    } catch {
-        print("Normalization migration failed: \(error)")
-        defaults.set(true, forKey: normalizedDisplayOrderMigrationDoneKey)
-        invalidateVisibleTasksCache()
-        invalidateChildTaskCache(for: .live)
     }
-}
 
     // MARK: - Helpers
 
     func fetchLiveSiblings(for parent: Task?) throws -> [Task] {
         try fetchSiblings(for: parent, kind: .live)
-    }
-
-    private func deleteSubtree(_ task: Task) {
-        let kind: TaskListKind = task.isTemplateComponent ? .template : .live
-        let children: [Task]
-        do {
-            children = try fetchSiblings(for: task, kind: kind)
-        } catch {
-            children = task.subtasks ?? []
-        }
-
-        for child in children {
-            deleteSubtree(child)
-        }
-
-        modelContext.delete(task)
     }
 
     private func collectSubtreeIDs(for task: Task) -> Set<UUID> {
@@ -584,100 +486,7 @@ extension TaskManager {
 
         return identifiers
     }
-
-    private struct DeletionBatchResult {
-        let parentIDs: Set<UUID?>
-        let collapsedStateChanged: Bool
-    }
-
-    private func deleteTasks(_ tasks: [Task]) -> DeletionBatchResult {
-        guard !tasks.isEmpty else {
-            return DeletionBatchResult(parentIDs: [], collapsedStateChanged: false)
-        }
-
-        var parentIDs: Set<UUID?> = []
-        var collapsedStateChanged = false
-        var uniqueTasks: [Task] = []
-        var seenTaskIDs: Set<UUID> = []
-
-        for task in tasks {
-            guard !seenTaskIDs.contains(task.id) else { continue }
-            seenTaskIDs.insert(task.id)
-
-            let subtreeIDs = collectSubtreeIDs(for: task)
-            removeSubtreeState(for: subtreeIDs, collapsedChanged: &collapsedStateChanged)
-            parentIDs.insert(task.parentTask?.id)
-            uniqueTasks.append(task)
-        }
-
-        guard !uniqueTasks.isEmpty else {
-            return DeletionBatchResult(parentIDs: parentIDs, collapsedStateChanged: collapsedStateChanged)
-        }
-
-        performListMutation {
-            for task in uniqueTasks {
-                deleteSubtree(task)
-            }
-        }
-
-        return DeletionBatchResult(parentIDs: parentIDs, collapsedStateChanged: collapsedStateChanged)
-    }
-
-    private func finalizeDeletionBatch(_ result: DeletionBatchResult) {
-        do {
-            try modelContext.save()
-            modelContext.processPendingChanges()
-        } catch {
-            print("Error saving deletions: \(error)")
-            return
-        }
-
-        if result.collapsedStateChanged {
-            persistCollapsedState()
-        }
-
-        for parentID in result.parentIDs {
-            if let id = parentID {
-                if let parentTask = task(withID: id) {
-                    resequenceDisplayOrder(for: parentTask)
-                }
-            } else {
-                resequenceDisplayOrder(for: nil)
-            }
-        }
-
-        pruneCollapsedState()
-    }
-
-    private func removeSubtreeState(
-        for subtreeIDs: Set<UUID>,
-        collapsedChanged: inout Bool
-    ) {
-        guard !subtreeIDs.isEmpty else { return }
-
-        let previousCollapsed = collapsedTaskIDs
-        collapsedTaskIDs.subtract(subtreeIDs)
-        if collapsedTaskIDs != previousCollapsed {
-            collapsedChanged = true
-        }
-
-        if !selectedTaskIDs.isEmpty {
-            selectedTaskIDs.removeAll { subtreeIDs.contains($0) }
-        }
-
-        if let anchor = selectionAnchorID, subtreeIDs.contains(anchor) {
-            selectionAnchorID = nil
-        }
-
-        if let cursor = selectionCursorID, subtreeIDs.contains(cursor) {
-            selectionCursorID = nil
-        }
-
-        if let pending = pendingInlineEditTaskID, subtreeIDs.contains(pending) {
-            pendingInlineEditTaskID = nil
-        }
-    }
-
+    
     func getNextDisplayOrder(
         for parent: Task?,
         in context: ModelContext
@@ -773,6 +582,78 @@ extension TaskManager {
         existingNames.insert(candidate)
         return candidate
     }
+    
+    // Helper for multi-selection move
+    private func selectedSiblingContext() -> SelectedSiblingContext? {
+        guard let firstID = selectedTaskIDs.first,
+              let firstTask = task(withID: firstID) else { return nil }
+        
+        let parent = firstTask.parentTask
+        guard let siblings = try? fetchSiblings(for: parent, kind: .live) else { return nil }
+        
+        let selectedSet = Set(selectedTaskIDs)
+        
+        // Verify all selected tasks share the same parent
+        for id in selectedTaskIDs {
+            guard let t = task(withID: id), t.parentTask?.id == parent?.id else { return nil }
+        }
+        
+        let indices = siblings.indices.filter { selectedSet.contains(siblings[$0].id) }
+        return SelectedSiblingContext(parent: parent, siblings: siblings, selectedSet: selectedSet, indices: indices)
+    }
+    
+    private func applySiblingOrder(_ orderedTasks: [Task], parent: Task?, selectedSet: Set<UUID>) {
+        performListMutation {
+            for (index, task) in orderedTasks.enumerated() {
+                if task.displayOrder != index {
+                    task.displayOrder = index
+                }
+            }
+            
+            do {
+                try modelContext.save()
+            } catch {
+                print("Error saving reorder: \(error)")
+            }
+        }
+    }
+    func moveTask(draggedTaskID: UUID, targetTaskID: UUID, parentOfList: Task?, moveBeforeTarget: Bool) {
+        performListMutation {
+            guard let dragged = task(withID: draggedTaskID), !dragged.isTemplateComponent else { return }
+            guard let target = task(withID: targetTaskID), !target.isTemplateComponent else { return }
+            
+            // Reparent if needed
+            if dragged.parentTask?.id != parentOfList?.id {
+                dragged.parentTask = parentOfList
+            }
+            
+            do {
+                var siblings = try fetchSiblings(for: parentOfList, kind: .live)
+                // Remove dragged from siblings if present (it might be there if parent didn't change)
+                siblings.removeAll { $0.id == dragged.id }
+                
+                guard let targetIndex = siblings.firstIndex(where: { $0.id == target.id }) else { return }
+                
+                let insertionIndex = moveBeforeTarget ? targetIndex : targetIndex + 1
+                
+                if insertionIndex >= siblings.count {
+                    siblings.append(dragged)
+                } else {
+                    siblings.insert(dragged, at: insertionIndex)
+                }
+                
+                // Update display orders
+                for (index, task) in siblings.enumerated() {
+                    task.displayOrder = index
+                }
+                
+                try modelContext.save()
+                resequenceDisplayOrder(for: parentOfList)
+            } catch {
+                print("Error moving task: \(error)")
+            }
+        }
+    }
 }
 
 // MARK: - Multi-selection helpers
@@ -800,72 +681,5 @@ private extension TaskManager {
             current = parent.parentTask
         }
         return false
-    }
-
-    func selectedSiblingContext() -> SelectedSiblingContext? {
-        let ids = selectedTaskIDs
-        guard !ids.isEmpty else { return nil }
-
-        let tasks = selectedLiveTasks()
-        guard tasks.count == ids.count else { return nil }
-
-        let parentIDs = Set(tasks.map { $0.parentTask?.id })
-        guard parentIDs.count == 1 else { return nil }
-
-        let parent = tasks.first?.parentTask
-
-        let siblings: [Task]
-        do {
-            siblings = try fetchSiblings(for: parent, kind: .live)
-        } catch {
-            return nil
-        }
-
-        let selectedSet = Set(ids)
-        let indices = siblings.enumerated().compactMap { selectedSet.contains($0.element.id) ? $0.offset : nil }
-        guard indices.count == tasks.count else { return nil }
-
-        if indices.count > 1 {
-            for pair in zip(indices, indices.dropFirst()) where pair.1 != pair.0 + 1 {
-                return nil
-            }
-        }
-
-        return SelectedSiblingContext(
-            parent: parent,
-            siblings: siblings,
-            selectedSet: selectedSet,
-            indices: indices
-        )
-    }
-
-    func applySiblingOrder(_ siblings: [Task], parent: Task?, selectedSet: Set<UUID>? = nil) {
-        performListMutation {
-            var didChange = false
-            for (index, task) in siblings.enumerated() where task.displayOrder != index {
-                task.displayOrder = index
-                didChange = true
-            }
-            if didChange {
-                do {
-                    try modelContext.save()
-                    resequenceDisplayOrder(for: parent)
-                } catch {
-                    modelContext.rollback()
-                    print("Error moving selected tasks: \(error)")
-                }
-            }
-
-            if let selectedSet = selectedSet {
-                let orderedIDs = siblings.filter { selectedSet.contains($0.id) }.map(\.id)
-                if !orderedIDs.isEmpty {
-                    selectTasks(
-                        orderedIDs: orderedIDs,
-                        anchor: orderedIDs.first,
-                        cursor: orderedIDs.last
-                    )
-                }
-            }
-        }
     }
 }

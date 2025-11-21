@@ -36,50 +36,6 @@ extension TaskManager {
         }
     }
 
-    func moveTemplateTask(
-        draggedTaskID: UUID,
-        targetTaskID: UUID,
-        parentOfList: Task?,
-        moveBeforeTarget: Bool
-    ) {
-        if draggedTaskID == targetTaskID { return }
-
-        do {
-            let draggedFetch = FetchDescriptor<Task>(predicate: #Predicate { $0.id == draggedTaskID && $0.isTemplateComponent })
-            let targetFetch = FetchDescriptor<Task>(predicate: #Predicate { $0.id == targetTaskID && $0.isTemplateComponent })
-            guard let dragged = try modelContext.fetch(draggedFetch).first,
-                  let _ = try modelContext.fetch(targetFetch).first else { return }
-
-            let originalParent = dragged.parentTask
-            let newParent = parentOfList
-
-            dragged.parentTask = newParent
-
-            var siblings = try fetchSiblings(for: newParent, kind: .template)
-
-            if let idx = siblings.firstIndex(where: { $0.id == draggedTaskID }) {
-                siblings.remove(at: idx)
-            }
-            guard let targetIndex = siblings.firstIndex(where: { $0.id == targetTaskID }) else { return }
-
-            var insertionIndex = targetIndex + (moveBeforeTarget ? 0 : 1)
-            insertionIndex = max(0, min(insertionIndex, siblings.count))
-            siblings.insert(dragged, at: insertionIndex)
-
-            for (i, t) in siblings.enumerated() where t.displayOrder != i {
-                t.displayOrder = i
-            }
-            try modelContext.save()
-
-            if originalParent?.id != newParent?.id {
-                resequenceTemplateDisplayOrder(for: originalParent)
-            }
-            invalidateChildTaskCache(for: .template)
-        } catch {
-            print("Error moving template task with ID \(draggedTaskID): \(error)")
-        }
-    }
-
     func reparentTemplateTask(draggedTaskID: UUID, newParentID: UUID?) {
         do {
             let draggedFetch = FetchDescriptor<Task>(predicate: #Predicate { $0.id == draggedTaskID && $0.isTemplateComponent })
@@ -198,16 +154,8 @@ extension TaskManager {
 
     func deleteTemplateTask(_ task: Task) {
         guard task.isTemplateComponent else { return }
-        let parent = task.parentTask
-        modelContext.delete(task)
-        do {
-            try modelContext.save()
-            resequenceTemplateDisplayOrder(for: parent)
-            pruneCollapsedState()
-            invalidateChildTaskCache(for: .template)
-        } catch {
-            print("Error deleting template task: \(error)")
-        }
+        // Use generic helper
+        deleteTasks([task])
     }
 
     func fetchTemplateSiblings(for parent: Task?) throws -> [Task] {
@@ -262,5 +210,43 @@ extension TaskManager {
             }
         }
         return copy
+    }
+    func moveTemplateTask(draggedTaskID: UUID, targetTaskID: UUID, parentOfList: Task?, moveBeforeTarget: Bool) {
+        do {
+            let draggedFetch = FetchDescriptor<Task>(predicate: #Predicate { $0.id == draggedTaskID && $0.isTemplateComponent })
+            guard let dragged = try modelContext.fetch(draggedFetch).first else { return }
+            
+            let targetFetch = FetchDescriptor<Task>(predicate: #Predicate { $0.id == targetTaskID && $0.isTemplateComponent })
+            guard let target = try modelContext.fetch(targetFetch).first else { return }
+            
+            // Reparent if needed
+            if dragged.parentTask?.id != parentOfList?.id {
+                dragged.parentTask = parentOfList
+            }
+            
+            var siblings = try fetchSiblings(for: parentOfList, kind: .template)
+            siblings.removeAll { $0.id == dragged.id }
+            
+            guard let targetIndex = siblings.firstIndex(where: { $0.id == target.id }) else { return }
+            
+            let insertionIndex = moveBeforeTarget ? targetIndex : targetIndex + 1
+            
+            if insertionIndex >= siblings.count {
+                siblings.append(dragged)
+            } else {
+                siblings.insert(dragged, at: insertionIndex)
+            }
+            
+            // Update display orders
+            for (index, task) in siblings.enumerated() {
+                task.displayOrder = index
+            }
+            
+            try modelContext.save()
+            resequenceDisplayOrder(for: parentOfList, kind: .template)
+            invalidateChildTaskCache(for: .template)
+        } catch {
+            print("Error moving template task: \(error)")
+        }
     }
 }

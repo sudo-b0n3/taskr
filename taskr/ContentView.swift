@@ -120,13 +120,7 @@ struct ContentView: View {
             case .templates:
                 TemplateView()
             case .settings:
-                SettingsView(
-                    updateIconAction: appDelegate.updateStatusItemIcon,
-                    setDockIconVisibilityAction: appDelegate.setDockIconVisibility,
-                    enableGlobalHotkeyAction: { enable in
-                        return appDelegate.enableGlobalHotkey(enable, showAlertIfNotGranted: true)
-                    }
-                )
+                SettingsView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.clear)
             }

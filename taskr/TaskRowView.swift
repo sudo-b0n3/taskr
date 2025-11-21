@@ -1,4 +1,3 @@
-// taskr/taskr/TaskRowView.swift
 import SwiftUI
 import SwiftData
 import AppKit
@@ -31,11 +30,7 @@ struct TaskRowView: View {
     @State private var editText: String = ""
     @FocusState private var isTextFieldFocused: Bool
     @State private var isHoveringRow: Bool = false
-    @State private var didStartShiftDrag: Bool = false
-    @State private var lastShiftHoverUpdate: TimeInterval = 0
     @State private var rowHeight: CGFloat = 0
-    @State private var shiftDragStartIndex: Int?
-    @State private var shiftDragLastIndex: Int?
 
     private var displaySubtasks: [Task] {
         let listKind: TaskManager.TaskListKind = mode == .live ? .live : .template
@@ -228,20 +223,12 @@ struct TaskRowView: View {
         }
         .onHover { hovering in
             isHoveringRow = hovering
-            if hovering && taskManager.isShiftSelectionInProgress {
-                let now = ProcessInfo.processInfo.systemUptime
-                if now - lastShiftHoverUpdate >= 0.03 {
-                    lastShiftHoverUpdate = now
-                    taskManager.updateShiftSelection(to: taskID)
-                }
-            }
         }
         .onDisappear {
             isHoveringRow = false
             taskManager.clearRowHeight(for: taskID)
-            resetShiftDragTracking()
         }
-        .simultaneousGesture(shiftSelectionGesture)
+        .modifier(ShiftSelectionModifier(taskID: taskID, taskManager: taskManager))
     }
 
     @ViewBuilder
@@ -457,85 +444,6 @@ struct TaskRowView: View {
         }
         return NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
     }
-
-    private var shiftSelectionGesture: some Gesture {
-        DragGesture(minimumDistance: 2)
-            .onChanged { value in
-                let shiftDown = currentModifierFlags().contains(.shift)
-                if !shiftDown {
-                    if didStartShiftDrag {
-                        didStartShiftDrag = false
-                        taskManager.endShiftSelection()
-                        resetShiftDragTracking()
-                    }
-                    return
-                }
-
-                if !didStartShiftDrag {
-                    didStartShiftDrag = true
-                    taskManager.beginShiftSelection(at: taskID)
-                }
-                handleShiftDragChange(value)
-            }
-            .onEnded { _ in
-                if didStartShiftDrag {
-                    didStartShiftDrag = false
-                    taskManager.endShiftSelection()
-                }
-                resetShiftDragTracking()
-            }
-    }
-
-}
-
-// MARK: - Animated UI Bits
-private struct AnimatedCheckCircle: View {
-    var isOn: Bool
-    var enabled: Bool
-    var baseColor: Color
-    var accentColor: Color
-
-    private let targetScale: CGFloat = 0.55
-    private let animation: Animation = .easeInOut(duration: 0.16)
-
-    var body: some View {
-        ZStack {
-            Image(systemName: "circle")
-                .foregroundColor(baseColor)
-            Circle()
-                .fill(accentColor)
-                .scaleEffect(isOn ? targetScale : 0.0001)
-                .animation(enabled ? animation : .none, value: isOn)
-        }
-    }
-}
-
-private struct AnimatedStrikeText: View {
-    let text: String
-    let isStruck: Bool
-    let enabled: Bool
-    let strikeColor: Color
-    private let animation: Animation = .easeInOut(duration: 0.18)
-
-    var body: some View {
-        let progress: CGFloat = isStruck ? 1.0 : 0.0
-        ZStack(alignment: .leading) {
-            Text(text)
-
-            Text(text)
-                .foregroundStyle(Color.clear)
-                .strikethrough(true, color: strikeColor)
-                .mask(
-                    GeometryReader { proxy in
-                        Rectangle()
-                            .frame(width: proxy.size.width * progress, height: proxy.size.height, alignment: .leading)
-                    }
-                )
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-        .animation(enabled ? animation : .none, value: isStruck)
-    }
 }
 
 private extension TaskRowView {
@@ -559,77 +467,5 @@ private extension TaskRowView {
             Color.clear
                 .preference(key: RowHeightPreferenceKey.self, value: [taskID: proxy.size.height])
         }
-    }
-
-    private func handleShiftDragChange(_ value: DragGesture.Value) {
-        let visibleIDs = taskManager.snapshotVisibleTaskIDs()
-
-        guard let startIndex = calibrateShiftDragStartIndex(with: visibleIDs) else {
-            return
-        }
-
-        var targetIndex = startIndex
-        let currentOffset = value.location.y
-
-        if currentOffset >= 0 {
-            var remaining = currentOffset
-            while targetIndex < visibleIDs.count - 1 {
-                let height = cachedHeight(for: visibleIDs[targetIndex])
-                if remaining < height {
-                    break
-                }
-                remaining -= height
-                targetIndex += 1
-            }
-        } else {
-            var remaining = currentOffset
-            while targetIndex > 0 {
-                let previousIndex = targetIndex - 1
-                let height = cachedHeight(for: visibleIDs[previousIndex])
-                remaining += height
-                targetIndex = previousIndex
-                if remaining >= 0 {
-                    break
-                }
-            }
-        }
-
-        if shiftDragLastIndex != targetIndex {
-            shiftDragLastIndex = targetIndex
-            let targetID = visibleIDs[targetIndex]
-            taskManager.updateShiftSelection(to: targetID)
-        }
-    }
-
-    private func calibrateShiftDragStartIndex(with visibleIDs: [UUID]) -> Int? {
-        if let existing = shiftDragStartIndex,
-           visibleIDs.indices.contains(existing),
-           visibleIDs[existing] == taskID {
-            if shiftDragLastIndex == nil {
-                shiftDragLastIndex = existing
-            }
-            return existing
-        }
-
-        if let index = visibleIDs.firstIndex(of: taskID) {
-            shiftDragStartIndex = index
-            if shiftDragLastIndex == nil {
-                shiftDragLastIndex = index
-            }
-            return index
-        }
-
-        shiftDragStartIndex = nil
-        shiftDragLastIndex = nil
-        return nil
-    }
-
-    private func resetShiftDragTracking() {
-        shiftDragStartIndex = nil
-        shiftDragLastIndex = nil
-    }
-
-    private func cachedHeight(for id: UUID) -> CGFloat {
-        taskManager.rowHeight(for: id) ?? effectiveRowHeight
     }
 }

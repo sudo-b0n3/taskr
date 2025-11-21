@@ -13,47 +13,75 @@ class TaskManager: ObservableObject {
     let modelContext: ModelContext
     private let defaults: UserDefaults
 
+    // Sub-managers
+    let themeManager: ThemeManager
+    let selectionManager: SelectionManager
+    let animationManager: AnimationManager
+    let rowHeightManager: RowHeightManager
+
     @Published var newTemplateName: String = ""
     @Published var completionMutationVersion: Int = 0
     @Published var pendingInlineEditTaskID: UUID? = nil
     @Published var collapsedTaskIDs: Set<UUID> = []
-    @Published var selectedTaskIDs: [UUID] = [] {
-        didSet { selectedTaskIDSet = Set(selectedTaskIDs) }
-    }
+    
     @Published private(set) var isTaskInputFocused: Bool = false
-    @Published private(set) var selectedTheme: AppTheme
     @Published private(set) var frostedBackgroundEnabled: Bool
     @Published private(set) var isApplicationActive: Bool = true
     @Published private(set) var isTaskWindowKey: Bool = true
-    @Published private(set) var animationsMasterEnabled: Bool
-    @Published private(set) var listAnimationsEnabled: Bool
-    @Published private(set) var collapseAnimationsEnabled: Bool
 
     lazy var pathCoordinator = PathInputCoordinator(taskManager: self)
     let inputState: TaskInputState
 
-    var themePalette: ThemePalette { selectedTheme.palette }
-    var selectedTaskIDSet: Set<UUID> = []
-    var selectionAnchorID: UUID?
-    var selectionCursorID: UUID?
-    private var selectionInteractionCaptured: Bool = false
-    var shiftSelectionActive: Bool = false
-    private var rowHeightCache: [UUID: CGFloat] = [:]
+    // Proxy properties for backward compatibility and ease of access
+    var selectedTheme: AppTheme { themeManager.selectedTheme }
+    var themePalette: ThemePalette { themeManager.themePalette }
+    
+    var selectedTaskIDs: [UUID] {
+        get { selectionManager.selectedTaskIDs }
+        set { selectionManager.selectedTaskIDs = newValue }
+    }
+    var selectedTaskIDSet: Set<UUID> { selectionManager.selectedTaskIDSet }
+    var selectionAnchorID: UUID? {
+        get { selectionManager.selectionAnchorID }
+        set { selectionManager.selectionAnchorID = newValue }
+    }
+    var selectionCursorID: UUID? {
+        get { selectionManager.selectionCursorID }
+        set { selectionManager.selectionCursorID = newValue }
+    }
+    var shiftSelectionActive: Bool { selectionManager.shiftSelectionActive }
+    var isShiftSelectionInProgress: Bool { selectionManager.isShiftSelectionInProgress }
+    
+    var animationsMasterEnabled: Bool { animationManager.animationsMasterEnabled }
+    var listAnimationsEnabled: Bool { animationManager.listAnimationsEnabled }
+    var collapseAnimationsEnabled: Bool { animationManager.collapseAnimationsEnabled }
+
     var visibleLiveTasksCache: [Task]? = nil
     var childTaskCache: [TaskListKind: [UUID?: [Task]]] = [:]
     var taskIndexCache: [TaskListKind: [UUID: Task]] = [:]
     private var orphanedTaskLog: Set<UUID> = []
 
+    private var cancellables = Set<AnyCancellable>()
+
     init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
         self.modelContext = modelContext
         self.defaults = defaults
         self.inputState = TaskInputState()
-        let storedTheme = defaults.string(forKey: selectedThemePreferenceKey) ?? ""
-        self.selectedTheme = AppTheme(rawValue: storedTheme) ?? .system
+        
+        // Initialize sub-managers
+        self.themeManager = ThemeManager(defaults: defaults)
+        self.selectionManager = SelectionManager()
+        self.animationManager = AnimationManager(defaults: defaults)
+        self.rowHeightManager = RowHeightManager()
+        
         self.frostedBackgroundEnabled = defaults.bool(forKey: frostedBackgroundPreferenceKey)
-        self.animationsMasterEnabled = defaults.object(forKey: animationsMasterEnabledPreferenceKey) as? Bool ?? true
-        self.listAnimationsEnabled = defaults.object(forKey: listAnimationsEnabledPreferenceKey) as? Bool ?? true
-        self.collapseAnimationsEnabled = defaults.object(forKey: collapseAnimationsEnabledPreferenceKey) as? Bool ?? true
+        
+        // Forward sub-manager updates to TaskManager's objectWillChange
+        themeManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
+        selectionManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
+        animationManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
+        rowHeightManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
+        
         loadCollapsedState()
         pruneCollapsedState()
         normalizeDisplayOrdersIfNeeded()
@@ -67,12 +95,12 @@ class TaskManager: ObservableObject {
         return try? modelContext.fetch(descriptor).first
     }
 
+    // MARK: - Theme Delegation
     func setTheme(_ theme: AppTheme) {
-        guard theme != selectedTheme else { return }
-        selectedTheme = theme
-        defaults.set(theme.rawValue, forKey: selectedThemePreferenceKey)
+        themeManager.setTheme(theme)
     }
 
+    // MARK: - Settings Delegation
     func setFrostedBackgroundEnabled(_ enabled: Bool) {
         guard frostedBackgroundEnabled != enabled else { return }
         frostedBackgroundEnabled = enabled
@@ -80,23 +108,22 @@ class TaskManager: ObservableObject {
     }
 
     func setAnimationsMasterEnabled(_ enabled: Bool) {
-        guard animationsMasterEnabled != enabled else { return }
-        animationsMasterEnabled = enabled
-        defaults.set(enabled, forKey: animationsMasterEnabledPreferenceKey)
+        animationManager.setAnimationsMasterEnabled(enabled)
     }
 
     func setListAnimationsEnabled(_ enabled: Bool) {
-        guard listAnimationsEnabled != enabled else { return }
-        listAnimationsEnabled = enabled
-        defaults.set(enabled, forKey: listAnimationsEnabledPreferenceKey)
+        animationManager.setListAnimationsEnabled(enabled)
     }
 
     func setCollapseAnimationsEnabled(_ enabled: Bool) {
-        guard collapseAnimationsEnabled != enabled else { return }
-        collapseAnimationsEnabled = enabled
-        defaults.set(enabled, forKey: collapseAnimationsEnabledPreferenceKey)
+        animationManager.setCollapseAnimationsEnabled(enabled)
+    }
+    
+    func setCompletionAnimationsEnabled(_ enabled: Bool) {
+        animationManager.setCompletionAnimationsEnabled(enabled)
     }
 
+    // MARK: - Input Focus & App State
     func setTaskInputFocused(_ isFocused: Bool) {
         guard isTaskInputFocused != isFocused else { return }
         isTaskInputFocused = isFocused
@@ -112,32 +139,70 @@ class TaskManager: ObservableObject {
         isTaskWindowKey = isKey
     }
 
+    // MARK: - Selection Delegation
     func registerUserInteractionTap() {
-        selectionInteractionCaptured = true
+        selectionManager.registerUserInteractionTap()
     }
 
     func consumeInteractionCapture() -> Bool {
-        let captured = selectionInteractionCaptured
-        selectionInteractionCaptured = false
-        return captured
+        selectionManager.consumeInteractionCapture()
     }
 
     func resetTapInteractionCapture() {
-        selectionInteractionCaptured = false
+        selectionManager.resetTapInteractionCapture()
+    }
+    
+    func isTaskSelected(_ id: UUID) -> Bool {
+        selectionManager.isTaskSelected(id)
+    }
+    
+    func clearSelection() {
+        selectionManager.clearSelection()
+    }
+    
+    func replaceSelection(with id: UUID) {
+        selectionManager.replaceSelection(with: id)
+    }
+    
+    func toggleSelection(for id: UUID) {
+        selectionManager.toggleSelection(for: id, visibleTaskIDs: snapshotVisibleTaskIDs())
+    }
+    
+    func extendSelection(to id: UUID) {
+        selectionManager.extendSelection(to: id, visibleTaskIDs: snapshotVisibleTaskIDs())
+    }
+    
+    func selectTasks(orderedIDs: [UUID], anchor: UUID?, cursor: UUID?) {
+        selectionManager.selectTasks(orderedIDs: orderedIDs, anchor: anchor, cursor: cursor)
+    }
+    
+    func beginShiftSelection(at id: UUID) {
+        selectionManager.beginShiftSelection(at: id)
+    }
+    
+    func updateShiftSelection(to targetID: UUID) {
+        let visibleIDs = snapshotVisibleTaskIDs()
+        selectionManager.updateShiftSelection(to: targetID, visibleTaskIDs: visibleIDs)
+    }
+    
+    func endShiftSelection() {
+        selectionManager.endShiftSelection()
     }
 
+    // MARK: - Row Height Delegation
     func setRowHeight(_ height: CGFloat, for taskID: UUID) {
-        rowHeightCache[taskID] = height
+        rowHeightManager.setRowHeight(height, for: taskID)
     }
 
     func clearRowHeight(for taskID: UUID) {
-        rowHeightCache.removeValue(forKey: taskID)
+        rowHeightManager.clearRowHeight(for: taskID)
     }
 
     func rowHeight(for taskID: UUID) -> CGFloat? {
-        rowHeightCache[taskID]
+        rowHeightManager.rowHeight(for: taskID)
     }
 
+    // MARK: - Cache Management
     func invalidateVisibleTasksCache() {
         visibleLiveTasksCache = nil
     }
@@ -221,23 +286,13 @@ class TaskManager: ObservableObject {
     func performListMutation<Result>(_ body: () -> Result) -> Result {
         invalidateVisibleTasksCache()
         invalidateChildTaskCache(for: nil)
-        return performAnimation(isEnabled: listAnimationsEnabled, body)
+        return animationManager.performListMutation(body)
     }
 
     @discardableResult
     func performCollapseTransition<Result>(_ body: () -> Result) -> Result {
         invalidateVisibleTasksCache()
-        return performAnimation(isEnabled: collapseAnimationsEnabled, body)
-    }
-
-    @discardableResult
-    private func performAnimation<Result>(isEnabled: Bool, _ body: () -> Result) -> Result {
-        guard animationsMasterEnabled && isEnabled else {
-            var transaction = Transaction(animation: nil)
-            transaction.disablesAnimations = true
-            return withTransaction(transaction) { body() }
-        }
-        return withAnimation(.default) { body() }
+        return animationManager.performCollapseTransition(body)
     }
 
     func childTasks(forParentID parentID: UUID, kind: TaskListKind) -> [Task] {
@@ -316,6 +371,101 @@ class TaskManager: ObservableObject {
 
         return false
     }
+
+    func handleShiftDrag(from startTaskID: UUID, offset: CGFloat) {
+        // We need to calculate the target task ID based on the offset and row heights.
+        // This requires visible tasks and their heights.
+        
+        // We need to calculate the target task ID based on the offset and row heights.
+        // This requires visible tasks and their heights.
+        
+        let visibleIDs = snapshotVisibleTaskIDs()
+        
+        guard let startIndex = visibleIDs.firstIndex(of: startTaskID) else { return }
+        
+        var targetIndex = startIndex
+        
+        if offset >= 0 {
+            var remaining = offset
+            while targetIndex < visibleIDs.count - 1 {
+                let height = rowHeight(for: visibleIDs[targetIndex]) ?? 28 // Default height
+                if remaining < height {
+                    break
+                }
+                remaining -= height
+                targetIndex += 1
+            }
+        } else {
+            var remaining = offset
+            while targetIndex > 0 {
+                let previousIndex = targetIndex - 1
+                let height = rowHeight(for: visibleIDs[previousIndex]) ?? 28
+                remaining += height
+                targetIndex = previousIndex
+                if remaining >= 0 {
+                    break
+                }
+            }
+        }
+        
+        let targetID = visibleIDs[targetIndex]
+        updateShiftSelection(to: targetID)
+    }
+    
+    func resetShiftDragTracking() {
+        // Any cleanup if needed in managers
+    }
+
+    // Helper to get flattened visible IDs (re-implementing or exposing if it was private)
+    func snapshotVisibleTaskIDs() -> [UUID] {
+        // This needs to traverse the visible tree.
+        // Since we don't have the full traversal logic handy in this snippet, 
+        // let's implement a basic version or rely on the cache if we can build it.
+        
+        // For now, let's fetch all and filter by visibility.
+        // This is potentially expensive, but we can optimize later.
+        // A better approach is to traverse the tree respecting `collapsedTaskIDs`.
+        
+        var visibleIDs: [UUID] = []
+        
+        func traverse(_ tasks: [Task]) {
+            for task in tasks {
+                visibleIDs.append(task.id)
+                if !collapsedTaskIDs.contains(task.id) {
+                    // If expanded, visit children
+                    // We need to know the children.
+                    // Using `childTasks` helper.
+                    let children = childTasks(forParentID: task.id, kind: .live)
+                    if !children.isEmpty {
+                        traverse(children)
+                    }
+                }
+            }
+        }
+        
+        // Start with root tasks
+        // Start with root tasks
+        // The original code likely had a way to get roots.
+        // `childTasks` implementation handles `parentID` but we need to pass something for "root".
+        // Let's look at `childTasks` implementation again.
+        // It takes `parentID: UUID`. It falls back to fetch if not in cache.
+        // But root tasks have `parentTask == nil`.
+        // We need a special sentinel or a separate method for roots.
+        
+        // Let's fix `childTasks` to handle root request or add `rootTasks(kind:)`.
+        // For now, let's assume we can get roots.
+        // Actually, `childTasks` uses `task(withID: parentID)` so it expects a valid parent.
+        
+        // Let's add `visibleRootTasks(kind:)`
+        let rootTasks = (try? fetchSiblings(for: nil, kind: .live)) ?? []
+        traverse(rootTasks)
+        
+        return visibleIDs
+    }
+    
+    // Re-adding fetchSiblings since it was used in the original code but might be private/missing in my replacement
+    // fetchSiblings is defined in TaskManager+OrderingHelpers.swift
+
 
     func noteOrphanedTask(id: UUID, context: String) {
         guard !orphanedTaskLog.contains(id) else { return }
