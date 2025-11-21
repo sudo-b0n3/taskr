@@ -45,18 +45,29 @@ extension TaskManager {
         pendingInlineEditTaskID = taskID
     }
 
-    func pruneCollapsedState() {
-        do {
-            let tasks = try modelContext.fetch(FetchDescriptor<Task>())
-            let existingIDs = Set(tasks.map { $0.id })
-            let pruned = collapsedTaskIDs.intersection(existingIDs)
+    func pruneCollapsedState(removingIDs idsToRemove: Set<UUID>? = nil) {
+        if let idsToRemove = idsToRemove {
+            // Fast path: we know which IDs to remove
+            let pruned = collapsedTaskIDs.subtracting(idsToRemove)
             if pruned != collapsedTaskIDs {
                 collapsedTaskIDs = pruned
                 persistCollapsedState()
                 invalidateVisibleTasksCache()
             }
-        } catch {
-            print("Error pruning collapsed state: \(error)")
+        } else {
+            // Slow path: fetch all tasks and intersect
+            do {
+                let tasks = try modelContext.fetch(FetchDescriptor<Task>())
+                let existingIDs = Set(tasks.map { $0.id })
+                let pruned = collapsedTaskIDs.intersection(existingIDs)
+                if pruned != collapsedTaskIDs {
+                    collapsedTaskIDs = pruned
+                    persistCollapsedState()
+                    invalidateVisibleTasksCache()
+                }
+            } catch {
+                print("Error pruning collapsed state: \(error)")
+            }
         }
     }
 

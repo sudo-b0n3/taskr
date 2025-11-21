@@ -7,9 +7,19 @@ extension TaskManager {
     func deleteTasks(_ tasks: [Task]) {
         guard !tasks.isEmpty else { return }
         
+        // Collect all IDs that will be deleted (including descendants via cascade)
+        // BEFORE we delete, so we can properly clean up collapsed state
+        var allIDsToDelete = Set<UUID>()
+        for task in tasks {
+            allIDsToDelete.insert(task.id)
+            // Recursively collect all descendant IDs
+            collectDescendantIDs(of: task, into: &allIDsToDelete)
+        }
+        
         // Group by parent to handle resequencing efficiently
         let tasksByParent = Dictionary(grouping: tasks) { $0.parentTask }
         
+        // Delete the tasks (cascade will handle children)
         for task in tasks {
             modelContext.delete(task)
         }
@@ -19,26 +29,29 @@ extension TaskManager {
             
             // Resequence siblings for each affected parent
             for (parent, _) in tasksByParent {
-                // We need to know the kind to resequence correctly if we want to be strict,
-                // but resequenceDisplayOrder takes a kind.
-                // We can infer kind from the tasks or pass it.
-                // Since tasks can be mixed (theoretically, but unlikely in UI), let's assume they are same kind.
                 if let first = tasks.first {
                     let kind: TaskListKind = first.isTemplateComponent ? .template : .live
                     resequenceDisplayOrder(for: parent, kind: kind)
                 }
             }
             
-            // Prune collapsed state if needed
-            pruneCollapsedState()
+            // Prune collapsed state for all deleted IDs
+            pruneCollapsedState(removingIDs: allIDsToDelete)
             
             // Invalidate caches
-            // We should invalidate both if we are unsure, or specific if we know.
             invalidateChildTaskCache(for: nil)
             invalidateVisibleTasksCache()
             
         } catch {
             print("Error deleting tasks: \(error)")
+        }
+    }
+    
+    private func collectDescendantIDs(of task: Task, into set: inout Set<UUID>) {
+        guard let children = task.subtasks else { return }
+        for child in children {
+            set.insert(child.id)
+            collectDescendantIDs(of: child, into: &set)
         }
     }
     
