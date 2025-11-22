@@ -417,50 +417,9 @@ class TaskManager: ObservableObject {
     }
 
     // Helper to get flattened visible IDs (re-implementing or exposing if it was private)
+    // Helper to get flattened visible IDs
     func snapshotVisibleTaskIDs() -> [UUID] {
-        // This needs to traverse the visible tree.
-        // Since we don't have the full traversal logic handy in this snippet, 
-        // let's implement a basic version or rely on the cache if we can build it.
-        
-        // For now, let's fetch all and filter by visibility.
-        // This is potentially expensive, but we can optimize later.
-        // A better approach is to traverse the tree respecting `collapsedTaskIDs`.
-        
-        var visibleIDs: [UUID] = []
-        
-        func traverse(_ tasks: [Task]) {
-            for task in tasks {
-                visibleIDs.append(task.id)
-                if !collapsedTaskIDs.contains(task.id) {
-                    // If expanded, visit children
-                    // We need to know the children.
-                    // Using `childTasks` helper.
-                    let children = childTasks(forParentID: task.id, kind: .live)
-                    if !children.isEmpty {
-                        traverse(children)
-                    }
-                }
-            }
-        }
-        
-        // Start with root tasks
-        // Start with root tasks
-        // The original code likely had a way to get roots.
-        // `childTasks` implementation handles `parentID` but we need to pass something for "root".
-        // Let's look at `childTasks` implementation again.
-        // It takes `parentID: UUID`. It falls back to fetch if not in cache.
-        // But root tasks have `parentTask == nil`.
-        // We need a special sentinel or a separate method for roots.
-        
-        // Let's fix `childTasks` to handle root request or add `rootTasks(kind:)`.
-        // For now, let's assume we can get roots.
-        // Actually, `childTasks` uses `task(withID: parentID)` so it expects a valid parent.
-        
-        // Let's add `visibleRootTasks(kind:)`
-        let rootTasks = (try? fetchSiblings(for: nil, kind: .live)) ?? []
-        traverse(rootTasks)
-        
-        return visibleIDs
+        snapshotVisibleTasks().map(\.id)
     }
     
     // Re-adding fetchSiblings since it was used in the original code but might be private/missing in my replacement

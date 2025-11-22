@@ -236,15 +236,28 @@ struct SettingsView: View {
             launchAtLogin = SMAppService.mainApp.status == .enabled
             globalHotkeyEnabled = UserDefaults.standard.bool(forKey: globalHotkeyEnabledPreferenceKey)
         }
+        .alert("Taskr", isPresented: $showAlert, actions: {
+            Button("OK", role: .cancel) { }
+        }, message: {
+            Text(alertMessage ?? "Unknown error")
+        })
     }
     
+    @State private var alertMessage: String?
+    @State private var showAlert: Bool = false
+
     private func exportTasks() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType.json]
         panel.nameFieldStringValue = "taskr_backup.json"
         
         if panel.runModal() == .OK, let url = panel.url {
-            print("Export to \(url)")
+            do {
+                try taskManager.exportUserTasks(to: url)
+            } catch {
+                alertMessage = "Export failed: \(error.localizedDescription)"
+                showAlert = true
+            }
         }
     }
     
@@ -253,7 +266,12 @@ struct SettingsView: View {
         panel.allowedContentTypes = [UTType.json]
         
         if panel.runModal() == .OK, let url = panel.url {
-            print("Import from \(url)")
+            do {
+                try taskManager.importUserTasks(from: url)
+            } catch {
+                alertMessage = "Import failed: \(error.localizedDescription)"
+                showAlert = true
+            }
         }
     }
 }
