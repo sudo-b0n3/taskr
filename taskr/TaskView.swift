@@ -12,6 +12,8 @@ struct TaskView: View {
         filter: #Predicate<Task> { !$0.isTemplateComponent && $0.parentTask == nil },
         sort: [SortDescriptor(\Task.displayOrder, order: .forward)]
     ) private var tasks: [Task]
+    
+    @AppStorage("hasCompletedSetup") var hasCompletedSetup: Bool = false
 
     @FocusState private var isInputFocused: Bool
     @State private var keyboardMonitor: Any?
@@ -55,7 +57,9 @@ struct TaskView: View {
                         fieldTextColor: palette.primaryText,
                         placeholderTextColor: palette.secondaryText
                     )
-                    .focused($isInputFocused).frame(height: 22)
+                    .focused($isInputFocused)
+                    .disabled(!hasCompletedSetup)
+                    .frame(height: 22)
                     Button(action: { taskManager.addTaskFromPath(); isInputFocused = true }) {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)
@@ -136,11 +140,24 @@ struct TaskView: View {
                 // but the VStack structure should handle spacing now.
                 // .padding(.top, 4)
             }
-            .onAppear { isInputFocused = true }
             .onAppear {
-                taskManager.setTaskInputFocused(true)
+                if hasCompletedSetup {
+                    isInputFocused = true
+                    taskManager.setTaskInputFocused(true)
+                }
                 installKeyboardMonitorIfNeeded()
                 installLifecycleObservers()
+            }
+            .onChange(of: hasCompletedSetup) { _, newValue in
+                if newValue {
+                    // Setup just completed, set focus
+                    isInputFocused = true
+                    taskManager.setTaskInputFocused(true)
+                } else {
+                    // Setup is being shown, remove focus
+                    isInputFocused = false
+                    taskManager.setTaskInputFocused(false)
+                }
             }
             // --- End Task List Area ---
 

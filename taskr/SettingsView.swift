@@ -230,6 +230,18 @@ struct SettingsView: View {
                             importTasks()
                         }
                     }
+                    
+                    Divider().padding(.vertical, 5)
+                    
+                    HStack {
+                        Text("Reset")
+                            .font(.body)
+                            .foregroundColor(taskManager.themePalette.primaryTextColor)
+                        Spacer()
+                        Button("Re-do Setup") {
+                            UserDefaults.standard.set(false, forKey: "hasCompletedSetup")
+                        }
+                    }
                 }
                 
                 Divider()

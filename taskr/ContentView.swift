@@ -7,6 +7,8 @@ struct ContentView: View {
     @EnvironmentObject var appDelegate: AppDelegate
     @Environment(\.openWindow) private var openWindow
     @Environment(\.controlActiveState) private var controlActiveState
+    
+    @AppStorage("hasCompletedSetup") var hasCompletedSetup: Bool = false
 
     // When true, this view is hosted in a standalone window (not popover)
     var isStandalone: Bool = false
@@ -27,42 +29,58 @@ struct ContentView: View {
     }
 
     var body: some View {
-        Group {
-            if isStandalone {
-                // Standalone window: place header in the titlebar safe area for consistent transparency
-                VStack(spacing: 0) {
-                    headerBar
-                        .background(headerBackground)
-                    Divider()
-                        .background(palette.dividerColor)
-                    contentArea
+        ZStack {
+            Group {
+                if isStandalone {
+                    // Standalone window: place header in the titlebar safe area for consistent transparency
+                    VStack(spacing: 0) {
+                        headerBar
+                            .background(headerBackground)
+                        Divider()
+                            .background(palette.dividerColor)
+                        contentArea
+                    }
+                } else {
+                    // Popover: keep inline header and divider
+                    VStack(spacing: 0) {
+                        headerBar
+                            .background(headerBackground)
+                        Divider()
+                            .background(palette.dividerColor)
+                        contentArea
+                    }
                 }
-            } else {
-                // Popover: keep inline header and divider
-                VStack(spacing: 0) {
-                    headerBar
-                        .background(headerBackground)
-                    Divider()
-                        .background(palette.dividerColor)
-                    contentArea
+            }
+            // Fixed size only for popover presentation
+            .frame(width: isStandalone ? nil : 380, height: isStandalone ? nil : 450)
+            .onAppear {
+                if isStandalone {
+                    appDelegate.standaloneWindowAppeared()
                 }
             }
-        }
-        // Fixed size only for popover presentation
-        .frame(width: isStandalone ? nil : 380, height: isStandalone ? nil : 450)
-        .onAppear {
-            if isStandalone {
-                appDelegate.standaloneWindowAppeared()
+            .onDisappear {
+                if isStandalone {
+                    appDelegate.standaloneWindowDisappeared()
+                }
+            }
+            .background(rootBackground)
+            .preferredColorScheme(taskManager.selectedTheme.preferredColorScheme)
+            .tint(palette.accentColor)
+            
+            if !hasCompletedSetup {
+                SetupView(isPresented: Binding(
+                    get: { !hasCompletedSetup },
+                    set: { if !$0 { hasCompletedSetup = true } }
+                ))
+                .transition(.opacity)
+                .zIndex(100)
             }
         }
-        .onDisappear {
-            if isStandalone {
-                appDelegate.standaloneWindowDisappeared()
+        .onChange(of: hasCompletedSetup) { _, newValue in
+            if newValue {
+                currentView = .tasks
             }
         }
-        .background(rootBackground)
-        .preferredColorScheme(taskManager.selectedTheme.preferredColorScheme)
-        .tint(palette.accentColor)
     }
 
     private var headerBar: some View {
@@ -159,7 +177,7 @@ struct ContentView_Previews: PreviewProvider {
     }
 }
 
-private struct VisualEffectBlur: NSViewRepresentable {
+struct VisualEffectBlur: NSViewRepresentable {
     var material: NSVisualEffectView.Material
     var blendingMode: NSVisualEffectView.BlendingMode
     var state: NSVisualEffectView.State
@@ -178,3 +196,5 @@ private struct VisualEffectBlur: NSViewRepresentable {
         nsView.state = state
     }
 }
+
+
