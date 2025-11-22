@@ -16,10 +16,8 @@ struct AnimatedStrikeText: View {
                 .foregroundStyle(Color.clear)
                 .strikethrough(true, color: strikeColor)
                 .mask(
-                    GeometryReader { proxy in
-                        Rectangle()
-                            .frame(width: proxy.size.width * progress, height: proxy.size.height, alignment: .leading)
-                    }
+                    Rectangle()
+                        .scaleEffect(x: progress, y: 1, anchor: .leading)
                 )
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
