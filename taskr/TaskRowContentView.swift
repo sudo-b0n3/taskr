@@ -8,6 +8,7 @@ struct TaskRowContentView: View {
     var releaseInputFocus: (() -> Void)?
     
     @EnvironmentObject var taskManager: TaskManager
+    @Environment(\.isWindowFocused) var isWindowFocused
     
     @AppStorage(completionAnimationsEnabledPreferenceKey) private var completionAnimationsEnabled: Bool = true
     @AppStorage(checkboxTopAlignedPreferenceKey) private var checkboxTopAligned: Bool = true
@@ -56,7 +57,7 @@ struct TaskRowContentView: View {
     }
     
     private var selectionBackgroundColor: Color {
-        if taskManager.isApplicationActive && taskManager.isTaskWindowKey {
+        if taskManager.isApplicationActive && isWindowFocused {
             return Color(nsColor: NSColor.selectedContentBackgroundColor)
         }
         return Color(nsColor: NSColor.unemphasizedSelectedContentBackgroundColor)
@@ -64,14 +65,14 @@ struct TaskRowContentView: View {
     
     private var rowForegroundColor: Color {
         guard isSelected else { return palette.primaryTextColor }
-        if taskManager.isApplicationActive && taskManager.isTaskWindowKey {
+        if taskManager.isApplicationActive && isWindowFocused {
             return Color(nsColor: NSColor.alternateSelectedControlTextColor)
         }
         return palette.primaryTextColor
     }
     
     private var rowSecondaryColor: Color {
-        if isSelected && taskManager.isApplicationActive && taskManager.isTaskWindowKey {
+        if isSelected && taskManager.isApplicationActive && isWindowFocused {
             return rowForegroundColor.opacity(0.75)
         }
         return palette.secondaryTextColor

@@ -18,6 +18,7 @@ struct TaskView: View {
     @State private var appObserverTokens: [NSObjectProtocol] = []
     @State private var windowObserverTokens: [NSObjectProtocol] = []
     @State private var hostingWindow: NSWindow?
+    @State private var isWindowFocused: Bool = false
 
     // Always display by persisted displayOrder; settings affect only insertion
     private var displayTasks: [Task] { tasks }
@@ -146,6 +147,7 @@ struct TaskView: View {
         } // End main VStack
         .foregroundColor(palette.primaryTextColor)
         .background(backgroundColor)
+        .environment(\.isWindowFocused, isWindowFocused)
         .onChange(of: isInputFocused) { _, newValue in
             taskManager.setTaskInputFocused(newValue)
         }
@@ -320,7 +322,7 @@ extension TaskView {
         }
 
         if let window = hostingWindow {
-            taskManager.setTaskWindowKey(window.isKeyWindow)
+            isWindowFocused = window.isKeyWindow
         }
     }
 
@@ -338,7 +340,7 @@ extension TaskView {
         windowObserverTokens.removeAll()
 
         hostingWindow = nil
-        taskManager.setTaskWindowKey(false)
+        isWindowFocused = false
     }
 
     @MainActor
@@ -354,11 +356,11 @@ extension TaskView {
         hostingWindow = window
 
         guard let window else {
-            taskManager.setTaskWindowKey(false)
+            isWindowFocused = false
             return
         }
 
-        taskManager.setTaskWindowKey(window.isKeyWindow)
+        isWindowFocused = window.isKeyWindow
 
         let become = center.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
@@ -366,7 +368,7 @@ extension TaskView {
             queue: .main
         ) { _ in
             _Concurrency.Task { @MainActor in
-                taskManager.setTaskWindowKey(true)
+                isWindowFocused = true
             }
         }
         let resign = center.addObserver(
@@ -375,7 +377,7 @@ extension TaskView {
             queue: .main
         ) { _ in
             _Concurrency.Task { @MainActor in
-                taskManager.setTaskWindowKey(false)
+                isWindowFocused = false
             }
         }
         windowObserverTokens = [become, resign]

@@ -27,7 +27,6 @@ class TaskManager: ObservableObject {
     @Published private(set) var isTaskInputFocused: Bool = false
     @Published private(set) var frostedBackgroundEnabled: Bool
     @Published private(set) var isApplicationActive: Bool = true
-    @Published private(set) var isTaskWindowKey: Bool = true
 
     lazy var pathCoordinator = PathInputCoordinator(taskManager: self)
     let inputState: TaskInputState
@@ -132,11 +131,6 @@ class TaskManager: ObservableObject {
     func setApplicationActive(_ active: Bool) {
         guard isApplicationActive != active else { return }
         isApplicationActive = active
-    }
-
-    func setTaskWindowKey(_ isKey: Bool) {
-        guard isTaskWindowKey != isKey else { return }
-        isTaskWindowKey = isKey
     }
 
     // MARK: - Selection Delegation
