@@ -23,6 +23,11 @@ struct SettingsView: View {
         )
     }
 
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        return "v\(version)"
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
@@ -230,13 +235,18 @@ struct SettingsView: View {
                 Divider()
                 
                 HStack {
+                    Text(appVersion)
+                        .font(.caption)
+                        .foregroundColor(taskManager.themePalette.secondaryTextColor)
+                    
                     Spacer()
+                    
                     Button("Quit Taskr") {
                         NSApp.terminate(nil)
                     }
                     .keyboardShortcut("q", modifiers: [.command])
-                    Spacer()
                 }
+                .padding(.horizontal, 20)
                 .padding(.top, 10)
             }
             .padding(.vertical)
