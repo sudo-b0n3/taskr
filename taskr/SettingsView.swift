@@ -226,6 +226,18 @@ struct SettingsView: View {
                         }
                     }
                 }
+                
+                Divider()
+                
+                HStack {
+                    Spacer()
+                    Button("Quit Taskr") {
+                        NSApp.terminate(nil)
+                    }
+                    .keyboardShortcut("q", modifiers: [.command])
+                    Spacer()
+                }
+                .padding(.top, 10)
             }
             .padding(.vertical)
             .background(taskManager.themePalette.backgroundColor)
