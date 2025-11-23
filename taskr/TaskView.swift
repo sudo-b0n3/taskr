@@ -41,7 +41,7 @@ struct TaskView: View {
 
             // --- Top Controls Area ---
             // This VStack contains all the controls and sits at the top
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 0) {
                 // Input Field Row
                 HStack {
                     CustomTextField(
@@ -53,19 +53,18 @@ struct TaskView: View {
                         onShiftTab: { if inputState.hasSuggestions { taskManager.selectPreviousSuggestion() }},
                         onArrowDown: { taskManager.selectNextSuggestion() },
                         onArrowUp: { taskManager.selectPreviousSuggestion() },
-                        fieldBackgroundColor: palette.inputBackground,
                         fieldTextColor: palette.primaryText,
                         placeholderTextColor: palette.secondaryText
                     )
                     .focused($isInputFocused)
                     .disabled(!hasCompletedSetup)
-                    .frame(height: 22)
                     Button(action: { taskManager.addTaskFromPath(); isInputFocused = true }) {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)
                             .foregroundColor(palette.accentColor)
                     }.buttonStyle(PlainButtonStyle()).padding(.leading, 4)
                 }
+                .padding(.bottom, 8)
                 // Clear Button Row
                 HStack {
                     Spacer()
@@ -184,13 +183,13 @@ struct TaskView: View {
                     }
                 }
         )
-        .background(
+        .background {
             WindowAccessor { window in
                 DispatchQueue.main.async {
                     handleWindowChange(window)
                 }
             }
-        )
+        }
     } // End body
 } // End TaskView
 

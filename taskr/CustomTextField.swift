@@ -5,13 +5,12 @@ import AppKit
 struct CustomTextField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
-    var onCommit: () -> Void
-    var onTextChange: (String) -> Void // To update suggestions
-    var onTab: () -> Void
-    var onShiftTab: () -> Void
-    var onArrowDown: () -> Void
-    var onArrowUp: () -> Void
-    var fieldBackgroundColor: NSColor? = nil
+    var onCommit: () -> Void = {}
+    var onTextChange: (String) -> Void = { _ in } // To update suggestions
+    var onTab: () -> Void = {}
+    var onShiftTab: () -> Void = {}
+    var onArrowDown: () -> Void = {}
+    var onArrowUp: () -> Void = {}
     var fieldTextColor: NSColor? = nil
     var placeholderTextColor: NSColor? = nil
 
@@ -21,10 +20,10 @@ struct CustomTextField: NSViewRepresentable {
         applyPlaceholder(to: textField)
         textField.isBordered = true
         textField.drawsBackground = true
-        textField.backgroundColor = fieldBackgroundColor ?? NSColor.textBackgroundColor // Standard background
+        textField.backgroundColor = .textBackgroundColor
         textField.textColor = fieldTextColor ?? NSColor.labelColor
-        textField.focusRingType = .default // Show focus ring
-        textField.bezelStyle = .roundedBezel // Standard rounded text field style
+        textField.focusRingType = .none
+        textField.bezelStyle = .roundedBezel
         return textField
     }
 
@@ -44,9 +43,6 @@ struct CustomTextField: NSViewRepresentable {
             // }
         }
 
-        if let bg = fieldBackgroundColor, nsView.backgroundColor != bg {
-            nsView.backgroundColor = bg
-        }
         if let fg = fieldTextColor, nsView.textColor != fg {
             nsView.textColor = fg
         }
