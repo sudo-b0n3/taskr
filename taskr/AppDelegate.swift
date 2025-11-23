@@ -110,10 +110,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     func setDockIconVisibility(show: Bool) {
         // Respect auto-promotion: if any standalone window is open, keep as regular
         let effectiveShow = show || (standaloneWindowCount > 0)
+        let currentPolicy = NSApp.activationPolicy()
+        
         if effectiveShow {
-            NSApp.setActivationPolicy(.regular)
+            if currentPolicy != .regular {
+                NSApp.setActivationPolicy(.regular)
+            }
         } else {
-            NSApp.setActivationPolicy(.accessory)
+            if currentPolicy != .accessory {
+                NSApp.setActivationPolicy(.accessory)
+            }
         }
     }
 

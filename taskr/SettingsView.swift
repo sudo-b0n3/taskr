@@ -8,6 +8,8 @@ struct SettingsView: View {
     @State private var launchAtLogin: Bool = false
     @State private var globalHotkeyEnabled: Bool = false
     
+    @AppStorage(showDockIconPreferenceKey) private var showDockIcon: Bool = false
+    
     // We'll use a local binding for launch at login since it involves SMAppService
     private var launchAtLoginBinding: Binding<Bool> {
         Binding(
@@ -18,6 +20,19 @@ struct SettingsView: View {
                     try? SMAppService.mainApp.register()
                 } else {
                     try? SMAppService.mainApp.unregister()
+                }
+            }
+        )
+    }
+    
+    private var showDockIconBinding: Binding<Bool> {
+        Binding(
+            get: { showDockIcon },
+            set: { newValue in
+                showDockIcon = newValue
+                appDelegate.setDockIconVisibility(show: newValue)
+                if newValue {
+                    NSApp.activate(ignoringOtherApps: true)
                 }
             }
         )
@@ -42,15 +57,7 @@ struct SettingsView: View {
                     
                     SettingsToggle(
                         title: "Show in Dock",
-                        isOn: Binding(
-                            get: { NSApp.activationPolicy() == .regular },
-                            set: { show in
-                                appDelegate.setDockIconVisibility(show: show)
-                                if show {
-                                    NSApp.activate(ignoringOtherApps: true)
-                                }
-                            }
-                        ),
+                        isOn: showDockIconBinding,
                         helpText: "Show Taskr in the macOS Dock.",
                         palette: taskManager.themePalette
                     )

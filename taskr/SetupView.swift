@@ -196,8 +196,9 @@ struct SetupView: View {
             SettingsToggle(
                 title: "Show in Dock",
                 isOn: Binding(
-                    get: { NSApp.activationPolicy() == .regular },
+                    get: { UserDefaults.standard.bool(forKey: showDockIconPreferenceKey) },
                     set: { show in
+                        UserDefaults.standard.set(show, forKey: showDockIconPreferenceKey)
                         appDelegate.setDockIconVisibility(show: show)
                         if show {
                             NSApp.activate(ignoringOtherApps: true)
