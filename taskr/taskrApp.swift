@@ -96,6 +96,7 @@ struct taskrApp: App {
                     usesSystemAppearance: taskManager.selectedTheme == .system
                 ))
         }
+        .windowStyle(.hiddenTitleBar)
         Settings {
             SettingsView()
         }

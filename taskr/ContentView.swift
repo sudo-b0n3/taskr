@@ -23,6 +23,9 @@ struct ContentView: View {
         let base = palette.headerBackgroundColor
         return taskManager.frostedBackgroundEnabled ? base.opacity(taskManager.frostedBackgroundLevel.opacity) : base
     }
+    private var headerLeadingPadding: CGFloat { isStandalone ? 72 : 8 }
+    private var headerTopPadding: CGFloat { isStandalone ? 16 : 8 }
+    private var titlebarFillHeight: CGFloat { isStandalone ? 54 : 0 }
     private var contentBackground: Color {
         let base = palette.backgroundColor
         return taskManager.frostedBackgroundEnabled ? base.opacity(taskManager.frostedBackgroundLevel.opacity - 0.05) : base
@@ -32,7 +35,7 @@ struct ContentView: View {
         ZStack {
             Group {
                 if isStandalone {
-                    // Standalone window: place header in the titlebar safe area for consistent transparency
+                    // Standalone window: let the header share space with the window controls
                     VStack(spacing: 0) {
                         headerBar
                             .background(headerBackground)
@@ -64,8 +67,16 @@ struct ContentView: View {
                 }
             }
             .background(rootBackground)
+            .background(alignment: .top) {
+                if isStandalone {
+                    headerBackground
+                        .frame(height: titlebarFillHeight)
+                        .ignoresSafeArea(edges: .top)
+                }
+            }
             .preferredColorScheme(taskManager.selectedTheme.preferredColorScheme)
             .tint(palette.accentColor)
+            .ignoresSafeArea(.container, edges: isStandalone ? .top : [])
             
             if !hasCompletedSetup {
                 SetupView(isPresented: Binding(
@@ -125,9 +136,10 @@ struct ContentView: View {
                 .frame(width: 28)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 8)
-        .background(isStandalone ? Color.clear : headerBackground)
+        .padding(.leading, headerLeadingPadding)
+        .padding(.trailing, 8)
+        .padding(.top, headerTopPadding)
+        .background(headerBackground)
     }
 
     private var contentArea: some View {
@@ -196,5 +208,3 @@ struct VisualEffectBlur: NSViewRepresentable {
         nsView.state = state
     }
 }
-
-

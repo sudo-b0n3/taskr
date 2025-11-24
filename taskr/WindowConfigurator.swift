@@ -46,10 +46,12 @@ struct WindowConfigurator: NSViewRepresentable {
         }
 
         // Ensure the window is resizable and looks standard
-        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
+        window.toolbarStyle = .unifiedCompact
+        window.isMovableByWindowBackground = true
         window.isOpaque = false
         coordinator.bind(to: window)
         coordinator.updateAppearance(palette: palette, frosted: frosted, frostOpacity: frostOpacity, usesSystemAppearance: usesSystemAppearance)
@@ -110,6 +112,12 @@ struct WindowConfigurator: NSViewRepresentable {
 
         private func applyAppearance() {
             guard let window else { return }
+            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.titlebarSeparatorStyle = .none
+            window.toolbarStyle = .unifiedCompact
+            window.isMovableByWindowBackground = true
             if usesSystemAppearance {
                 window.appearance = nil
             } else {
@@ -129,8 +137,9 @@ struct WindowConfigurator: NSViewRepresentable {
 
                 // Reduce vibrancy by disabling material on any visual effect views we control.
                 for visualEffect in titlebarView.subviews.compactMap({ $0 as? NSVisualEffectView }).filter({ $0 !== overlay }) {
-                    visualEffect.state = frosted ? .active : .inactive
-                    visualEffect.material = frosted ? .hudWindow : (palette.isDark ? .menu : .titlebar)
+                    visualEffect.state = .active
+                    visualEffect.material = frosted ? .hudWindow : .contentBackground
+                    visualEffect.blendingMode = .withinWindow
                 }
             }
             window.invalidateShadow()
