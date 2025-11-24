@@ -18,12 +18,12 @@ struct CustomTextField: NSViewRepresentable {
         let textField = NSTextField()
         textField.delegate = context.coordinator
         applyPlaceholder(to: textField)
-        textField.isBordered = true
-        textField.drawsBackground = true
-        textField.backgroundColor = .textBackgroundColor
+        textField.isBordered = false
+        textField.drawsBackground = false
+        textField.backgroundColor = .clear
         textField.textColor = fieldTextColor ?? NSColor.labelColor
         textField.focusRingType = .none
-        textField.bezelStyle = .roundedBezel
+        textField.bezelStyle = .roundedBezel // This might not matter if bordered is false, but keeping it clean
         return textField
     }
 

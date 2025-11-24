@@ -58,6 +58,10 @@ struct TaskView: View {
                     )
                     .focused($isInputFocused)
                     .disabled(!hasCompletedSetup)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .background(palette.controlBackgroundColor)
+                    .cornerRadius(10)
                     Button(action: { taskManager.addTaskFromPath(); isInputFocused = true }) {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)

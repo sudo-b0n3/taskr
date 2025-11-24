@@ -20,6 +20,10 @@ struct TemplateView: View {
             // --- Add Template Section ---
             HStack {
                 CustomTextField(text: $taskManager.newTemplateName, placeholder: "New Template Name")
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .background(palette.controlBackgroundColor)
+                    .cornerRadius(10)
                 Button(action: { taskManager.addTemplate() }) {
                     Label("Add Template", systemImage: "plus.circle")
                 }
@@ -65,6 +69,10 @@ struct TemplateView: View {
                                             placeholder: "",
                                             onCommit: { commitTemplateNameEdit(template) }
                                         )
+                                        .padding(.vertical, 4)
+                                        .padding(.horizontal, 6)
+                                        .background(palette.controlBackgroundColor)
+                                        .cornerRadius(8)
                                         .frame(maxWidth: 220)
                                         .onSubmit { commitTemplateNameEdit(template) }
                                         .onDisappear { if editingTemplateID == template.id { commitTemplateNameEdit(template) } }
