@@ -17,11 +17,15 @@ struct SetupView: View {
         GeometryReader { geometry in
             ZStack {
                 // Background
-                palette.backgroundColor
-                    .ignoresSafeArea()
-                
                 if taskManager.frostedBackgroundEnabled {
                     VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow, state: .active)
+                        .ignoresSafeArea()
+                        .overlay(
+                            palette.backgroundColor.opacity(taskManager.frostedBackgroundLevel.opacity)
+                                .ignoresSafeArea()
+                        )
+                } else {
+                    palette.backgroundColor
                         .ignoresSafeArea()
                 }
                 

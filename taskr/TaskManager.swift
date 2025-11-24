@@ -10,6 +10,30 @@ class TaskManager: ObservableObject {
         case template
     }
 
+    enum FrostLevel: Int, CaseIterable, Identifiable {
+        case low = 0
+        case medium = 1
+        case high = 2
+        
+        var id: Int { rawValue }
+        
+        var displayName: String {
+            switch self {
+            case .low: return "Low"
+            case .medium: return "Medium"
+            case .high: return "High"
+            }
+        }
+        
+        var opacity: Double {
+            switch self {
+            case .low: return 0.5
+            case .medium: return 0.65
+            case .high: return 0.8
+            }
+        }
+    }
+
     let modelContext: ModelContext
     private let defaults: UserDefaults
 
@@ -26,6 +50,7 @@ class TaskManager: ObservableObject {
     
     @Published private(set) var isTaskInputFocused: Bool = false
     @Published private(set) var frostedBackgroundEnabled: Bool
+    @Published private(set) var frostedBackgroundLevel: FrostLevel
     @Published private(set) var isApplicationActive: Bool = true
 
     lazy var pathCoordinator = PathInputCoordinator(taskManager: self)
@@ -74,6 +99,7 @@ class TaskManager: ObservableObject {
         self.rowHeightManager = RowHeightManager()
         
         self.frostedBackgroundEnabled = defaults.bool(forKey: frostedBackgroundPreferenceKey)
+        self.frostedBackgroundLevel = FrostLevel(rawValue: defaults.integer(forKey: frostedBackgroundLevelPreferenceKey)) ?? .medium
         
         // Forward sub-manager updates to TaskManager's objectWillChange
         themeManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
@@ -104,6 +130,12 @@ class TaskManager: ObservableObject {
         guard frostedBackgroundEnabled != enabled else { return }
         frostedBackgroundEnabled = enabled
         defaults.set(enabled, forKey: frostedBackgroundPreferenceKey)
+    }
+
+    func setFrostedBackgroundLevel(_ level: FrostLevel) {
+        guard frostedBackgroundLevel != level else { return }
+        frostedBackgroundLevel = level
+        defaults.set(level.rawValue, forKey: frostedBackgroundLevelPreferenceKey)
     }
 
     func setAnimationsMasterEnabled(_ enabled: Bool) {

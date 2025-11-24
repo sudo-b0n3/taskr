@@ -7,6 +7,7 @@ struct WindowConfigurator: NSViewRepresentable {
     let initialSize: NSSize
     let palette: ThemePalette
     let frosted: Bool
+    let frostOpacity: Double
     let usesSystemAppearance: Bool
 
     func makeNSView(context: Context) -> NSView {
@@ -28,7 +29,7 @@ struct WindowConfigurator: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(palette: palette, frosted: frosted, usesSystemAppearance: usesSystemAppearance)
+        Coordinator(palette: palette, frosted: frosted, frostOpacity: frostOpacity, usesSystemAppearance: usesSystemAppearance)
     }
 
     private func configureIfPossible(view: NSView, coordinator: Coordinator) {
@@ -51,21 +52,23 @@ struct WindowConfigurator: NSViewRepresentable {
         window.titlebarSeparatorStyle = .none
         window.isOpaque = false
         coordinator.bind(to: window)
-        coordinator.updateAppearance(palette: palette, frosted: frosted, usesSystemAppearance: usesSystemAppearance)
+        coordinator.updateAppearance(palette: palette, frosted: frosted, frostOpacity: frostOpacity, usesSystemAppearance: usesSystemAppearance)
     }
 
     final class Coordinator {
         private(set) var palette: ThemePalette
         private(set) var frosted: Bool
+        private(set) var frostOpacity: Double
         private(set) var usesSystemAppearance: Bool
         private weak var window: NSWindow?
         private var observers: [NSObjectProtocol] = []
         private weak var overlayView: NSView?
         private weak var overlayTintView: NSView?
 
-        init(palette: ThemePalette, frosted: Bool, usesSystemAppearance: Bool) {
+        init(palette: ThemePalette, frosted: Bool, frostOpacity: Double, usesSystemAppearance: Bool) {
             self.palette = palette
             self.frosted = frosted
+            self.frostOpacity = frostOpacity
             self.usesSystemAppearance = usesSystemAppearance
         }
 
@@ -97,9 +100,10 @@ struct WindowConfigurator: NSViewRepresentable {
             applyAppearance()
         }
 
-        func updateAppearance(palette: ThemePalette, frosted: Bool, usesSystemAppearance: Bool) {
+        func updateAppearance(palette: ThemePalette, frosted: Bool, frostOpacity: Double, usesSystemAppearance: Bool) {
             self.palette = palette
             self.frosted = frosted
+            self.frostOpacity = frostOpacity
             self.usesSystemAppearance = usesSystemAppearance
             applyAppearance()
         }
@@ -111,7 +115,7 @@ struct WindowConfigurator: NSViewRepresentable {
             } else {
                 window.appearance = NSAppearance(named: palette.isDark ? .darkAqua : .aqua)
             }
-            let headerColor = frosted ? palette.headerBackground.withAlphaComponent(0.7) : palette.headerBackground
+            let headerColor = frosted ? palette.headerBackground.withAlphaComponent(frostOpacity) : palette.headerBackground
             window.backgroundColor = headerColor
             if let titlebarView = locateTitlebarView(in: window) {
                 let overlay = ensureOverlay(in: titlebarView)

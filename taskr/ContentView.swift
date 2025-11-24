@@ -21,11 +21,11 @@ struct ContentView: View {
     private var palette: ThemePalette { taskManager.themePalette }
     private var headerBackground: Color {
         let base = palette.headerBackgroundColor
-        return taskManager.frostedBackgroundEnabled ? base.opacity(0.7) : base
+        return taskManager.frostedBackgroundEnabled ? base.opacity(taskManager.frostedBackgroundLevel.opacity) : base
     }
     private var contentBackground: Color {
         let base = palette.backgroundColor
-        return taskManager.frostedBackgroundEnabled ? base.opacity(0.65) : base
+        return taskManager.frostedBackgroundEnabled ? base.opacity(taskManager.frostedBackgroundLevel.opacity - 0.05) : base
     }
 
     var body: some View {

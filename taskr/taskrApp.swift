@@ -92,6 +92,7 @@ struct taskrApp: App {
                     initialSize: NSSize(width: 720, height: 560),
                     palette: taskManager.themePalette,
                     frosted: taskManager.frostedBackgroundEnabled,
+                    frostOpacity: taskManager.frostedBackgroundLevel.opacity,
                     usesSystemAppearance: taskManager.selectedTheme == .system
                 ))
         }

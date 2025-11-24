@@ -19,6 +19,7 @@ let normalizedDisplayOrderMigrationDoneKey = "normalizedDisplayOrderMigrationDon
 let checkboxTopAlignedPreferenceKey = "checkboxTopAlignedPreference" // Align checkbox with first line
 let selectedThemePreferenceKey = "selectedThemePreference" // Active visual theme
 let frostedBackgroundPreferenceKey = "frostedBackgroundPreference" // Enable frosted glass background
+let frostedBackgroundLevelPreferenceKey = "frostedBackgroundLevelPreference" // Frost intensity level
 let listAnimationsEnabledPreferenceKey = "listAnimationsEnabledPreference" // Toggle task list insert/delete animations
 let animationsMasterEnabledPreferenceKey = "animationsMasterEnabledPreference" // Global animation master switch
 let collapseAnimationsEnabledPreferenceKey = "collapseAnimationsEnabledPreference" // Toggle expand/collapse transitions
