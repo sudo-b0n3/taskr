@@ -316,7 +316,8 @@ struct SettingsView: View {
             palette: taskManager.themePalette,
             frosted: taskManager.frostedBackgroundEnabled,
             frostOpacity: taskManager.frostedBackgroundLevel.opacity,
-            usesSystemAppearance: taskManager.selectedTheme == .system
+            usesSystemAppearance: taskManager.selectedTheme == .system,
+            allowBackgroundDrag: true
         ))
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled

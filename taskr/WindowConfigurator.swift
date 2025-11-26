@@ -9,6 +9,7 @@ struct WindowConfigurator: NSViewRepresentable {
     let frosted: Bool
     let frostOpacity: Double
     let usesSystemAppearance: Bool
+    let allowBackgroundDrag: Bool
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -29,7 +30,13 @@ struct WindowConfigurator: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(palette: palette, frosted: frosted, frostOpacity: frostOpacity, usesSystemAppearance: usesSystemAppearance)
+        Coordinator(
+            palette: palette,
+            frosted: frosted,
+            frostOpacity: frostOpacity,
+            usesSystemAppearance: usesSystemAppearance,
+            allowBackgroundDrag: allowBackgroundDrag
+        )
     }
 
     private func configureIfPossible(view: NSView, coordinator: Coordinator) {
@@ -51,10 +58,16 @@ struct WindowConfigurator: NSViewRepresentable {
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
         window.toolbarStyle = .unifiedCompact
-        window.isMovableByWindowBackground = true
+        window.isMovableByWindowBackground = allowBackgroundDrag
         window.isOpaque = false
         coordinator.bind(to: window)
-        coordinator.updateAppearance(palette: palette, frosted: frosted, frostOpacity: frostOpacity, usesSystemAppearance: usesSystemAppearance)
+        coordinator.updateAppearance(
+            palette: palette,
+            frosted: frosted,
+            frostOpacity: frostOpacity,
+            usesSystemAppearance: usesSystemAppearance,
+            allowBackgroundDrag: allowBackgroundDrag
+        )
     }
 
     final class Coordinator {
@@ -62,16 +75,18 @@ struct WindowConfigurator: NSViewRepresentable {
         private(set) var frosted: Bool
         private(set) var frostOpacity: Double
         private(set) var usesSystemAppearance: Bool
+        private(set) var allowBackgroundDrag: Bool
         private weak var window: NSWindow?
         private var observers: [NSObjectProtocol] = []
         private weak var overlayView: NSView?
         private weak var overlayTintView: NSView?
 
-        init(palette: ThemePalette, frosted: Bool, frostOpacity: Double, usesSystemAppearance: Bool) {
+        init(palette: ThemePalette, frosted: Bool, frostOpacity: Double, usesSystemAppearance: Bool, allowBackgroundDrag: Bool) {
             self.palette = palette
             self.frosted = frosted
             self.frostOpacity = frostOpacity
             self.usesSystemAppearance = usesSystemAppearance
+            self.allowBackgroundDrag = allowBackgroundDrag
         }
 
         func bind(to window: NSWindow) {
@@ -102,11 +117,12 @@ struct WindowConfigurator: NSViewRepresentable {
             applyAppearance()
         }
 
-        func updateAppearance(palette: ThemePalette, frosted: Bool, frostOpacity: Double, usesSystemAppearance: Bool) {
+        func updateAppearance(palette: ThemePalette, frosted: Bool, frostOpacity: Double, usesSystemAppearance: Bool, allowBackgroundDrag: Bool) {
             self.palette = palette
             self.frosted = frosted
             self.frostOpacity = frostOpacity
             self.usesSystemAppearance = usesSystemAppearance
+            self.allowBackgroundDrag = allowBackgroundDrag
             applyAppearance()
         }
 
@@ -117,7 +133,7 @@ struct WindowConfigurator: NSViewRepresentable {
             window.titlebarAppearsTransparent = true
             window.titlebarSeparatorStyle = .none
             window.toolbarStyle = .unifiedCompact
-            window.isMovableByWindowBackground = true
+            window.isMovableByWindowBackground = allowBackgroundDrag
             if usesSystemAppearance {
                 window.appearance = nil
             } else {

@@ -93,6 +93,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                     of: button,
                     preferredEdge: .minY
                 )
+                popover?.contentViewController?.view.window?.isMovableByWindowBackground = false
                 popover?.contentViewController?.view.window?.makeKey()
             }
         }
