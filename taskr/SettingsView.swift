@@ -7,6 +7,8 @@ struct SettingsView: View {
     @EnvironmentObject var appDelegate: AppDelegate
     @State private var launchAtLogin: Bool = false
     @State private var globalHotkeyEnabled: Bool = false
+    @State private var hotkeyDescription: String = HotkeyPreferences.load().displayString
+    @State private var isRecordingHotkey: Bool = false
     var configuresWindow: Bool = true
     
     @AppStorage(showDockIconPreferenceKey) private var showDockIcon: Bool = false
@@ -88,7 +90,7 @@ struct SettingsView: View {
                             )
                             
                             SettingsToggle(
-                                title: "Global Hotkey (⌃⌥N)",
+                                title: "Global Hotkey",
                                 isOn: Binding(
                                     get: { globalHotkeyEnabled },
                                     set: { enable in
@@ -105,6 +107,15 @@ struct SettingsView: View {
                                 helpText: "Toggle the task list from anywhere.",
                                 palette: taskManager.themePalette
                             )
+                            
+                            HotkeyRecorderRow(
+                                currentDescription: hotkeyDescription,
+                                isRecording: $isRecordingHotkey,
+                                palette: taskManager.themePalette
+                            ) { configuration in
+                                hotkeyDescription = configuration.displayString
+                                appDelegate.updateHotkeyConfiguration(configuration)
+                            }
                         }
                         
                         Divider()
@@ -327,6 +338,7 @@ struct SettingsView: View {
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
             globalHotkeyEnabled = UserDefaults.standard.bool(forKey: globalHotkeyEnabledPreferenceKey)
+            hotkeyDescription = HotkeyPreferences.load().displayString
         }
         .alert("Taskr", isPresented: $showAlert, actions: {
             Button("OK", role: .cancel) { }

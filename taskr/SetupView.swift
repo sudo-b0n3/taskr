@@ -216,7 +216,7 @@ struct SetupView: View {
             .accessibilityHint("Keep Taskr visible in your Dock for easy access")
             
             SettingsToggle(
-                title: "Global Hotkey (⌃⌥N)",
+                title: "Global Hotkey (default ⌃⌥N)",
                 isOn: Binding(
                     get: { globalHotkeyEnabled },
                     set: { enable in
@@ -227,11 +227,11 @@ struct SetupView: View {
                         }
                     }
                 ),
-                helpText: "Toggle the task list from anywhere.",
+                helpText: "Toggle the task list from anywhere. You can customize the shortcut later in Settings.",
                 palette: palette
             )
             .accessibilityLabel("Global Hotkey")
-            .accessibilityHint("Press Control Option N to toggle the task list from anywhere")
+            .accessibilityHint("Press Control Option N by default to toggle the task list from anywhere")
             
             SettingsPicker(title: "New Task Position", selection: Binding(
                 get: { UserDefaults.standard.bool(forKey: addRootTasksToTopPreferenceKey) ? NewTaskPosition.top : .bottom },

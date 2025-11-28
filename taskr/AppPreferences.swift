@@ -1,11 +1,15 @@
 // taskr/taskr/AppPreferences.swift
 import Foundation
 import Combine
+import AppKit
+import Carbon
 
 // --- Keys ---
 let menuBarIconPreferenceKey = "menuBarIconPreference"
 let showDockIconPreferenceKey = "showDockIconPreference"
 let globalHotkeyEnabledPreferenceKey = "globalHotkeyEnabledPreference"
+let globalHotkeyKeyCodePreferenceKey = "globalHotkeyKeyCodePreference"
+let globalHotkeyModifiersPreferenceKey = "globalHotkeyModifiersPreference"
 // Deprecated: replaced by separate toggles for root vs subtasks
 let newTaskPositionPreferenceKey = "newTaskPositionPreference"
 // New keys for insertion preferences
@@ -23,6 +27,10 @@ let frostedBackgroundLevelPreferenceKey = "frostedBackgroundLevelPreference" // 
 let listAnimationsEnabledPreferenceKey = "listAnimationsEnabledPreference" // Toggle task list insert/delete animations
 let animationsMasterEnabledPreferenceKey = "animationsMasterEnabledPreference" // Global animation master switch
 let collapseAnimationsEnabledPreferenceKey = "collapseAnimationsEnabledPreference" // Toggle expand/collapse transitions
+
+// Defaults
+let defaultHotkeyKeyCode: UInt16 = UInt16(kVK_ANSI_N)
+let defaultHotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
 
 // Screenshot automation coordination artifacts
 let screenshotAutomationConfigFilename = "taskr_screenshot_config.json"
@@ -193,6 +201,12 @@ final class PreferencesStore: ObservableObject {
         }
         if defaults.object(forKey: addSubtasksToTopPreferenceKey) == nil {
             defaults.set(false, forKey: addSubtasksToTopPreferenceKey)
+        }
+        if defaults.object(forKey: globalHotkeyKeyCodePreferenceKey) == nil {
+            defaults.set(Int(defaultHotkeyKeyCode), forKey: globalHotkeyKeyCodePreferenceKey)
+        }
+        if defaults.object(forKey: globalHotkeyModifiersPreferenceKey) == nil {
+            defaults.set(Int(defaultHotkeyModifiers.rawValue), forKey: globalHotkeyModifiersPreferenceKey)
         }
         if defaults.object(forKey: completionAnimationsEnabledPreferenceKey) == nil {
             defaults.set(true, forKey: completionAnimationsEnabledPreferenceKey)

@@ -1,6 +1,6 @@
 # Taskr
 
-Taskr is a lightweight macOS menu bar companion for rapidly capturing and organizing nested checklists. The app stays out of the way until you trigger it with the global hotkey (`⌃⌥N`) or click the menu bar icon, letting you focus on the tasks you want to track.
+Taskr is a lightweight macOS menu bar companion for rapidly capturing and organizing nested checklists. The app stays out of the way until you trigger it with your global hotkey (default `⌃⌥N`) or click the menu bar icon, letting you focus on the tasks you want to track.
 
 ## Features
 - **Fast path-based capture** – Create deeply nested subtasks in one line using `/`-delimited paths with optional quoted segments.

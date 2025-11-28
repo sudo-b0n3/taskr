@@ -18,9 +18,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     private var standaloneWindowCount: Int = 0
 
     private var globalEventMonitor: Any?
-    // Hotkey: Control (⌃) + Option (⌥) + N
-    private let hotkeyCode = CGKeyCode(kVK_ANSI_N)
-    private let hotkeyModifiers = NSEvent.ModifierFlags([.control, .option])
+    private var hotkeyConfiguration: HotkeyConfiguration {
+        HotkeyPreferences.load()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let showDockIcon = UserDefaults.standard.bool(forKey: showDockIconPreferenceKey)
@@ -186,6 +186,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 return true
             }
             print("AppDelegate: Attempting to enable global hotkey...")
+            let configuration = hotkeyConfiguration
+            print("AppDelegate: Using hotkey \(configuration.displayString)")
 
             // Only surface the accessibility prompt when the caller explicitly requests it
             let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
@@ -206,22 +208,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             print("AppDelegate: Registering global event monitor...")
             globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
                 guard let self = self else { return }
+                let activeConfiguration = self.hotkeyConfiguration
                 
                 let receivedKeyCode = event.keyCode
                 let receivedDeviceIndependentModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
                 print("""
                     --- Hotkey Event Received ---
-                    Expected KeyCode for 'N': \(self.hotkeyCode), Received KeyCode: \(receivedKeyCode)
-                    Expected Modifiers (Control+Option) (raw): \(self.hotkeyModifiers.rawValue), Received Modifiers (raw): \(receivedDeviceIndependentModifiers.rawValue)
-                    Expected Modifiers (desc): \(self.hotkeyModifiers), Received Modifiers (desc): \(receivedDeviceIndependentModifiers)
-                    Is KeyCode Match: \(receivedKeyCode == self.hotkeyCode)
-                    Is Modifiers Match: \(receivedDeviceIndependentModifiers == self.hotkeyModifiers)
+                    Expected KeyCode: \(activeConfiguration.keyCode), Received KeyCode: \(receivedKeyCode)
+                    Expected Modifiers (raw): \(activeConfiguration.modifiers.rawValue), Received Modifiers (raw): \(receivedDeviceIndependentModifiers.rawValue)
+                    Expected Modifiers (desc): \(activeConfiguration.modifiers), Received Modifiers (desc): \(receivedDeviceIndependentModifiers)
+                    Is KeyCode Match: \(receivedKeyCode == activeConfiguration.keyCode)
+                    Is Modifiers Match: \(receivedDeviceIndependentModifiers == activeConfiguration.modifiers)
                     --- End Hotkey Event ---
                     """)
 
-                if receivedKeyCode == self.hotkeyCode && receivedDeviceIndependentModifiers == self.hotkeyModifiers {
-                    print("AppDelegate: Global hotkey (Control+Option+N) DETECTED!")
+                if receivedKeyCode == activeConfiguration.keyCode && receivedDeviceIndependentModifiers == activeConfiguration.modifiers {
+                    print("AppDelegate: Global hotkey \(activeConfiguration.displayString) DETECTED!")
                     DispatchQueue.main.async {
                         print("AppDelegate: Calling togglePopover from hotkey.")
                         self.togglePopover()
@@ -246,6 +249,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 print("AppDelegate: Global hotkey was already disabled (no monitor to remove).")
             }
             return true
+        }
+    }
+
+    func updateHotkeyConfiguration(_ configuration: HotkeyConfiguration) {
+        HotkeyPreferences.save(configuration)
+        let hotkeyEnabled = UserDefaults.standard.bool(forKey: globalHotkeyEnabledPreferenceKey)
+
+        if globalEventMonitor != nil {
+            _ = enableGlobalHotkey(false)
+        }
+
+        if hotkeyEnabled {
+            _ = enableGlobalHotkey(true, showAlertIfNotGranted: true)
         }
     }
 

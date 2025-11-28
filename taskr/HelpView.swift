@@ -62,7 +62,7 @@ struct HelpView: View {
 
     private var menusSection: some View {
         helpSection(title: "Menu Bar & Dock") {
-            Text("• Taskr lives in the menu bar by default; click the icon or press the global hotkey (⌃⌥N) to open it quickly.")
+            Text("• Taskr lives in the menu bar by default; click the icon or press the global hotkey (default ⌃⌥N) to open it quickly.")
             Text("• In Settings you can keep a Dock icon visible or hide it when the standalone window is closed.")
         }
     }
@@ -70,7 +70,7 @@ struct HelpView: View {
     private var shortcutsSection: some View {
         helpSection(title: "Keyboard & Autocomplete") {
             Text("• Use Tab/Shift-Tab to accept suggestions, ↑/↓ to navigate them, and Return to commit.")
-            Text("• Add tasks from anywhere with the global hotkey once accessibility access is granted (prompt appears on first use).")
+            Text("• Add tasks from anywhere with your chosen global hotkey once accessibility access is granted (prompt appears on first use).")
         }
     }
 

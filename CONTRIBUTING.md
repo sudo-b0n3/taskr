@@ -31,7 +31,7 @@ xcodebuild -project taskr.xcodeproj -scheme taskr -configuration Debug build
 xcodebuild -project taskr.xcodeproj -scheme taskr -configuration Debug run
 ```
 On first launch macOS will request Accessibility permissions to allow the
-`⌃⌥N` global hotkey. Approve the prompt from **System Settings → Privacy &
+global hotkey (default `⌃⌥N`). Approve the prompt from **System Settings → Privacy &
 Security → Accessibility**.
 
 ## Tests
