@@ -51,8 +51,16 @@ struct TaskView: View {
                         onTextChange: { newText in taskManager.updateAutocompleteSuggestions(for: newText) },
                         onTab: { if inputState.hasSuggestions { taskManager.applySelectedSuggestion(); isInputFocused = true }},
                         onShiftTab: { if inputState.hasSuggestions { taskManager.selectPreviousSuggestion() }},
-                        onArrowDown: { taskManager.selectNextSuggestion() },
-                        onArrowUp: { taskManager.selectPreviousSuggestion() },
+                        onArrowDown: {
+                            guard inputState.hasSuggestions else { return false }
+                            taskManager.selectNextSuggestion()
+                            return true
+                        },
+                        onArrowUp: {
+                            guard inputState.hasSuggestions else { return false }
+                            taskManager.selectPreviousSuggestion()
+                            return true
+                        },
                         fieldTextColor: palette.primaryText,
                         placeholderTextColor: palette.secondaryText
                     )
@@ -309,6 +317,10 @@ extension TaskView {
         guard window.isKeyWindow else { return false }
 
         if taskManager.isTaskInputFocused {
+            return false
+        }
+
+        if let responder = window.firstResponder, responder is NSTextView {
             return false
         }
 

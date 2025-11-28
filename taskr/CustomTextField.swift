@@ -9,14 +9,18 @@ struct CustomTextField: NSViewRepresentable {
     var onTextChange: (String) -> Void = { _ in } // To update suggestions
     var onTab: () -> Void = {}
     var onShiftTab: () -> Void = {}
-    var onArrowDown: () -> Void = {}
-    var onArrowUp: () -> Void = {}
+    var onArrowDown: () -> Bool = { false }
+    var onArrowUp: () -> Bool = { false }
     var fieldTextColor: NSColor? = nil
     var placeholderTextColor: NSColor? = nil
 
     func makeNSView(context: Context) -> NSTextField {
         let textField = NSTextField()
         textField.delegate = context.coordinator
+        textField.cell?.wraps = true
+        textField.cell?.isScrollable = false
+        textField.cell?.lineBreakMode = .byWordWrapping
+        textField.cell?.usesSingleLineMode = false
         applyPlaceholder(to: textField)
         textField.isBordered = false
         textField.drawsBackground = false
@@ -92,11 +96,9 @@ struct CustomTextField: NSViewRepresentable {
                 parent.onShiftTab()
                 return true
             } else if commandSelector == #selector(NSTextView.moveDown(_:)) {
-                parent.onArrowDown()
-                return true // Command was handled
+                return parent.onArrowDown()
             } else if commandSelector == #selector(NSTextView.moveUp(_:)) {
-                parent.onArrowUp()
-                return true // Command was handled
+                return parent.onArrowUp()
             }
             return false // Command was not handled by us, let default behavior proceed
         }

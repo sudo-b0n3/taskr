@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject var appDelegate: AppDelegate
     @State private var launchAtLogin: Bool = false
     @State private var globalHotkeyEnabled: Bool = false
+    var configuresWindow: Bool = true
     
     @AppStorage(showDockIconPreferenceKey) private var showDockIcon: Bool = false
     
@@ -310,15 +311,19 @@ struct SettingsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(WindowConfigurator(
-            autosaveName: "TaskrSettingsWindow",
-            initialSize: NSSize(width: 400, height: 600),
-            palette: taskManager.themePalette,
-            frosted: taskManager.frostedBackgroundEnabled,
-            frostOpacity: taskManager.frostedBackgroundLevel.opacity,
-            usesSystemAppearance: taskManager.selectedTheme == .system,
-            allowBackgroundDrag: true
-        ))
+        .background {
+            if configuresWindow {
+                WindowConfigurator(
+                    autosaveName: "TaskrSettingsWindow",
+                    initialSize: NSSize(width: 400, height: 600),
+                    palette: taskManager.themePalette,
+                    frosted: taskManager.frostedBackgroundEnabled,
+                    frostOpacity: taskManager.frostedBackgroundLevel.opacity,
+                    usesSystemAppearance: taskManager.selectedTheme == .system,
+                    allowBackgroundDrag: true
+                )
+            }
+        }
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
             globalHotkeyEnabled = UserDefaults.standard.bool(forKey: globalHotkeyEnabledPreferenceKey)

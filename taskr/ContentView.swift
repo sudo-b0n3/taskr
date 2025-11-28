@@ -150,7 +150,7 @@ struct ContentView: View {
             case .templates:
                 TemplateView()
             case .settings:
-                SettingsView()
+                SettingsView(configuresWindow: false)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.clear)
             }
