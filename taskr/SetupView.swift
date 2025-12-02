@@ -103,12 +103,12 @@ struct SetupView: View {
                 .foregroundColor(palette.accentColor)
             
             Text("Welcome to Taskr")
-                .font(.largeTitle)
+                .taskrFont(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundColor(palette.primaryTextColor)
             
             Text("Let's get you set up.")
-                .font(.title3)
+                .taskrFont(.title3)
                 .foregroundColor(palette.secondaryTextColor)
         }
         .padding(.top, 20)
@@ -249,11 +249,11 @@ struct SetupView: View {
         SettingsSection(title: "Templates", palette: palette) {
             HStack(alignment: .top, spacing: 15) {
                 Image(systemName: "square.on.square")
-                    .font(.system(size: 24))
+                    .taskrFont(.title2)
                     .foregroundColor(palette.accentColor)
                 
                 Text("Templates allow you to create reusable lists for recurring workflows. You can manage them in the Templates tab.")
-                    .font(.body)
+                    .taskrFont(.body)
                     .foregroundColor(palette.secondaryTextColor)
             }
             .padding(.vertical, 8)
@@ -286,12 +286,12 @@ struct TutorialRow: View {
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.body)
+                    .taskrFont(.body)
                     .fontWeight(.medium)
                     .foregroundColor(palette.primaryTextColor)
                 
                 Text(description)
-                    .font(.subheadline)
+                    .taskrFont(.subheadline)
                     .foregroundColor(palette.secondaryTextColor)
             }
         }

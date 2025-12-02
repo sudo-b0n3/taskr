@@ -51,6 +51,7 @@ class TaskManager: ObservableObject {
     @Published private(set) var isTaskInputFocused: Bool = false
     @Published private(set) var frostedBackgroundEnabled: Bool
     @Published private(set) var frostedBackgroundLevel: FrostLevel
+    @Published private(set) var fontScale: Double
     @Published private(set) var isApplicationActive: Bool = true
 
     lazy var pathCoordinator = PathInputCoordinator(taskManager: self)
@@ -86,6 +87,8 @@ class TaskManager: ObservableObject {
     private var orphanedTaskLog: Set<UUID> = []
 
     private var cancellables = Set<AnyCancellable>()
+    static let fontScaleRange: ClosedRange<Double> = 0.9...1.3
+    static let fontScaleStep: Double = 0.05
 
     init(modelContext: ModelContext, defaults: UserDefaults = .standard) {
         self.modelContext = modelContext
@@ -100,6 +103,8 @@ class TaskManager: ObservableObject {
         
         self.frostedBackgroundEnabled = defaults.bool(forKey: frostedBackgroundPreferenceKey)
         self.frostedBackgroundLevel = FrostLevel(rawValue: defaults.integer(forKey: frostedBackgroundLevelPreferenceKey)) ?? .medium
+        let storedScale = defaults.object(forKey: fontScalePreferenceKey) as? Double ?? 1.0
+        self.fontScale = TaskManager.clampFontScale(storedScale)
         
         // Forward sub-manager updates to TaskManager's objectWillChange
         themeManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
@@ -152,6 +157,13 @@ class TaskManager: ObservableObject {
     
     func setCompletionAnimationsEnabled(_ enabled: Bool) {
         animationManager.setCompletionAnimationsEnabled(enabled)
+    }
+    
+    func setFontScale(_ scale: Double) {
+        let clamped = Self.clampFontScale(scale)
+        guard abs(fontScale - clamped) > 0.0001 else { return }
+        fontScale = clamped
+        defaults.set(clamped, forKey: fontScalePreferenceKey)
     }
 
     // MARK: - Input Focus & App State
@@ -210,9 +222,14 @@ class TaskManager: ObservableObject {
         let visibleIDs = snapshotVisibleTaskIDs()
         selectionManager.updateShiftSelection(to: targetID, visibleTaskIDs: visibleIDs)
     }
-    
+
     func endShiftSelection() {
         selectionManager.endShiftSelection()
+    }
+    
+    private static func clampFontScale(_ scale: Double) -> Double {
+        let stepped = (scale / fontScaleStep).rounded() * fontScaleStep
+        return min(max(stepped, fontScaleRange.lowerBound), fontScaleRange.upperBound)
     }
 
     // MARK: - Row Height Delegation

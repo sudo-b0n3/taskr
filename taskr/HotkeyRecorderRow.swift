@@ -11,9 +11,11 @@ struct HotkeyRecorderRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("Shortcut")
+                    .taskrFont(.body)
                     .foregroundColor(palette.primaryTextColor)
                 Spacer()
                 Text(currentDescription)
+                    .taskrFont(.body)
                     .foregroundColor(palette.secondaryTextColor)
                 Button(isRecording ? "Press keys..." : "Change") {
                     isRecording = true
@@ -21,7 +23,7 @@ struct HotkeyRecorderRow: View {
                 .buttonStyle(.bordered)
             }
             Text("Pick the key combination used for the global hotkey.")
-                .font(.caption)
+                .taskrFont(.caption)
                 .foregroundColor(palette.secondaryTextColor)
         }
         .padding(.vertical, 8)

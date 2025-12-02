@@ -16,6 +16,7 @@ struct CustomTextField: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSTextField {
         let textField = NSTextField()
+        textField.font = TaskrTypography.scaledNSFont(for: .body, scale: context.environment.taskrFontScale)
         textField.delegate = context.coordinator
         textField.cell?.wraps = true
         textField.cell?.isScrollable = false
@@ -50,6 +51,7 @@ struct CustomTextField: NSViewRepresentable {
         if let fg = fieldTextColor, nsView.textColor != fg {
             nsView.textColor = fg
         }
+        nsView.font = TaskrTypography.scaledNSFont(for: .body, scale: context.environment.taskrFontScale)
         applyPlaceholder(to: nsView)
     }
 

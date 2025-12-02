@@ -21,6 +21,7 @@ struct TaskView: View {
     @State private var windowObserverTokens: [NSObjectProtocol] = []
     @State private var hostingWindow: NSWindow?
     @State private var isWindowFocused: Bool = false
+    @State private var isLiveScrolling: Bool = false
 
     // Always display by persisted displayOrder; settings affect only insertion
     private var displayTasks: [Task] { tasks }
@@ -36,146 +37,15 @@ struct TaskView: View {
     }
 
     var body: some View {
-        // Main VStack for the entire view
         VStack(alignment: .leading, spacing: 0) {
-
-            // --- Top Controls Area ---
-            // This VStack contains all the controls and sits at the top
-            VStack(alignment: .leading, spacing: 0) {
-                // Input Field Row
-                HStack {
-                    CustomTextField(
-                        text: $inputState.text,
-                        placeholder: "Type task or path /task/subtask",
-                        onCommit: { taskManager.addTaskFromPath(); isInputFocused = true },
-                        onTextChange: { newText in taskManager.updateAutocompleteSuggestions(for: newText) },
-                        onTab: { if inputState.hasSuggestions { taskManager.applySelectedSuggestion(); isInputFocused = true }},
-                        onShiftTab: { if inputState.hasSuggestions { taskManager.selectPreviousSuggestion() }},
-                        onArrowDown: {
-                            guard inputState.hasSuggestions else { return false }
-                            taskManager.selectNextSuggestion()
-                            return true
-                        },
-                        onArrowUp: {
-                            guard inputState.hasSuggestions else { return false }
-                            taskManager.selectPreviousSuggestion()
-                            return true
-                        },
-                        fieldTextColor: palette.primaryText,
-                        placeholderTextColor: palette.secondaryText
-                    )
-                    .focused($isInputFocused)
-                    .disabled(!hasCompletedSetup)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 10)
-                    .background(palette.controlBackgroundColor)
-                    .cornerRadius(10)
-                    Button(action: { taskManager.addTaskFromPath(); isInputFocused = true }) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(palette.accentColor)
-                    }.buttonStyle(PlainButtonStyle()).padding(.leading, 4)
-                }
-                .padding(.bottom, 8)
-                // Clear Button Row
-                HStack {
-                    Spacer()
-                    Button("Clear Completed") { taskManager.clearCompletedTasks() }
-                        .padding(.top, 4)
-                        .foregroundColor(palette.primaryTextColor)
-                }
-                // Autocomplete Suggestions List
-                if !inputState.suggestions.isEmpty {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(inputState.suggestions.enumerated()), id: \.0) { index, suggestion in
-                                Text(suggestion)
-                                    .foregroundColor(palette.primaryTextColor)
-                                    .padding(.vertical, 4)
-                                    .padding(.horizontal, 6)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(
-                                        (inputState.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
-                                    )
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        inputState.selectedSuggestionIndex = index
-                                        taskManager.applySelectedSuggestion()
-                                        isInputFocused = true
-                                    }
-                            }
-                        }
-                    }
-                    .frame(maxHeight: 100)
-                    .background(palette.controlBackgroundColor)
-                    .cornerRadius(5)
-                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(palette.dividerColor.opacity(0.7), lineWidth: 1))
-                    .padding(.top, 2)
-                }
-            }
-            .padding([.horizontal, .top]) // Padding for the controls area
-            .padding(.bottom, 8) // Space before the divider
-            .simultaneousGesture(
-                TapGesture()
-                    .onEnded {
-                        taskManager.registerUserInteractionTap()
-                    }
-            )
-            // --- End Top Controls Area ---
-
-            Divider()
-                .background(palette.dividerColor) // Divider between controls and task list
-
-            // --- Task List Area ---
-            // ScrollView now naturally sits below the controls and divider
-            ScrollView {
-                // Use a LazyVStack for potentially better performance with many tasks
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    if displayTasks.isEmpty {
-                        Text("No tasks yet. Add one above!")
-                            .foregroundColor(palette.secondaryTextColor).padding()
-                            .frame(maxWidth: .infinity, alignment: .center)
-                    } else {
-                        ForEach(displayTasks, id: \.persistentModelID) { task in
-                            TaskRowView(task: task, releaseInputFocus: releaseTaskInputFocus)
-                                .padding(.top, 4)
-                                .padding(.bottom, 4)
-                            // Add divider only if it's not the last task in the list
-                            if task.id != displayTasks.last?.id {
-                                Divider().background(palette.dividerColor)
-                            }
-                        }
-                    }
-                }
-                // Add top padding inside the ScrollView if needed,
-                // but the VStack structure should handle spacing now.
-                // .padding(.top, 4)
-            }
-            .onAppear {
-                if hasCompletedSetup {
-                    isInputFocused = true
-                    taskManager.setTaskInputFocused(true)
-                }
-                installKeyboardMonitorIfNeeded()
-                installLifecycleObservers()
-            }
-            .onChange(of: hasCompletedSetup) { _, newValue in
-                if newValue {
-                    // Setup just completed, set focus
-                    isInputFocused = true
-                    taskManager.setTaskInputFocused(true)
-                } else {
-                    // Setup is being shown, remove focus
-                    isInputFocused = false
-                    taskManager.setTaskInputFocused(false)
-                }
-            }
-            // --- End Task List Area ---
-
-        } // End main VStack
+            controlsArea
+            Divider().background(palette.dividerColor)
+            taskList
+        }
         .foregroundColor(palette.primaryTextColor)
         .background(backgroundColor)
         .environment(\.isWindowFocused, isWindowFocused)
+        .environment(\.isLiveScrolling, isLiveScrolling)
         .onChange(of: isInputFocused) { _, newValue in
             taskManager.setTaskInputFocused(newValue)
         }
@@ -204,6 +74,162 @@ struct TaskView: View {
         }
     } // End body
 } // End TaskView
+
+private extension TaskView {
+    @ViewBuilder
+    var controlsArea: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                CustomTextField(
+                    text: $inputState.text,
+                    placeholder: "Type task or path /task/subtask",
+                    onCommit: { taskManager.addTaskFromPath(); isInputFocused = true },
+                    onTextChange: { newText in taskManager.updateAutocompleteSuggestions(for: newText) },
+                    onTab: { if inputState.hasSuggestions { taskManager.applySelectedSuggestion(); isInputFocused = true }},
+                    onShiftTab: { if inputState.hasSuggestions { taskManager.selectPreviousSuggestion() }},
+                    onArrowDown: {
+                        guard inputState.hasSuggestions else { return false }
+                        taskManager.selectNextSuggestion()
+                        return true
+                    },
+                    onArrowUp: {
+                        guard inputState.hasSuggestions else { return false }
+                        taskManager.selectPreviousSuggestion()
+                        return true
+                    },
+                    fieldTextColor: palette.primaryText,
+                    placeholderTextColor: palette.secondaryText
+                )
+                .focused($isInputFocused)
+                .disabled(!hasCompletedSetup)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(palette.controlBackgroundColor)
+                .cornerRadius(10)
+                Button(action: { taskManager.addTaskFromPath(); isInputFocused = true }) {
+                    Image(systemName: "plus.circle.fill")
+                        .taskrFont(.title2)
+                        .foregroundColor(palette.accentColor)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding(.leading, 4)
+            }
+            .padding(.bottom, 8)
+
+            HStack {
+                Spacer()
+                Button("Clear Completed") { taskManager.clearCompletedTasks() }
+                    .padding(.top, 4)
+                    .foregroundColor(palette.primaryTextColor)
+            }
+
+            if !inputState.suggestions.isEmpty {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(inputState.suggestions.enumerated()), id: \.0) { index, suggestion in
+                            Text(suggestion)
+                                .foregroundColor(palette.primaryTextColor)
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    (inputState.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    inputState.selectedSuggestionIndex = index
+                                    taskManager.applySelectedSuggestion()
+                                    isInputFocused = true
+                                }
+                        }
+                    }
+                }
+                .frame(maxHeight: 100)
+                .background(palette.controlBackgroundColor)
+                .cornerRadius(5)
+                .overlay(RoundedRectangle(cornerRadius: 5).stroke(palette.dividerColor.opacity(0.7), lineWidth: 1))
+                .padding(.top, 2)
+            }
+        }
+        .padding([.horizontal, .top])
+        .padding(.bottom, 8)
+        .simultaneousGesture(
+            TapGesture()
+                .onEnded {
+                    taskManager.registerUserInteractionTap()
+                }
+        )
+    }
+
+    @ViewBuilder
+    var taskList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if displayTasks.isEmpty {
+                    Text("No tasks yet. Add one above!")
+                        .foregroundColor(palette.secondaryTextColor)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    ForEach(displayTasks, id: \.persistentModelID) { task in
+                        TaskRowView(task: task, releaseInputFocus: releaseTaskInputFocus)
+                            .padding(.top, 4)
+                            .padding(.bottom, 4)
+                        if task.id != displayTasks.last?.id {
+                            Divider().background(palette.dividerColor)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .allowsHitTesting(!isLiveScrolling)
+        }
+        .background(LiveScrollObserver(isLiveScrolling: $isLiveScrolling))
+        .background(
+            ScrollViewConfigurator { scrollView in
+                scrollView.scrollerStyle = .legacy
+                scrollView.hasHorizontalScroller = false
+                scrollView.hasVerticalScroller = true
+                scrollView.automaticallyAdjustsContentInsets = false
+                scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+                scrollView.verticalScrollElasticity = .automatic
+#if DEBUG
+                if scrollView.contentView.postsBoundsChangedNotifications == false {
+                    scrollView.contentView.postsBoundsChangedNotifications = true
+                    NotificationCenter.default.addObserver(
+                        forName: NSView.boundsDidChangeNotification,
+                        object: scrollView.contentView,
+                        queue: .main
+                    ) { [weak scrollView] _ in
+                        guard let scrollView else { return }
+                        let visibleWidth = scrollView.contentView.documentVisibleRect.width
+                        let scrollerWidth = scrollView.verticalScroller?.frame.width ?? 0
+                        let knobProportion = scrollView.verticalScroller?.knobProportion ?? 0
+                        print("Scroll debug -> visibleWidth: \(visibleWidth), scrollerWidth: \(scrollerWidth), knobProportion: \(knobProportion)")
+                    }
+                }
+#endif
+            }
+        )
+        .onAppear {
+            if hasCompletedSetup {
+                isInputFocused = true
+                taskManager.setTaskInputFocused(true)
+            }
+            installKeyboardMonitorIfNeeded()
+            installLifecycleObservers()
+        }
+        .onChange(of: hasCompletedSetup) { _, newValue in
+            if newValue {
+                isInputFocused = true
+                taskManager.setTaskInputFocused(true)
+            } else {
+                isInputFocused = false
+                taskManager.setTaskInputFocused(false)
+            }
+        }
+    }
+}
 
 // Preview Provider
 struct TaskView_Previews: PreviewProvider {
@@ -249,6 +275,101 @@ private struct WindowAccessor: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {
         DispatchQueue.main.async {
             onWindowChange(nsView.window)
+        }
+    }
+}
+
+private struct ScrollViewConfigurator: NSViewRepresentable {
+    var configure: (NSScrollView) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            apply(to: view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            apply(to: nsView)
+        }
+    }
+
+    private func apply(to view: NSView) {
+        guard let scrollView = view.enclosingScrollView else { return }
+        configure(scrollView)
+    }
+}
+
+private struct LiveScrollObserver: NSViewRepresentable {
+    @Binding var isLiveScrolling: Bool
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            context.coordinator.bind(to: view, isLiveScrolling: $isLiveScrolling)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            context.coordinator.bind(to: nsView, isLiveScrolling: $isLiveScrolling)
+        }
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.teardown()
+    }
+
+    final class Coordinator {
+        private weak var scrollView: NSScrollView?
+        private var startObserver: NSObjectProtocol?
+        private var endObserver: NSObjectProtocol?
+        private var liveScrollBinding: Binding<Bool>?
+
+        func bind(to view: NSView, isLiveScrolling: Binding<Bool>) {
+            guard let scrollView = view.enclosingScrollView else { return }
+            if self.scrollView === scrollView {
+                liveScrollBinding = isLiveScrolling
+                return
+            }
+            teardown()
+            self.scrollView = scrollView
+            self.liveScrollBinding = isLiveScrolling
+
+            let center = NotificationCenter.default
+            startObserver = center.addObserver(
+                forName: NSScrollView.willStartLiveScrollNotification,
+                object: scrollView,
+                queue: .main
+            ) { [weak self] _ in
+                self?.liveScrollBinding?.wrappedValue = true
+            }
+            endObserver = center.addObserver(
+                forName: NSScrollView.didEndLiveScrollNotification,
+                object: scrollView,
+                queue: .main
+            ) { [weak self] _ in
+                self?.liveScrollBinding?.wrappedValue = false
+            }
+        }
+
+        func teardown() {
+            let center = NotificationCenter.default
+            if let startObserver {
+                center.removeObserver(startObserver)
+            }
+            if let endObserver {
+                center.removeObserver(endObserver)
+            }
+            startObserver = nil
+            endObserver = nil
+            scrollView = nil
+            liveScrollBinding = nil
         }
     }
 }

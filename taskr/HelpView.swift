@@ -1,7 +1,10 @@
 // taskr/taskr/HelpView.swift
 import SwiftUI
+import SwiftData
 
 struct HelpView: View {
+    @EnvironmentObject var taskManager: TaskManager
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -17,15 +20,17 @@ struct HelpView: View {
             .padding(24)
         }
         .frame(minWidth: 520, minHeight: 620)
+        .environment(\.taskrFontScale, taskManager.fontScale)
+        .environment(\.font, TaskrTypography.scaledFont(for: .body, scale: taskManager.fontScale))
     }
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Taskr Help")
-                .font(.largeTitle)
+                .taskrFont(.largeTitle)
                 .bold()
             Text("Quick reference for adding tasks, managing paths, and working with templates.")
-                .font(.callout)
+                .taskrFont(.callout)
                 .foregroundStyle(.secondary)
         }
     }
@@ -83,17 +88,22 @@ struct HelpView: View {
     private func helpSection<T: View>(title: String, @ViewBuilder content: () -> T) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.title3)
+                .taskrFont(.title3)
                 .bold()
             VStack(alignment: .leading, spacing: 4) {
                 content()
             }
-            .font(.body)
+            .taskrFont(.body)
         }
     }
 }
 
 #Preview {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: Task.self, TaskTemplate.self, configurations: config)
+    let taskManager = TaskManager(modelContext: container.mainContext)
+    
     HelpView()
+        .environmentObject(taskManager)
         .frame(width: 520, height: 640)
 }

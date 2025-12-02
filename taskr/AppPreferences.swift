@@ -27,6 +27,7 @@ let frostedBackgroundLevelPreferenceKey = "frostedBackgroundLevelPreference" // 
 let listAnimationsEnabledPreferenceKey = "listAnimationsEnabledPreference" // Toggle task list insert/delete animations
 let animationsMasterEnabledPreferenceKey = "animationsMasterEnabledPreference" // Global animation master switch
 let collapseAnimationsEnabledPreferenceKey = "collapseAnimationsEnabledPreference" // Toggle expand/collapse transitions
+let fontScalePreferenceKey = "fontScalePreference" // Adjust overall text scale
 
 // Defaults
 let defaultHotkeyKeyCode: UInt16 = UInt16(kVK_ANSI_N)
@@ -228,6 +229,9 @@ final class PreferencesStore: ObservableObject {
         }
         if defaults.object(forKey: collapseAnimationsEnabledPreferenceKey) == nil {
             defaults.set(true, forKey: collapseAnimationsEnabledPreferenceKey)
+        }
+        if defaults.object(forKey: fontScalePreferenceKey) == nil {
+            defaults.set(1.0, forKey: fontScalePreferenceKey)
         }
     }
 

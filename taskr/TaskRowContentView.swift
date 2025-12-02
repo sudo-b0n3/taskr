@@ -9,6 +9,7 @@ struct TaskRowContentView: View {
     
     @EnvironmentObject var taskManager: TaskManager
     @Environment(\.isWindowFocused) var isWindowFocused
+    @Environment(\.isLiveScrolling) var isLiveScrolling
     
     @AppStorage(completionAnimationsEnabledPreferenceKey) private var completionAnimationsEnabled: Bool = true
     @AppStorage(checkboxTopAlignedPreferenceKey) private var checkboxTopAligned: Bool = true
@@ -99,7 +100,7 @@ struct TaskRowContentView: View {
                     Text("•").foregroundColor(palette.secondaryTextColor)
                 }
             }
-            .font(.body)
+            .taskrFont(.body)
 
             Group {
                 if isEditing {
@@ -110,7 +111,7 @@ struct TaskRowContentView: View {
                         .onChange(of: isTextFieldFocused) { _, isFocusedNow in
                             if !isFocusedNow && isEditing { commitEdit() }
                         }
-                        .font(.body)
+                        .taskrFont(.body)
                         .padding(.horizontal, 2)
                         .background(palette.inputBackgroundColor)
                         .clipShape(RoundedRectangle(cornerRadius: 3))
@@ -121,7 +122,7 @@ struct TaskRowContentView: View {
                         enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
                         strikeColor: rowSecondaryColor
                     )
-                    .font(.body)
+                    .taskrFont(.body)
                     .padding(.horizontal, 2)
                     .onTapGesture(count: 2) {
                         taskManager.registerUserInteractionTap()
@@ -135,7 +136,7 @@ struct TaskRowContentView: View {
 
             if hasExpandableChildren {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.caption)
+                    .taskrFont(.caption)
                     .foregroundColor(palette.secondaryTextColor)
                     .padding(5)
                     .contentShape(Rectangle())
@@ -178,6 +179,7 @@ struct TaskRowContentView: View {
             handlePrimarySelectionClick()
         }
         .onHover { hovering in
+            guard !isLiveScrolling else { return }
             isHoveringRow = hovering
         }
         .onDisappear {

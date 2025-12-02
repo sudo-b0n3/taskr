@@ -92,6 +92,8 @@ struct ContentView: View {
                 currentView = .tasks
             }
         }
+        .environment(\.taskrFontScale, taskManager.fontScale)
+        .environment(\.font, TaskrTypography.scaledFont(for: .body, scale: taskManager.fontScale))
     }
 
     private var headerBar: some View {

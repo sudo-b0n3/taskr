@@ -61,7 +61,7 @@ struct SettingsView: View {
                 // Custom Header
                 HStack {
                     Text("Settings")
-                        .font(.headline)
+                        .taskrFont(.headline)
                         .foregroundColor(taskManager.themePalette.primaryTextColor)
                     Spacer()
                 }
@@ -174,6 +174,18 @@ struct SettingsView: View {
                                 }
                             }
                             
+                            SettingsSlider(
+                                title: "Font Size",
+                                value: Binding(
+                                    get: { taskManager.fontScale },
+                                    set: { taskManager.setFontScale($0) }
+                                ),
+                                range: TaskManager.fontScaleRange,
+                                step: TaskManager.fontScaleStep,
+                                palette: taskManager.themePalette,
+                                defaultValue: 1.0
+                            )
+                            
                             SettingsPicker(title: "Menu Bar Icon", selection: Binding(
                                 get: {
                                     let name = UserDefaults.standard.string(forKey: menuBarIconPreferenceKey) ?? ""
@@ -275,7 +287,7 @@ struct SettingsView: View {
                         SettingsSection(title: "Data", palette: taskManager.themePalette) {
                             HStack {
                                 Text("Data Management")
-                                    .font(.body)
+                                    .taskrFont(.body)
                                     .foregroundColor(taskManager.themePalette.primaryTextColor)
                                 Spacer()
                                 Button("Export Tasks...") {
@@ -290,7 +302,7 @@ struct SettingsView: View {
                             
                             HStack {
                                 Text("Reset")
-                                    .font(.body)
+                                    .taskrFont(.body)
                                     .foregroundColor(taskManager.themePalette.primaryTextColor)
                                 Spacer()
                                 Button("Re-do Setup") {
@@ -303,7 +315,7 @@ struct SettingsView: View {
                         
                         HStack {
                             Text(appVersion)
-                                .font(.caption)
+                                .taskrFont(.caption)
                                 .foregroundColor(taskManager.themePalette.secondaryTextColor)
                             
                             Spacer()
@@ -331,7 +343,7 @@ struct SettingsView: View {
                     frosted: taskManager.frostedBackgroundEnabled,
                     frostOpacity: taskManager.frostedBackgroundLevel.opacity,
                     usesSystemAppearance: taskManager.selectedTheme == .system,
-                    allowBackgroundDrag: true
+                    allowBackgroundDrag: false
                 )
             }
         }
@@ -345,6 +357,8 @@ struct SettingsView: View {
         }, message: {
             Text(alertMessage ?? "Unknown error")
         })
+        .environment(\.taskrFontScale, taskManager.fontScale)
+        .environment(\.font, TaskrTypography.scaledFont(for: .body, scale: taskManager.fontScale))
     }
     
     @State private var alertMessage: String?

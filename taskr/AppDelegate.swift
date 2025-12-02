@@ -130,8 +130,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             NSApp.activate(ignoringOtherApps: true)
             return
         }
+        
+        guard let manager = taskManager else {
+            print("Warning: taskManager unavailable; cannot show help window.")
+            return
+        }
 
         let helpView = HelpView()
+            .environmentObject(manager)
         let hosting = NSHostingController(rootView: helpView)
         let window = NSWindow(contentViewController: hosting)
         window.title = "Taskr Help"

@@ -7,6 +7,10 @@ struct TemplateView: View {
     @Environment(\.modelContext) private var modelContext
 
     @Query(sort: [SortDescriptor(\TaskTemplate.name)]) private var templates: [TaskTemplate]
+    @Query(
+        filter: #Predicate<Task> { $0.isTemplateComponent },
+        sort: [SortDescriptor(\Task.displayOrder, order: .forward)]
+    ) private var templateTasks: [Task]
     @State private var editingTemplateID: UUID? = nil
     @State private var editingTemplateName: String = ""
     private var palette: ThemePalette { taskManager.themePalette }
@@ -55,7 +59,7 @@ struct TemplateView: View {
                                     let containerID = template.taskStructure?.id
                                     let isExpanded = containerID.map { taskManager.isTaskExpanded($0) } ?? false
                                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                                        .font(.caption)
+                                        .taskrFont(.caption)
                                         .foregroundColor(palette.secondaryTextColor)
                                         .padding(5)
                                         .contentShape(Rectangle())
@@ -78,7 +82,7 @@ struct TemplateView: View {
                                         .onDisappear { if editingTemplateID == template.id { commitTemplateNameEdit(template) } }
                                     } else {
                                         Text(template.name)
-                                            .font(.headline)
+                                            .taskrFont(.headline)
                                             .onTapGesture(count: 2) {
                                                 editingTemplateID = template.id
                                                 editingTemplateName = template.name
@@ -113,8 +117,11 @@ struct TemplateView: View {
 
                                 if let container = template.taskStructure,
                                    taskManager.isTaskExpanded(container.id) {
-                                    // Render the template's root tasks using the same row view in template mode
-                                    let subs = (container.subtasks ?? []).sorted { $0.displayOrder < $1.displayOrder }
+                                    // Render the template's root tasks using the same row view in template mode.
+                                    // Pull from the templateTasks query so inserts reflect immediately.
+                                    let subs = templateTasks
+                                        .filter { $0.parentTask?.id == container.id }
+                                        .sorted { $0.displayOrder < $1.displayOrder }
                                     ForEach(subs, id: \.persistentModelID) { t in
                                         TaskRowView(task: t, mode: .template)
                                             .padding(.leading, 20)
