@@ -23,8 +23,6 @@ struct TaskView: View {
     @State private var isWindowFocused: Bool = false
     @State private var isLiveScrolling: Bool = false
 
-    // Always display by persisted displayOrder; settings affect only insertion
-    private var displayTasks: [Task] { tasks }
     private var palette: ThemePalette { taskManager.themePalette }
     private var backgroundColor: Color {
         taskManager.frostedBackgroundEnabled ? .clear : palette.backgroundColor
@@ -163,19 +161,28 @@ private extension TaskView {
 
     @ViewBuilder
     var taskList: some View {
+        // Keep the query alive so SwiftUI observes model changes that invalidate TaskManager caches
+        let _ = tasks
+        let visible = taskManager.snapshotVisibleTasksWithDepth()
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if displayTasks.isEmpty {
+                if visible.isEmpty {
                     Text("No tasks yet. Add one above!")
                         .foregroundColor(palette.secondaryTextColor)
                         .padding()
                         .frame(maxWidth: .infinity, alignment: .center)
                 } else {
-                    ForEach(displayTasks, id: \.persistentModelID) { task in
-                        TaskRowView(task: task, releaseInputFocus: releaseTaskInputFocus)
+                    ForEach(Array(visible.enumerated()), id: \.1.task.persistentModelID) { index, entry in
+                        FlatTaskRowView(
+                            task: entry.task,
+                            depth: entry.depth,
+                            releaseInputFocus: releaseTaskInputFocus
+                        )
                             .padding(.top, 4)
                             .padding(.bottom, 4)
-                        if task.id != displayTasks.last?.id {
+                        let nextDepth = index + 1 < visible.count ? visible[index + 1].depth : nil
+                        // Only separate roots from the next root; avoid separating roots from their own children
+                        if nextDepth == 0 {
                             Divider().background(palette.dividerColor)
                         }
                     }
@@ -276,6 +283,19 @@ private struct WindowAccessor: NSViewRepresentable {
         DispatchQueue.main.async {
             onWindowChange(nsView.window)
         }
+    }
+}
+
+private struct FlatTaskRowView: View {
+    @Bindable var task: Task
+    var depth: Int
+    var releaseInputFocus: (() -> Void)?
+
+    @EnvironmentObject var taskManager: TaskManager
+
+    var body: some View {
+        TaskRowContentView(task: task, mode: .live, releaseInputFocus: releaseInputFocus)
+            .padding(.leading, CGFloat(depth) * 20)
     }
 }
 

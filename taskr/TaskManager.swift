@@ -82,6 +82,7 @@ class TaskManager: ObservableObject {
     var collapseAnimationsEnabled: Bool { animationManager.collapseAnimationsEnabled }
 
     var visibleLiveTasksCache: [Task]? = nil
+    var visibleLiveTasksWithDepthCache: [(task: Task, depth: Int)]? = nil
     var childTaskCache: [TaskListKind: [UUID?: [Task]]] = [:]
     var taskIndexCache: [TaskListKind: [UUID: Task]] = [:]
     private var orphanedTaskLog: Set<UUID> = []
@@ -248,6 +249,7 @@ class TaskManager: ObservableObject {
     // MARK: - Cache Management
     func invalidateVisibleTasksCache() {
         visibleLiveTasksCache = nil
+        visibleLiveTasksWithDepthCache = nil
     }
 
     func invalidateChildTaskCache(for kind: TaskListKind? = nil) {
@@ -289,6 +291,12 @@ class TaskManager: ObservableObject {
             }
             for (key, children) in map {
                 map[key] = children.sorted { $0.displayOrder < $1.displayOrder }
+            }
+            // Ensure every task ID has an entry so leaf lookups hit the cache and avoid re-fetching
+            for task in tasks {
+                if map[task.id] == nil {
+                    map[task.id] = []
+                }
             }
             childTaskCache[kind] = map
             taskIndexCache[kind] = index
@@ -352,6 +360,11 @@ class TaskManager: ObservableObject {
 
         do {
             let siblings = try fetchSiblings(for: parentTask, kind: kind)
+            // Memoize empty child lists to prevent repeated fetches for leaves
+            if var map = childTaskCache[kind] {
+                map[parentID] = siblings
+                childTaskCache[kind] = map
+            }
             return siblings
         } catch {
             #if DEBUG

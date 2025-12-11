@@ -150,12 +150,43 @@ extension TaskManager {
         return flattened
     }
 
+    func snapshotVisibleTasksWithDepth() -> [(task: Task, depth: Int)] {
+        if let cached = visibleLiveTasksWithDepthCache {
+            return cached
+        }
+
+        ensureChildCache(for: .live)
+        let childMap = childTaskCache[.live] ?? [:]
+        let roots = childMap[nil as UUID?] ?? []
+
+        var flattened: [(task: Task, depth: Int)] = []
+        for root in roots.sorted(by: { $0.displayOrder < $1.displayOrder }) {
+            appendVisible(task: root, depth: 0, accumulator: &flattened, childMap: childMap)
+        }
+        visibleLiveTasksWithDepthCache = flattened
+        return flattened
+    }
+
     private func appendVisible(task: Task, accumulator: inout [Task], childMap: [UUID?: [Task]]) {
         accumulator.append(task)
         guard isTaskExpanded(task.id) else { return }
         let children = childMap[task.id] ?? []
         for child in children {
             appendVisible(task: child, accumulator: &accumulator, childMap: childMap)
+        }
+    }
+
+    private func appendVisible(
+        task: Task,
+        depth: Int,
+        accumulator: inout [(task: Task, depth: Int)],
+        childMap: [UUID?: [Task]]
+    ) {
+        accumulator.append((task: task, depth: depth))
+        guard isTaskExpanded(task.id) else { return }
+        let children = childMap[task.id] ?? []
+        for child in children {
+            appendVisible(task: child, depth: depth + 1, accumulator: &accumulator, childMap: childMap)
         }
     }
 
