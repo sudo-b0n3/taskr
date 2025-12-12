@@ -85,6 +85,7 @@ struct taskrApp: App {
             ContentView(isStandalone: true)
                 .environmentObject(taskManager)
                 .environmentObject(taskManager.inputState)
+                .environmentObject(taskManager.selectionManager)
                 .modelContainer(container)
                 .environmentObject(appDelegate)
                 .background(WindowConfigurator(
@@ -104,6 +105,7 @@ struct taskrApp: App {
         .modelContainer(container)
         .environmentObject(taskManager)
         .environmentObject(taskManager.inputState)
+        .environmentObject(taskManager.selectionManager)
         .environmentObject(appDelegate)
         .commands {
             CommandGroup(replacing: .help) {
@@ -113,13 +115,22 @@ struct taskrApp: App {
                 .keyboardShortcut("?", modifiers: [.command])
             }
             CommandGroup(after: .pasteboard) {
-                Button("Copy Selected Tasks") {
-                    taskManager.copySelectedTasksToPasteboard()
-                }
-                .keyboardShortcut("c", modifiers: [.command])
-                .disabled(taskManager.selectedTaskIDs.isEmpty || taskManager.isTaskInputFocused)
+                CopySelectionCommands(taskManager: taskManager, selectionManager: taskManager.selectionManager)
             }
         }
+    }
+}
+
+private struct CopySelectionCommands: View {
+    @ObservedObject var taskManager: TaskManager
+    @ObservedObject var selectionManager: SelectionManager
+
+    var body: some View {
+        Button("Copy Selected Tasks") {
+            taskManager.copySelectedTasksToPasteboard()
+        }
+        .keyboardShortcut("c", modifiers: [.command])
+        .disabled(selectionManager.selectedTaskIDs.isEmpty || taskManager.isTaskInputFocused)
     }
 }
 

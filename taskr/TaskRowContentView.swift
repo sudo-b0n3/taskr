@@ -8,6 +8,7 @@ struct TaskRowContentView: View {
     var releaseInputFocus: (() -> Void)?
     
     @EnvironmentObject var taskManager: TaskManager
+    @EnvironmentObject var selectionManager: SelectionManager
     @Environment(\.isWindowFocused) var isWindowFocused
     @Environment(\.isLiveScrolling) var isLiveScrolling
     
@@ -19,6 +20,7 @@ struct TaskRowContentView: View {
     @FocusState private var isTextFieldFocused: Bool
     @State private var isHoveringRow: Bool = false
     @State private var rowHeight: CGFloat = 0
+    @State private var originalNameBeforeEdit: String?
     
     private let taskID: UUID
     
@@ -39,12 +41,12 @@ struct TaskRowContentView: View {
         // However, we want to avoid re-calculating the *list* of children if possible,
         // but checking for emptiness is cheap if cached.
         let listKind: TaskManager.TaskListKind = mode == .live ? .live : .template
-        return !taskManager.childTasks(forParentID: taskID, kind: listKind).isEmpty
+        return taskManager.hasCachedChildren(forParentID: taskID, kind: listKind)
     }
     
     private var palette: ThemePalette { taskManager.themePalette }
     private var isSelected: Bool {
-        taskManager.isTaskSelected(taskID)
+        selectionManager.isTaskSelected(taskID)
     }
     
     private var highlightColor: Color {
@@ -108,6 +110,22 @@ struct TaskRowContentView: View {
                         .textFieldStyle(.plain)
                         .focused($isTextFieldFocused)
                         .onSubmit { commitEdit() }
+                        .onExitCommand { cancelEdit() }
+                        .onMoveCommand { direction in
+                            guard isEditing else { return }
+                            switch direction {
+                            case .up:
+                                commitEdit()
+                                isTextFieldFocused = false
+                                taskManager.stepSelection(.up, extend: false)
+                            case .down:
+                                commitEdit()
+                                isTextFieldFocused = false
+                                taskManager.stepSelection(.down, extend: false)
+                            default:
+                                break
+                            }
+                        }
                         .onChange(of: isTextFieldFocused) { _, isFocusedNow in
                             if !isFocusedNow && isEditing { commitEdit() }
                         }
@@ -124,10 +142,6 @@ struct TaskRowContentView: View {
                     )
                     .taskrFont(.body)
                     .padding(.horizontal, 2)
-                    .onTapGesture(count: 2) {
-                        taskManager.registerUserInteractionTap()
-                        startEditing()
-                    }
                 }
             }
             .layoutPriority(1)
@@ -178,9 +192,25 @@ struct TaskRowContentView: View {
             taskManager.registerUserInteractionTap()
             handlePrimarySelectionClick()
         }
+        .simultaneousGesture(
+            TapGesture(count: 2)
+                .onEnded { handleDoubleTapEdit() }
+        )
         .onHover { hovering in
-            guard !isLiveScrolling else { return }
+            if let event = NSApp.currentEvent, event.type == .scrollWheel {
+                if !hovering { isHoveringRow = false }
+                return
+            }
+            if isLiveScrolling {
+                if !hovering { isHoveringRow = false }
+                return
+            }
             isHoveringRow = hovering
+        }
+        .onChange(of: isLiveScrolling) { _, liveScrolling in
+            if liveScrolling {
+                isHoveringRow = false
+            }
         }
         .onDisappear {
             isHoveringRow = false
@@ -190,6 +220,9 @@ struct TaskRowContentView: View {
         .contextMenu(menuItems: menuContent)
         .onChange(of: taskManager.pendingInlineEditTaskID) { _, _ in
             handleInlineEditRequestIfNeeded()
+        }
+        .onChange(of: selectionManager.selectedTaskIDs) { _, _ in
+            handleSelectionChangeWhileEditing()
         }
         .onAppear {
             handleInlineEditRequestIfNeeded()
@@ -227,9 +260,9 @@ struct TaskRowContentView: View {
     @ViewBuilder
     private func menuContent() -> some View {
         if mode == .live {
-            SelectionContextPrimingView(taskManager: taskManager, taskID: taskID)
-            let selectedCount = taskManager.selectedTaskIDs.count
-            let isRowSelected = taskManager.isTaskSelected(taskID)
+            SelectionContextPrimingView(taskManager: taskManager, selectionManager: selectionManager, taskID: taskID)
+            let selectedCount = selectionManager.selectedTaskIDs.count
+            let isRowSelected = selectionManager.isTaskSelected(taskID)
             let multiSelectionActive = selectedCount > 1 && isRowSelected
             let canMoveUp = multiSelectionActive ? taskManager.canMoveSelectedTasksUp() : taskManager.canMoveTaskUp(task)
             let canMoveDown = multiSelectionActive ? taskManager.canMoveSelectedTasksDown() : taskManager.canMoveTaskDown(task)
@@ -285,7 +318,7 @@ struct TaskRowContentView: View {
             }
             .disabled(multiSelectionActive)
             Divider()
-            if !taskManager.selectedTaskIDs.isEmpty {
+            if !selectionManager.selectedTaskIDs.isEmpty {
                 Button("Copy Selected Tasks") {
                     taskManager.copySelectedTasksToPasteboard()
                 }
@@ -324,18 +357,27 @@ struct TaskRowContentView: View {
 
     private struct SelectionContextPrimingView: View {
         let taskManager: TaskManager
+        let selectionManager: SelectionManager
         let taskID: UUID
 
         var body: some View {
             Color.clear
                 .frame(width: 0, height: 0)
                 .onAppear {
+                    guard isContextMenuInvocation else { return }
                     DispatchQueue.main.async {
-                        if !taskManager.isTaskSelected(taskID) {
+                        if !selectionManager.isTaskSelected(taskID) {
                             taskManager.replaceSelection(with: taskID)
                         }
                     }
                 }
+        }
+
+        private var isContextMenuInvocation: Bool {
+            guard let event = NSApp.currentEvent else { return false }
+            if event.type == .rightMouseDown { return true }
+            if event.type == .leftMouseDown && event.modifierFlags.contains(.control) { return true }
+            return false
         }
     }
 
@@ -349,6 +391,7 @@ struct TaskRowContentView: View {
 
     private func startEditing() {
         editText = task.name
+        originalNameBeforeEdit = task.name
         isEditing = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             isTextFieldFocused = true
@@ -382,12 +425,35 @@ struct TaskRowContentView: View {
         }
 
         isEditing = false
+        originalNameBeforeEdit = nil
+    }
+    
+    private func cancelEdit() {
+        guard isEditing else { return }
+        if let original = originalNameBeforeEdit {
+            task.name = original
+            editText = original
+        } else {
+            editText = task.name
+        }
+        isEditing = false
+        originalNameBeforeEdit = nil
     }
 
     private func handleInlineEditRequestIfNeeded() {
         if taskManager.pendingInlineEditTaskID == taskID {
             startEditing()
             taskManager.pendingInlineEditTaskID = nil
+        }
+    }
+    
+    private func handleSelectionChangeWhileEditing() {
+        guard isEditing else { return }
+        let selectedIDs = selectionManager.selectedTaskIDs
+        // If selection moves away or includes multiple tasks, finalize the edit like Finder.
+        if selectedIDs.count != 1 || selectedIDs.first != taskID {
+            isTextFieldFocused = false
+            commitEdit()
         }
     }
 
@@ -403,6 +469,14 @@ struct TaskRowContentView: View {
         } else {
             taskManager.replaceSelection(with: taskID)
         }
+    }
+    
+    private func handleDoubleTapEdit() {
+        taskManager.registerUserInteractionTap()
+        if !selectionManager.isTaskSelected(taskID) {
+            taskManager.replaceSelection(with: taskID)
+        }
+        startEditing()
     }
 
     private func currentModifierFlags() -> NSEvent.ModifierFlags {

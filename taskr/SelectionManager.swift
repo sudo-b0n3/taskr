@@ -6,7 +6,7 @@ class SelectionManager: ObservableObject {
     @Published var selectedTaskIDs: [UUID] = [] {
         didSet { selectedTaskIDSet = Set(selectedTaskIDs) }
     }
-    @Published private(set) var selectedTaskIDSet: Set<UUID> = []
+    private(set) var selectedTaskIDSet: Set<UUID> = []
     
     var selectionAnchorID: UUID?
     var selectionCursorID: UUID?

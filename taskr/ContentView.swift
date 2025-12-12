@@ -186,6 +186,7 @@ struct ContentView_Previews: PreviewProvider {
         return ContentView()
             .environmentObject(taskManager)
             .environmentObject(taskManager.inputState)
+            .environmentObject(taskManager.selectionManager)
             .modelContainer(container)
             .environmentObject(appDelegate)
     }

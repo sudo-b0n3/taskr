@@ -85,6 +85,7 @@ class TaskManager: ObservableObject {
     var visibleLiveTasksWithDepthCache: [(task: Task, depth: Int)]? = nil
     var childTaskCache: [TaskListKind: [UUID?: [Task]]] = [:]
     var taskIndexCache: [TaskListKind: [UUID: Task]] = [:]
+    var completedAncestorCache: [TaskListKind: [UUID: Bool]] = [:]
     private var orphanedTaskLog: Set<UUID> = []
 
     private var cancellables = Set<AnyCancellable>()
@@ -109,7 +110,6 @@ class TaskManager: ObservableObject {
         
         // Forward sub-manager updates to TaskManager's objectWillChange
         themeManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
-        selectionManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
         animationManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
         rowHeightManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
         
@@ -250,6 +250,7 @@ class TaskManager: ObservableObject {
     func invalidateVisibleTasksCache() {
         visibleLiveTasksCache = nil
         visibleLiveTasksWithDepthCache = nil
+        invalidateCompletionCache(for: .live)
     }
 
     func invalidateChildTaskCache(for kind: TaskListKind? = nil) {
@@ -259,6 +260,15 @@ class TaskManager: ObservableObject {
         } else {
             childTaskCache.removeAll()
             taskIndexCache.removeAll()
+        }
+        invalidateCompletionCache(for: kind)
+    }
+
+    func invalidateCompletionCache(for kind: TaskListKind? = nil) {
+        if let specificKind = kind {
+            completedAncestorCache.removeValue(forKey: specificKind)
+        } else {
+            completedAncestorCache.removeAll()
         }
     }
 
@@ -374,6 +384,14 @@ class TaskManager: ObservableObject {
         }
     }
 
+    func hasCachedChildren(forParentID parentID: UUID, kind: TaskListKind) -> Bool {
+        ensureChildCache(for: kind)
+        guard let cached = childTaskCache[kind]?[parentID] else {
+            return false
+        }
+        return !cached.isEmpty
+    }
+
     func hasCompletedAncestor(for taskID: UUID, kind: TaskListKind) -> Bool {
         guard kind == .live else { return false }
 
@@ -412,20 +430,27 @@ class TaskManager: ObservableObject {
             return hasCompletedAncestor(for: taskID, kind: kind)
         }
 
+        if let cached = completedAncestorCache[kind]?[taskID] {
+            return cached
+        }
+
         var visited = Set<UUID>()
         var current = task.parentTask
+        var hasCompletedAncestor = false
 
         while let parent = current {
             if !visited.insert(parent.id).inserted {
                 break
             }
             if parent.isCompleted {
-                return true
+                hasCompletedAncestor = true
+                break
             }
             current = parent.parentTask
         }
 
-        return false
+        completedAncestorCache[kind, default: [:]][taskID] = hasCompletedAncestor
+        return hasCompletedAncestor
     }
 
     func handleShiftDrag(from startTaskID: UUID, offset: CGFloat) {

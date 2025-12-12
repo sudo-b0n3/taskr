@@ -181,6 +181,7 @@ struct TemplateView_Previews: PreviewProvider {
         return TemplateView()
             .modelContainer(container)
             .environmentObject(taskManager)
+            .environmentObject(taskManager.selectionManager)
             .frame(width: 380, height: 400)
             .background(taskManager.themePalette.backgroundColor)
     }

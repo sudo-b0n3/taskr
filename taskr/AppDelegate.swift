@@ -65,6 +65,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             rootView: ContentView()
                 .environmentObject(taskManager)
                 .environmentObject(taskManager.inputState)
+                .environmentObject(taskManager.selectionManager)
                 .modelContainer(modelContainer)
                 .environmentObject(self)
         )
@@ -323,6 +324,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
         let automationView = ContentView(isStandalone: true)
             .environmentObject(manager)
+            .environmentObject(manager.selectionManager)
             .modelContainer(container)
             .environmentObject(self)
 

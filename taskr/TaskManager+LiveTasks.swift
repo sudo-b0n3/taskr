@@ -339,6 +339,7 @@ extension TaskManager {
         guard !task.isTemplateComponent else { return }
         task.isCompleted.toggle()
         completionMutationVersion &+= 1
+        invalidateCompletionCache(for: .live)
         do {
             try modelContext.save()
         } catch {

@@ -6,6 +6,7 @@ import AppKit
 struct TaskView: View {
     @EnvironmentObject var taskManager: TaskManager
     @EnvironmentObject var inputState: TaskInputState
+    @EnvironmentObject var selectionManager: SelectionManager
     @Environment(\.modelContext) private var modelContext
     // Fetch tasks sorted by displayOrder for stable UI diffs
     @Query(
@@ -164,75 +165,78 @@ private extension TaskView {
         // Keep the query alive so SwiftUI observes model changes that invalidate TaskManager caches
         let _ = tasks
         let visible = taskManager.snapshotVisibleTasksWithDepth()
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                if visible.isEmpty {
-                    Text("No tasks yet. Add one above!")
-                        .foregroundColor(palette.secondaryTextColor)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .center)
-                } else {
-                    ForEach(Array(visible.enumerated()), id: \.1.task.persistentModelID) { index, entry in
-                        FlatTaskRowView(
-                            task: entry.task,
-                            depth: entry.depth,
-                            releaseInputFocus: releaseTaskInputFocus
-                        )
-                            .padding(.top, 4)
-                            .padding(.bottom, 4)
-                        let nextDepth = index + 1 < visible.count ? visible[index + 1].depth : nil
-                        // Only separate roots from the next root; avoid separating roots from their own children
-                        if nextDepth == 0 {
-                            Divider().background(palette.dividerColor)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if visible.isEmpty {
+                        Text("No tasks yet. Add one above!")
+                            .foregroundColor(palette.secondaryTextColor)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    } else {
+                        ForEach(Array(visible.enumerated()), id: \.1.task.persistentModelID) { index, entry in
+                            FlatTaskRowView(
+                                task: entry.task,
+                                depth: entry.depth,
+                                releaseInputFocus: releaseTaskInputFocus
+                            )
+                                .padding(.top, 4)
+                                .padding(.bottom, 4)
+                                .id(entry.task.id)
+                            let nextDepth = index + 1 < visible.count ? visible[index + 1].depth : nil
+                            // Only separate roots from the next root; avoid separating roots from their own children
+                            if nextDepth == 0 {
+                                Divider().background(palette.dividerColor)
+                            }
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .allowsHitTesting(!isLiveScrolling)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .allowsHitTesting(!isLiveScrolling)
-        }
-        .background(LiveScrollObserver(isLiveScrolling: $isLiveScrolling))
-        .background(
-            ScrollViewConfigurator { scrollView in
-                scrollView.scrollerStyle = .legacy
-                scrollView.hasHorizontalScroller = false
-                scrollView.hasVerticalScroller = true
-                scrollView.automaticallyAdjustsContentInsets = false
-                scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
-                scrollView.verticalScrollElasticity = .automatic
+            .background(LiveScrollObserver(isLiveScrolling: $isLiveScrolling))
+            .background(
+                ScrollViewConfigurator { scrollView in
+                    scrollView.scrollerStyle = .legacy
+                    scrollView.hasHorizontalScroller = false
+                    scrollView.hasVerticalScroller = true
+                    scrollView.automaticallyAdjustsContentInsets = false
+                    scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+                    scrollView.verticalScrollElasticity = .automatic
 #if DEBUG
-                if scrollView.contentView.postsBoundsChangedNotifications == false {
-                    scrollView.contentView.postsBoundsChangedNotifications = true
-                    NotificationCenter.default.addObserver(
-                        forName: NSView.boundsDidChangeNotification,
-                        object: scrollView.contentView,
-                        queue: .main
-                    ) { [weak scrollView] _ in
-                        guard let scrollView else { return }
-                        let visibleWidth = scrollView.contentView.documentVisibleRect.width
-                        let scrollerWidth = scrollView.verticalScroller?.frame.width ?? 0
-                        let knobProportion = scrollView.verticalScroller?.knobProportion ?? 0
-                        print("Scroll debug -> visibleWidth: \(visibleWidth), scrollerWidth: \(scrollerWidth), knobProportion: \(knobProportion)")
-                    }
+                    if scrollView.contentView.postsBoundsChangedNotifications == false {
+                        scrollView.contentView.postsBoundsChangedNotifications = true
+                        NotificationCenter.default.addObserver(
+                            forName: NSView.boundsDidChangeNotification,
+                            object: scrollView.contentView,
+                            queue: .main
+                        ) { [weak scrollView] _ in
+                            guard let scrollView else { return }
+                            let visibleWidth = scrollView.contentView.documentVisibleRect.width
+                            let scrollerWidth = scrollView.verticalScroller?.frame.width ?? 0
+                            let knobProportion = scrollView.verticalScroller?.knobProportion ?? 0
+                            print("Scroll debug -> visibleWidth: \(visibleWidth), scrollerWidth: \(scrollerWidth), knobProportion: \(knobProportion)")
+                        }
                 }
 #endif
+                }
+            )
+            .onAppear {
+                if hasCompletedSetup {
+                    isInputFocused = true
+                    taskManager.setTaskInputFocused(true)
+                }
+                installKeyboardMonitorIfNeeded()
+                installLifecycleObservers()
             }
-        )
-        .onAppear {
-            if hasCompletedSetup {
-                isInputFocused = true
-                taskManager.setTaskInputFocused(true)
-            }
-            installKeyboardMonitorIfNeeded()
-            installLifecycleObservers()
-        }
-        .onChange(of: hasCompletedSetup) { _, newValue in
-            if newValue {
-                isInputFocused = true
-                taskManager.setTaskInputFocused(true)
-            } else {
-                isInputFocused = false
-                taskManager.setTaskInputFocused(false)
+            .onChange(of: hasCompletedSetup) { _, newValue in
+                if newValue {
+                    isInputFocused = true
+                    taskManager.setTaskInputFocused(true)
+                } else {
+                    isInputFocused = false
+                    taskManager.setTaskInputFocused(false)
+                }
             }
         }
     }
@@ -263,6 +267,7 @@ struct TaskView_Previews: PreviewProvider {
             .modelContainer(container)
             .environmentObject(taskManager)
             .environmentObject(taskManager.inputState)
+            .environmentObject(taskManager.selectionManager)
             .frame(width: 380, height: 400) // Standard preview frame
             .background(taskManager.themePalette.backgroundColor) // Match background
     }
@@ -438,6 +443,12 @@ extension TaskView {
         case 126: // Up arrow
             guard !commandPressed else { return false }
             taskManager.stepSelection(.up, extend: shiftPressed)
+            return true
+        case 36, 76: // Return and Enter
+            guard !commandPressed else { return false }
+            let selectedIDs = taskManager.selectedTaskIDs
+            guard selectedIDs.count == 1, let targetID = selectedIDs.first else { return false }
+            taskManager.requestInlineEdit(for: targetID)
             return true
         case 53: // Escape
             guard !commandPressed && !shiftPressed else { return false }
