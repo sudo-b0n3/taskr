@@ -5,7 +5,6 @@ import AppKit
 
 struct TaskView: View {
     @EnvironmentObject var taskManager: TaskManager
-    @EnvironmentObject var inputState: TaskInputState
     @EnvironmentObject var selectionManager: SelectionManager
     @Environment(\.modelContext) private var modelContext
     // Fetch tasks sorted by displayOrder for stable UI diffs
@@ -37,7 +36,10 @@ struct TaskView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            controlsArea
+            TaskInputHeader(
+                isInputFocused: $isInputFocused,
+                hasCompletedSetup: hasCompletedSetup
+            )
             Divider().background(palette.dividerColor)
             taskList
         }
@@ -75,91 +77,6 @@ struct TaskView: View {
 } // End TaskView
 
 private extension TaskView {
-    @ViewBuilder
-    var controlsArea: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                CustomTextField(
-                    text: $inputState.text,
-                    placeholder: "Type task or path /task/subtask",
-                    onCommit: { taskManager.addTaskFromPath(); isInputFocused = true },
-                    onTextChange: { newText in taskManager.updateAutocompleteSuggestions(for: newText) },
-                    onTab: { if inputState.hasSuggestions { taskManager.applySelectedSuggestion(); isInputFocused = true }},
-                    onShiftTab: { if inputState.hasSuggestions { taskManager.selectPreviousSuggestion() }},
-                    onArrowDown: {
-                        guard inputState.hasSuggestions else { return false }
-                        taskManager.selectNextSuggestion()
-                        return true
-                    },
-                    onArrowUp: {
-                        guard inputState.hasSuggestions else { return false }
-                        taskManager.selectPreviousSuggestion()
-                        return true
-                    },
-                    fieldTextColor: palette.primaryText,
-                    placeholderTextColor: palette.secondaryText
-                )
-                .focused($isInputFocused)
-                .disabled(!hasCompletedSetup)
-                .padding(.vertical, 8)
-                .padding(.horizontal, 10)
-                .background(palette.controlBackgroundColor)
-                .cornerRadius(10)
-                Button(action: { taskManager.addTaskFromPath(); isInputFocused = true }) {
-                    Image(systemName: "plus.circle.fill")
-                        .taskrFont(.title2)
-                        .foregroundColor(palette.accentColor)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .padding(.leading, 4)
-            }
-            .padding(.bottom, 8)
-
-            HStack {
-                Spacer()
-                Button("Clear Completed") { taskManager.clearCompletedTasks() }
-                    .padding(.top, 4)
-                    .foregroundColor(palette.primaryTextColor)
-            }
-
-            if !inputState.suggestions.isEmpty {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(inputState.suggestions.enumerated()), id: \.0) { index, suggestion in
-                            Text(suggestion)
-                                .foregroundColor(palette.primaryTextColor)
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 6)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    (inputState.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
-                                )
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    inputState.selectedSuggestionIndex = index
-                                    taskManager.applySelectedSuggestion()
-                                    isInputFocused = true
-                                }
-                        }
-                    }
-                }
-                .frame(maxHeight: 100)
-                .background(palette.controlBackgroundColor)
-                .cornerRadius(5)
-                .overlay(RoundedRectangle(cornerRadius: 5).stroke(palette.dividerColor.opacity(0.7), lineWidth: 1))
-                .padding(.top, 2)
-            }
-        }
-        .padding([.horizontal, .top])
-        .padding(.bottom, 8)
-        .simultaneousGesture(
-            TapGesture()
-                .onEnded {
-                    taskManager.registerUserInteractionTap()
-                }
-        )
-    }
-
     @ViewBuilder
     var taskList: some View {
         // Keep the query alive so SwiftUI observes model changes that invalidate TaskManager caches
@@ -288,6 +205,100 @@ private struct WindowAccessor: NSViewRepresentable {
         DispatchQueue.main.async {
             onWindowChange(nsView.window)
         }
+    }
+}
+
+private struct TaskInputHeader: View {
+    @EnvironmentObject var taskManager: TaskManager
+    @EnvironmentObject var inputState: TaskInputState
+
+    var isInputFocused: FocusState<Bool>.Binding
+    var hasCompletedSetup: Bool
+
+    private var palette: ThemePalette { taskManager.themePalette }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                CustomTextField(
+                    text: $inputState.text,
+                    placeholder: "Type task or path /task/subtask",
+                    onCommit: { taskManager.addTaskFromPath(); isInputFocused.wrappedValue = true },
+                    onTextChange: { newText in taskManager.updateAutocompleteSuggestions(for: newText) },
+                    onTab: { if inputState.hasSuggestions { taskManager.applySelectedSuggestion(); isInputFocused.wrappedValue = true }},
+                    onShiftTab: { if inputState.hasSuggestions { taskManager.selectPreviousSuggestion() }},
+                    onArrowDown: {
+                        guard inputState.hasSuggestions else { return false }
+                        taskManager.selectNextSuggestion()
+                        return true
+                    },
+                    onArrowUp: {
+                        guard inputState.hasSuggestions else { return false }
+                        taskManager.selectPreviousSuggestion()
+                        return true
+                    },
+                    fieldTextColor: palette.primaryText,
+                    placeholderTextColor: palette.secondaryText
+                )
+                .focused(isInputFocused)
+                .disabled(!hasCompletedSetup)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(palette.controlBackgroundColor)
+                .cornerRadius(10)
+                Button(action: { taskManager.addTaskFromPath(); isInputFocused.wrappedValue = true }) {
+                    Image(systemName: "plus.circle.fill")
+                        .taskrFont(.title2)
+                        .foregroundColor(palette.accentColor)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding(.leading, 4)
+            }
+            .padding(.bottom, 8)
+
+            HStack {
+                Spacer()
+                Button("Clear Completed") { taskManager.clearCompletedTasks() }
+                    .padding(.top, 4)
+                    .foregroundColor(palette.primaryTextColor)
+            }
+
+            if !inputState.suggestions.isEmpty {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(inputState.suggestions.enumerated()), id: \.0) { index, suggestion in
+                            Text(suggestion)
+                                .foregroundColor(palette.primaryTextColor)
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    (inputState.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    inputState.selectedSuggestionIndex = index
+                                    taskManager.applySelectedSuggestion()
+                                    isInputFocused.wrappedValue = true
+                                }
+                        }
+                    }
+                }
+                .frame(maxHeight: 100)
+                .background(palette.controlBackgroundColor)
+                .cornerRadius(5)
+                .overlay(RoundedRectangle(cornerRadius: 5).stroke(palette.dividerColor.opacity(0.7), lineWidth: 1))
+                .padding(.top, 2)
+            }
+        }
+        .padding([.horizontal, .top])
+        .padding(.bottom, 8)
+        .simultaneousGesture(
+            TapGesture()
+                .onEnded {
+                    taskManager.registerUserInteractionTap()
+                }
+        )
     }
 }
 

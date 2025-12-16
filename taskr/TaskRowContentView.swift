@@ -23,6 +23,8 @@ struct TaskRowContentView: View {
     @State private var originalNameBeforeEdit: String?
     
     private let taskID: UUID
+    private let checkboxSize: CGFloat = 18
+    private let checkboxTapExpansion: CGFloat = 6
     
     init(task: Task, mode: TaskRowView.RowMode, releaseInputFocus: (() -> Void)?) {
         self._task = Bindable(task)
@@ -91,8 +93,8 @@ struct TaskRowContentView: View {
                         baseColor: rowSecondaryColor,
                         accentColor: palette.accentColor
                     )
-                        .frame(width: 16, height: 16)
-                        .contentShape(Rectangle())
+                        .frame(width: checkboxSize, height: checkboxSize)
+                        .contentShape(Rectangle().inset(by: -checkboxTapExpansion))
                         .onTapGesture {
                             releaseInputFocus?()
                             taskManager.registerUserInteractionTap()
