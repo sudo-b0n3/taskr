@@ -22,3 +22,5 @@ AGENTS.md
 
 # Environment-specific files
 *.xcworkspace/xcuserdata/
+
+/crash/

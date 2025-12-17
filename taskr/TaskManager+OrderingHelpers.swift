@@ -8,18 +8,25 @@ extension TaskManager {
     }
 
     func predicate(for parent: Task?, kind: TaskListKind) -> Predicate<Task> {
-        switch (kind, parent?.id) {
-        case (.live, .some(let parentID)):
+        let parentID: UUID?
+        if let parent = parent, parent.modelContext != nil {
+            parentID = parent.id
+        } else {
+            parentID = nil
+        }
+
+        switch (kind, parentID) {
+        case (.live, .some(let id)):
             return #Predicate<Task> {
-                !$0.isTemplateComponent && $0.parentTask?.id == parentID
+                !$0.isTemplateComponent && $0.parentTask?.id == id
             }
         case (.live, .none):
             return #Predicate<Task> {
                 !$0.isTemplateComponent && $0.parentTask == nil
             }
-        case (.template, .some(let parentID)):
+        case (.template, .some(let id)):
             return #Predicate<Task> {
-                $0.isTemplateComponent && $0.parentTask?.id == parentID
+                $0.isTemplateComponent && $0.parentTask?.id == id
             }
         case (.template, .none):
             return #Predicate<Task> {
