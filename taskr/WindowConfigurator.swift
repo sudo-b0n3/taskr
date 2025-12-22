@@ -43,16 +43,14 @@ struct WindowConfigurator: NSViewRepresentable {
     private func configureIfPossible(view: NSView, coordinator: Coordinator) {
         guard let window = view.window else { return }
 
-        // Set autosave so macOS remembers size/position between launches
-        window.setFrameAutosaveName(autosaveName)
-        onWindowAvailable?(window)
-
-        // Only set an initial size the first time we configure
-        let initializedKey = autosaveName + ".initialized"
-        if !UserDefaults.standard.bool(forKey: initializedKey) {
-            window.setContentSize(initialSize)
-            UserDefaults.standard.set(true, forKey: initializedKey)
-        }
+        // One-time window setup (autosave, initial size) is handled in bind()
+        // to prevent repeated calls from resetting the window position
+        coordinator.bind(
+            to: window,
+            autosaveName: autosaveName,
+            initialSize: initialSize,
+            onWindowAvailable: onWindowAvailable
+        )
 
         // Ensure the window is resizable and looks standard
         window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
@@ -62,7 +60,6 @@ struct WindowConfigurator: NSViewRepresentable {
         window.toolbarStyle = .unifiedCompact
         window.isMovableByWindowBackground = allowBackgroundDrag
         window.isOpaque = false
-        coordinator.bind(to: window)
         coordinator.updateAppearance(
             palette: palette,
             frosted: frosted,
@@ -91,10 +88,27 @@ struct WindowConfigurator: NSViewRepresentable {
             self.allowBackgroundDrag = allowBackgroundDrag
         }
 
-        func bind(to window: NSWindow) {
+        func bind(
+            to window: NSWindow,
+            autosaveName: String,
+            initialSize: NSSize,
+            onWindowAvailable: ((NSWindow) -> Void)?
+        ) {
             guard self.window !== window else { return }
             teardown()
             self.window = window
+
+            // One-time window setup: autosave name and initial size
+            // Only runs when we bind to a new window, not on every SwiftUI update
+            window.setFrameAutosaveName(autosaveName)
+            onWindowAvailable?(window)
+
+            let initializedKey = autosaveName + ".initialized"
+            if !UserDefaults.standard.bool(forKey: initializedKey) {
+                window.setContentSize(initialSize)
+                UserDefaults.standard.set(true, forKey: initializedKey)
+            }
+
             let center = NotificationCenter.default
             observers = [
                 center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
