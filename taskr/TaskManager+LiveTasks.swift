@@ -180,9 +180,11 @@ extension TaskManager {
             for task in targets {
                 task.isCompleted = true
             }
+            moveCompletedTasksToBottomIfNeeded(targets)
         }
 
         completionMutationVersion &+= 1
+        objectWillChange.send()
 
         do {
             try modelContext.save()
@@ -337,9 +339,17 @@ extension TaskManager {
 
     func toggleTaskCompletion(task: Task) {
         guard !task.isTemplateComponent else { return }
-        task.isCompleted.toggle()
+        var isCompletedNow = false
+        performListMutation {
+            task.isCompleted.toggle()
+            isCompletedNow = task.isCompleted
+            if isCompletedNow {
+                moveCompletedTasksToBottomIfNeeded([task])
+            }
+        }
         completionMutationVersion &+= 1
         invalidateCompletionCache(for: .live)
+        objectWillChange.send()
         do {
             try modelContext.save()
         } catch {
@@ -560,6 +570,46 @@ extension TaskManager {
             _ = cloneTaskSubtree(child, parent: cloned, displayOrder: index)
         }
         return cloned
+    }
+
+    private func moveCompletedTasksToBottomIfNeeded(_ tasks: [Task]) {
+        guard UserDefaults.standard.bool(forKey: moveCompletedTasksToBottomPreferenceKey) else { return }
+        let completed = tasks.filter { !$0.isTemplateComponent && $0.isCompleted }
+        guard !completed.isEmpty else { return }
+
+        let grouped = Dictionary(grouping: completed) { $0.parentTask }
+        var didReorder = false
+        for (parent, group) in grouped {
+            do {
+                var siblings = try fetchSiblings(for: parent, kind: .live)
+                let targetIDs = Set(group.map(\.id))
+                var completedSiblings: [Task] = []
+
+                siblings.removeAll { task in
+                    if targetIDs.contains(task.id) {
+                        completedSiblings.append(task)
+                        return true
+                    }
+                    return false
+                }
+
+                guard !completedSiblings.isEmpty else { continue }
+                completedSiblings.sort { $0.displayOrder < $1.displayOrder }
+                siblings.append(contentsOf: completedSiblings)
+
+                for (index, task) in siblings.enumerated() {
+                    task.displayOrder = index
+                }
+                didReorder = true
+            } catch {
+                continue
+            }
+        }
+        if didReorder {
+            invalidateVisibleTasksCache()
+            invalidateChildTaskCache(for: .live)
+            objectWillChange.send()
+        }
     }
 
     private func makeDuplicateName(for task: Task, among siblings: [Task]) -> String {

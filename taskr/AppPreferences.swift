@@ -21,6 +21,7 @@ let allowClearingStruckDescendantsPreferenceKey = "allowClearingStruckDescendant
 let skipClearingHiddenDescendantsPreferenceKey = "skipClearingHiddenDescendantsPreference" // Avoid clearing completed descendants hidden under collapsed incomplete parents
 let normalizedDisplayOrderMigrationDoneKey = "normalizedDisplayOrderMigrationDone"
 let checkboxTopAlignedPreferenceKey = "checkboxTopAlignedPreference" // Align checkbox with first line
+let moveCompletedTasksToBottomPreferenceKey = "moveCompletedTasksToBottomPreference" // Move completed tasks to end of their sibling list
 let selectedThemePreferenceKey = "selectedThemePreference" // Active visual theme
 let frostedBackgroundPreferenceKey = "frostedBackgroundPreference" // Enable frosted glass background
 let frostedBackgroundLevelPreferenceKey = "frostedBackgroundLevelPreference" // Frost intensity level
@@ -175,6 +176,13 @@ final class PreferencesStore: ObservableObject {
         }
     }
 
+    @Published var moveCompletedTasksToBottom: Bool {
+        didSet {
+            guard oldValue != moveCompletedTasksToBottom else { return }
+            defaults.set(moveCompletedTasksToBottom, forKey: moveCompletedTasksToBottomPreferenceKey)
+        }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         Self.seedDefaultsIfNeeded(in: defaults)
@@ -194,6 +202,7 @@ final class PreferencesStore: ObservableObject {
         listAnimationsEnabled = defaults.object(forKey: listAnimationsEnabledPreferenceKey) as? Bool ?? true
         animationsMasterEnabled = defaults.object(forKey: animationsMasterEnabledPreferenceKey) as? Bool ?? true
         collapseAnimationsEnabled = defaults.object(forKey: collapseAnimationsEnabledPreferenceKey) as? Bool ?? true
+        moveCompletedTasksToBottom = defaults.object(forKey: moveCompletedTasksToBottomPreferenceKey) as? Bool ?? false
     }
 
     private static func seedDefaultsIfNeeded(in defaults: UserDefaults) {
@@ -232,6 +241,9 @@ final class PreferencesStore: ObservableObject {
         }
         if defaults.object(forKey: fontScalePreferenceKey) == nil {
             defaults.set(1.0, forKey: fontScalePreferenceKey)
+        }
+        if defaults.object(forKey: moveCompletedTasksToBottomPreferenceKey) == nil {
+            defaults.set(false, forKey: moveCompletedTasksToBottomPreferenceKey)
         }
     }
 

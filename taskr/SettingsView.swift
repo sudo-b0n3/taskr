@@ -139,6 +139,16 @@ struct SettingsView: View {
                                     Text(position.displayName).tag(position)
                                 }
                             }
+
+                            SettingsToggle(
+                                title: "Move Completed Tasks to Bottom",
+                                isOn: Binding(
+                                    get: { UserDefaults.standard.bool(forKey: moveCompletedTasksToBottomPreferenceKey) },
+                                    set: { UserDefaults.standard.set($0, forKey: moveCompletedTasksToBottomPreferenceKey) }
+                                ),
+                                helpText: "When checked items are completed, send them to the bottom of their current list.",
+                                palette: taskManager.themePalette
+                            )
                             
                             SettingsToggle(
                                 title: "Clear Inside Completed Parents",
@@ -212,7 +222,7 @@ struct SettingsView: View {
                             )
                             
                             if taskManager.frostedBackgroundEnabled {
-                                SettingsPicker(title: "Frost Level", selection: Binding(
+                                SettingsPicker(title: "Transparency Level", selection: Binding(
                                     get: { taskManager.frostedBackgroundLevel },
                                     set: { taskManager.setFrostedBackgroundLevel($0) }
                                 ), palette: taskManager.themePalette) {

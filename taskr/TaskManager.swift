@@ -19,9 +19,9 @@ class TaskManager: ObservableObject {
         
         var displayName: String {
             switch self {
-            case .low: return "Low"
-            case .medium: return "Medium"
-            case .high: return "High"
+            case .low: return "Most Transparent"
+            case .medium: return "Moderate"
+            case .high: return "Least Transparent"
             }
         }
         
