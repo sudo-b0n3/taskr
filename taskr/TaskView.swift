@@ -155,6 +155,10 @@ private extension TaskView {
                     taskManager.setTaskInputFocused(false)
                 }
             }
+            .onChange(of: selectionManager.selectionCursorID) { _, newCursorID in
+                guard let cursorID = newCursorID else { return }
+                proxy.scrollTo(cursorID)
+            }
         }
     }
 }

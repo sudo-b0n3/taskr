@@ -9,7 +9,7 @@ class SelectionManager: ObservableObject {
     private(set) var selectedTaskIDSet: Set<UUID> = []
     
     var selectionAnchorID: UUID?
-    var selectionCursorID: UUID?
+    @Published var selectionCursorID: UUID?
     var shiftSelectionActive: Bool = false
     private var selectionInteractionCaptured: Bool = false
     
