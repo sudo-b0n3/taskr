@@ -12,6 +12,7 @@ struct SettingsView: View {
     var configuresWindow: Bool = true
     
     @AppStorage(showDockIconPreferenceKey) private var showDockIcon: Bool = false
+    @AppStorage(moveCompletedTasksToBottomPreferenceKey) private var moveCompletedTasksToBottom: Bool = false
     
     // We'll use a local binding for launch at login since it involves SMAppService
     private var launchAtLoginBinding: Binding<Bool> {
@@ -142,10 +143,7 @@ struct SettingsView: View {
 
                             SettingsToggle(
                                 title: "Move Completed Tasks to Bottom",
-                                isOn: Binding(
-                                    get: { UserDefaults.standard.bool(forKey: moveCompletedTasksToBottomPreferenceKey) },
-                                    set: { UserDefaults.standard.set($0, forKey: moveCompletedTasksToBottomPreferenceKey) }
-                                ),
+                                isOn: $moveCompletedTasksToBottom,
                                 helpText: "When checked items are completed, send them to the bottom of their current list.",
                                 palette: taskManager.themePalette
                             )
