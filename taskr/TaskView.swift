@@ -455,10 +455,23 @@ extension TaskView {
             guard !commandPressed else { return false }
             taskManager.stepSelection(.up, extend: shiftPressed)
             return true
+        case 123: // Left arrow
+            guard !commandPressed else { return false }
+            return updateSelectedParentExpansion(expanded: false)
+        case 124: // Right arrow
+            guard !commandPressed else { return false }
+            return updateSelectedParentExpansion(expanded: true)
         case 36, 76: // Return and Enter
             guard !commandPressed else { return false }
             let selectedIDs = taskManager.selectedTaskIDs
             guard selectedIDs.count == 1, let targetID = selectedIDs.first else { return false }
+            if shiftPressed {
+                guard let targetTask = taskManager.task(withID: targetID),
+                      let newTask = taskManager.addSubtask(to: targetTask) else { return false }
+                taskManager.replaceSelection(with: newTask.id)
+                taskManager.requestInlineEdit(for: newTask.id)
+                return true
+            }
             taskManager.requestInlineEdit(for: targetID)
             return true
         case 53: // Escape
@@ -473,6 +486,16 @@ extension TaskView {
         }
 
         return false
+    }
+
+    private func updateSelectedParentExpansion(expanded: Bool) -> Bool {
+        let selectedParents = taskManager.selectedTaskIDs.filter {
+            taskManager.hasCachedChildren(forParentID: $0, kind: .live)
+        }
+        guard !selectedParents.isEmpty else { return false }
+
+        taskManager.setExpandedState(for: selectedParents, expanded: expanded, kind: .live)
+        return true
     }
 
     private func shouldHandleKeyEvent(_ event: NSEvent) -> Bool {

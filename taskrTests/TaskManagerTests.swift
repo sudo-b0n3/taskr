@@ -97,6 +97,35 @@ final class TaskManagerTests: XCTestCase {
         XCTAssertTrue(children.contains(where: { $0.name.contains("copy") }))
     }
 
+    func testAddSubtaskAppendsToParentAndReorders() throws {
+        manager.addTaskFromPath(pathOverride: "/Parent/Existing")
+
+        let parentDescriptor = FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { !$0.isTemplateComponent && $0.parentTask == nil }
+        )
+        guard let parent = try container.mainContext.fetch(parentDescriptor).first else {
+            return XCTFail("Expected parent task")
+        }
+
+        let parentID = parent.id
+        let childDescriptor = FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { !$0.isTemplateComponent && $0.parentTask?.id == parentID },
+            sortBy: [SortDescriptor(\.displayOrder)]
+        )
+        var children = try container.mainContext.fetch(childDescriptor)
+        XCTAssertEqual(children.count, 1)
+        XCTAssertEqual(children.first?.displayOrder, 0)
+
+        let newChild = manager.addSubtask(to: parent)
+        XCTAssertNotNil(newChild)
+
+        children = try container.mainContext.fetch(childDescriptor)
+        XCTAssertEqual(children.count, 2)
+        XCTAssertEqual(children[0].name, "Existing")
+        XCTAssertEqual(children[1].id, newChild?.id)
+        XCTAssertEqual(children.map(\.displayOrder), [0, 1])
+    }
+
     func testApplySelectedSuggestionAppendsSlashAndSurfacesChildren() throws {
         manager.addTaskFromPath(pathOverride: "/Projects/Alpha")
         manager.addTaskFromPath(pathOverride: "/Projects/Beta")

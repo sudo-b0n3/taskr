@@ -316,6 +316,48 @@ final class TaskManagerSelectionTests: XCTestCase {
         XCTAssertEqual(copied, expected)
     }
 
+    func testSetExpandedStateCollapsesParentsAndPrunesHiddenSelection() throws {
+        let hierarchy = try seedTwoParentHierarchy()
+        let parentA = hierarchy.parentA
+        let childA = hierarchy.childA
+        let parentB = hierarchy.parentB
+        let childB = hierarchy.childB
+
+        manager.selectTasks(
+            orderedIDs: [parentA.id, childA.id, parentB.id, childB.id],
+            anchor: parentA.id,
+            cursor: childB.id
+        )
+
+        manager.setExpandedState(for: manager.selectedTaskIDs, expanded: false, kind: .live)
+
+        XCTAssertFalse(manager.isTaskExpanded(parentA.id))
+        XCTAssertFalse(manager.isTaskExpanded(parentB.id))
+        XCTAssertEqual(manager.selectedTaskIDs, [parentA.id, parentB.id])
+    }
+
+    func testSetExpandedStateExpandsCollapsedParents() throws {
+        let hierarchy = try seedTwoParentHierarchy()
+        let parentA = hierarchy.parentA
+        let parentB = hierarchy.parentB
+
+        manager.setTaskExpanded(parentA.id, expanded: false)
+        manager.setTaskExpanded(parentB.id, expanded: false)
+
+        manager.selectTasks(
+            orderedIDs: [parentA.id, parentB.id],
+            anchor: parentA.id,
+            cursor: parentB.id
+        )
+
+        manager.setExpandedState(for: manager.selectedTaskIDs, expanded: true, kind: .live)
+
+        XCTAssertTrue(manager.isTaskExpanded(parentA.id))
+        XCTAssertTrue(manager.isTaskExpanded(parentB.id))
+        XCTAssertTrue(manager.selectedTaskIDs.contains(parentA.id))
+        XCTAssertTrue(manager.selectedTaskIDs.contains(parentB.id))
+    }
+
     @discardableResult
     private func seedSampleHierarchy() throws -> [String: Task] {
         let taskAlpha = Task(name: "Task Alpha", displayOrder: 0, isTemplateComponent: false)
@@ -365,5 +407,24 @@ final class TaskManagerSelectionTests: XCTestCase {
         }
         try container.mainContext.save()
         return tasks
+    }
+
+    private func seedTwoParentHierarchy() throws -> (parentA: Task, childA: Task, parentB: Task, childB: Task) {
+        let parentA = Task(name: "Parent A", displayOrder: 0, isTemplateComponent: false)
+        container.mainContext.insert(parentA)
+
+        let childA = Task(name: "Child A", displayOrder: 0, isTemplateComponent: false, parentTask: parentA)
+        container.mainContext.insert(childA)
+        parentA.subtasks?.append(childA)
+
+        let parentB = Task(name: "Parent B", displayOrder: 1, isTemplateComponent: false)
+        container.mainContext.insert(parentB)
+
+        let childB = Task(name: "Child B", displayOrder: 0, isTemplateComponent: false, parentTask: parentB)
+        container.mainContext.insert(childB)
+        parentB.subtasks?.append(childB)
+
+        try container.mainContext.save()
+        return (parentA, childA, parentB, childB)
     }
 }

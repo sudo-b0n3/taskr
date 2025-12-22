@@ -38,6 +38,38 @@ extension TaskManager {
         }
     }
 
+    func setExpandedState(for taskIDs: [UUID], expanded: Bool, kind: TaskListKind = .live) {
+        let uniqueIDs = Set(taskIDs)
+        guard !uniqueIDs.isEmpty else { return }
+
+        let parentIDs = uniqueIDs.filter { hasCachedChildren(forParentID: $0, kind: kind) }
+        guard !parentIDs.isEmpty else { return }
+
+        performCollapseTransition {
+            var updated = collapsedTaskIDs
+            var changed = false
+
+            for id in parentIDs {
+                if expanded {
+                    if updated.remove(id) != nil {
+                        changed = true
+                    }
+                } else {
+                    if updated.insert(id).inserted {
+                        changed = true
+                    }
+                }
+            }
+
+            guard changed else { return }
+            collapsedTaskIDs = updated
+            persistCollapsedState()
+            if !expanded {
+                pruneSelectionToVisibleTasks()
+            }
+        }
+    }
+
     func requestInlineEdit(for taskID: UUID) {
         if pendingInlineEditTaskID == taskID {
             pendingInlineEditTaskID = nil
