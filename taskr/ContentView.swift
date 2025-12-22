@@ -124,8 +124,9 @@ struct ContentView: View {
             if !isStandalone {
                 Divider().frame(height: 20).background(palette.dividerColor)
                 Button(action: {
-                    openWindow(id: "MainWindow")
-                    NSApp.activate(ignoringOtherApps: true)
+                    appDelegate.showMainWindow {
+                        openWindow(id: "MainWindow")
+                    }
                 }) {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                         .help("Open Window")

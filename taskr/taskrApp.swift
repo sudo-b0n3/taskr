@@ -95,7 +95,10 @@ struct taskrApp: App {
                     frosted: taskManager.frostedBackgroundEnabled,
                     frostOpacity: taskManager.frostedBackgroundLevel.opacity,
                     usesSystemAppearance: taskManager.selectedTheme == .system,
-                    allowBackgroundDrag: false
+                    allowBackgroundDrag: false,
+                    onWindowAvailable: { window in
+                        appDelegate.registerMainWindow(window)
+                    }
                 ))
         }
         .windowStyle(.hiddenTitleBar)

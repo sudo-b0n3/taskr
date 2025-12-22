@@ -430,11 +430,13 @@ extension TaskView {
     private func handleKeyDownEvent(_ event: NSEvent) -> Bool {
         guard shouldHandleKeyEvent(event) else { return false }
 
-        let flags = event.modifierFlags
-        let shiftPressed = flags.contains(.shift)
-        let commandPressed = flags.contains(.command)
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let effectiveFlags = flags.subtracting([.numericPad, .function])
+        let shiftOnly = effectiveFlags == [.shift]
+        let commandOnly = effectiveFlags == [.command]
+        let noModifiers = effectiveFlags.isEmpty
 
-        if commandPressed {
+        if commandOnly {
             switch event.keyCode {
             case 36, 76: // Return and Enter
                 taskManager.toggleSelectedTasksCompletion()
@@ -458,24 +460,24 @@ extension TaskView {
 
         switch event.keyCode {
         case 125: // Down arrow
-            guard !commandPressed else { return false }
-            taskManager.stepSelection(.down, extend: shiftPressed)
+            guard noModifiers || shiftOnly else { return false }
+            taskManager.stepSelection(.down, extend: shiftOnly)
             return true
         case 126: // Up arrow
-            guard !commandPressed else { return false }
-            taskManager.stepSelection(.up, extend: shiftPressed)
+            guard noModifiers || shiftOnly else { return false }
+            taskManager.stepSelection(.up, extend: shiftOnly)
             return true
         case 123: // Left arrow
-            guard !commandPressed else { return false }
+            guard noModifiers else { return false }
             return updateSelectedParentExpansion(expanded: false)
         case 124: // Right arrow
-            guard !commandPressed else { return false }
+            guard noModifiers else { return false }
             return updateSelectedParentExpansion(expanded: true)
         case 36, 76: // Return and Enter
-            guard !commandPressed else { return false }
+            guard noModifiers || shiftOnly else { return false }
             let selectedIDs = taskManager.selectedTaskIDs
             guard selectedIDs.count == 1, let targetID = selectedIDs.first else { return false }
-            if shiftPressed {
+            if shiftOnly {
                 guard let targetTask = taskManager.task(withID: targetID),
                       let newTask = taskManager.addSubtask(to: targetTask) else { return false }
                 taskManager.replaceSelection(with: newTask.id)
@@ -485,7 +487,7 @@ extension TaskView {
             taskManager.requestInlineEdit(for: targetID)
             return true
         case 53: // Escape
-            guard !commandPressed && !shiftPressed else { return false }
+            guard noModifiers else { return false }
             if !taskManager.selectedTaskIDs.isEmpty {
                 taskManager.clearSelection()
                 return true

@@ -9,6 +9,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     var popover: NSPopover?
     private var helpWindowController: NSWindowController?
     private var automationWindow: NSWindow?
+    private weak var mainWindow: NSWindow?
+    private var mainWindowObserver: NSObjectProtocol?
 
     var taskManager: TaskManager?
     var modelContainer: ModelContainer?
@@ -162,6 +164,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
 
         controller.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func registerMainWindow(_ window: NSWindow) {
+        if let existing = mainWindow, existing !== window, existing.isVisible {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            window.close()
+            return
+        }
+
+        guard mainWindow !== window else { return }
+        mainWindow = window
+
+        if let observer = mainWindowObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+
+        mainWindowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self, weak window] _ in
+            guard let self, let window else { return }
+            if self.mainWindow === window {
+                self.mainWindow = nil
+            }
+        }
+    }
+
+    func showMainWindow(openWindow: () -> Void) {
+        if let window = mainWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        openWindow()
         NSApp.activate(ignoringOtherApps: true)
     }
 

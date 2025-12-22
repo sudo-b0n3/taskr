@@ -10,6 +10,7 @@ struct WindowConfigurator: NSViewRepresentable {
     let frostOpacity: Double
     let usesSystemAppearance: Bool
     let allowBackgroundDrag: Bool
+    var onWindowAvailable: ((NSWindow) -> Void)? = nil
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -44,6 +45,7 @@ struct WindowConfigurator: NSViewRepresentable {
 
         // Set autosave so macOS remembers size/position between launches
         window.setFrameAutosaveName(autosaveName)
+        onWindowAvailable?(window)
 
         // Only set an initial size the first time we configure
         let initializedKey = autosaveName + ".initialized"
