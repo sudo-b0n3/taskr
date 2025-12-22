@@ -62,10 +62,12 @@ struct TaskRowContentView: View {
     }
     
     private var selectionBackgroundColor: Color {
-        if taskManager.isApplicationActive && isWindowFocused {
-            return Color(nsColor: NSColor.selectedContentBackgroundColor)
-        }
-        return Color(nsColor: NSColor.unemphasizedSelectedContentBackgroundColor)
+        let baseColor = (taskManager.isApplicationActive && isWindowFocused)
+            ? NSColor.selectedContentBackgroundColor
+            : NSColor.unemphasizedSelectedContentBackgroundColor
+        let blendFraction: CGFloat = palette.isDark ? 0.35 : 0.25
+        let blended = baseColor.blended(withFraction: blendFraction, of: palette.controlBackground) ?? baseColor
+        return Color(nsColor: blended)
     }
     
     private var rowForegroundColor: Color {
