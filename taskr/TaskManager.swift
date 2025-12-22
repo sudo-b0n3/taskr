@@ -171,6 +171,10 @@ class TaskManager: ObservableObject {
     func setTaskInputFocused(_ isFocused: Bool) {
         guard isTaskInputFocused != isFocused else { return }
         isTaskInputFocused = isFocused
+        if isFocused {
+            selectionManager.clearSelection()
+            selectionManager.endShiftSelection()
+        }
     }
 
     func setApplicationActive(_ active: Bool) {
