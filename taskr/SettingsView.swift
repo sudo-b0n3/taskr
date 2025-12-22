@@ -13,6 +13,7 @@ struct SettingsView: View {
     
     @AppStorage(showDockIconPreferenceKey) private var showDockIcon: Bool = false
     @AppStorage(moveCompletedTasksToBottomPreferenceKey) private var moveCompletedTasksToBottom: Bool = false
+    @AppStorage(collapseCompletedParentsPreferenceKey) private var collapseCompletedParents: Bool = false
     
     // We'll use a local binding for launch at login since it involves SMAppService
     private var launchAtLoginBinding: Binding<Bool> {
@@ -145,6 +146,13 @@ struct SettingsView: View {
                                 title: "Move Completed Tasks to Bottom",
                                 isOn: $moveCompletedTasksToBottom,
                                 helpText: "When checked items are completed, send them to the bottom of their current list.",
+                                palette: taskManager.themePalette
+                            )
+
+                            SettingsToggle(
+                                title: "Collapse Completed Parents",
+                                isOn: $collapseCompletedParents,
+                                helpText: "When a parent task is completed, collapse it automatically.",
                                 palette: taskManager.themePalette
                             )
                             

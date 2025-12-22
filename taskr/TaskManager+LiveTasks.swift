@@ -188,6 +188,7 @@ extension TaskManager {
 
         do {
             try modelContext.save()
+            collapseCompletedParentsIfNeeded(targets)
         } catch {
             modelContext.rollback()
             print("Error marking selected tasks as completed: \(error)")
@@ -364,6 +365,9 @@ extension TaskManager {
         objectWillChange.send()
         do {
             try modelContext.save()
+            if isCompletedNow {
+                collapseCompletedParentsIfNeeded([task])
+            }
         } catch {
             modelContext.rollback()
             print("Error toggling task: \(error)")
@@ -553,6 +557,27 @@ extension TaskManager {
         }
 
         return true
+    }
+
+    private func collapseCompletedParentsIfNeeded(_ tasks: [Task]) {
+        guard UserDefaults.standard.bool(forKey: collapseCompletedParentsPreferenceKey) else { return }
+        let parentIDs = tasks.filter { $0.isCompleted }.map(\.id)
+        guard !parentIDs.isEmpty else { return }
+        performCollapseTransition {
+            var updated = collapsedTaskIDs
+            var changed = false
+            for id in parentIDs {
+                if updated.insert(id).inserted {
+                    changed = true
+                }
+            }
+            guard changed else { return }
+            collapsedTaskIDs = updated
+            persistCollapsedState()
+            invalidateVisibleTasksCache()
+            objectWillChange.send()
+            pruneSelectionToVisibleTasks()
+        }
     }
 
     private func cloneTaskSubtree(

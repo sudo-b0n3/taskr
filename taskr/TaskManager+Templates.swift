@@ -88,7 +88,9 @@ extension TaskManager {
               let tasksToCopyFromTemplate = templateContainerTask.subtasks?.sorted(by: { $0.displayOrder < $1.displayOrder })
         else { return }
 
-        for taskToInstantiate in tasksToCopyFromTemplate {
+        let placeAtTop = UserDefaults.standard.bool(forKey: addRootTasksToTopPreferenceKey)
+        let orderedTasks = placeAtTop ? tasksToCopyFromTemplate.reversed() : tasksToCopyFromTemplate
+        for taskToInstantiate in orderedTasks {
             applyTemplateTaskRecursively(templateTask: taskToInstantiate, parentTask: nil)
         }
         try? modelContext.save()
@@ -103,9 +105,15 @@ extension TaskManager {
         if let existing = existingTask {
             targetTask = existing
         } else {
+            let placeAtTop: Bool
+            if parentTask == nil {
+                placeAtTop = UserDefaults.standard.bool(forKey: addRootTasksToTopPreferenceKey)
+            } else {
+                placeAtTop = UserDefaults.standard.bool(forKey: addSubtasksToTopPreferenceKey)
+            }
             let newDisplayOrder = getDisplayOrderForInsertion(
                 for: parentTask,
-                placeAtTop: false,
+                placeAtTop: placeAtTop,
                 in: modelContext
             )
             targetTask = Task(
@@ -120,7 +128,9 @@ extension TaskManager {
         }
 
         if let templateSubtasks = templateTask.subtasks?.sorted(by: { $0.displayOrder < $1.displayOrder }) {
-            for subtask in templateSubtasks {
+            let placeAtTop = UserDefaults.standard.bool(forKey: addSubtasksToTopPreferenceKey)
+            let orderedSubtasks = placeAtTop ? templateSubtasks.reversed() : templateSubtasks
+            for subtask in orderedSubtasks {
                 applyTemplateTaskRecursively(templateTask: subtask, parentTask: targetTask)
             }
         }

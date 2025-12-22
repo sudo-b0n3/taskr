@@ -19,6 +19,7 @@ let collapsedTaskIDsPreferenceKey = "collapsedTaskIDsPreference" // Persist coll
 let completionAnimationsEnabledPreferenceKey = "completionAnimationsEnabledPreference" // Toggle subtle completion animations
 let allowClearingStruckDescendantsPreferenceKey = "allowClearingStruckDescendantsPreference" // Allow clearing children under completed parents
 let skipClearingHiddenDescendantsPreferenceKey = "skipClearingHiddenDescendantsPreference" // Avoid clearing completed descendants hidden under collapsed incomplete parents
+let collapseCompletedParentsPreferenceKey = "collapseCompletedParentsPreference" // Collapse parent rows when completed
 let normalizedDisplayOrderMigrationDoneKey = "normalizedDisplayOrderMigrationDone"
 let checkboxTopAlignedPreferenceKey = "checkboxTopAlignedPreference" // Align checkbox with first line
 let moveCompletedTasksToBottomPreferenceKey = "moveCompletedTasksToBottomPreference" // Move completed tasks to end of their sibling list
@@ -220,6 +221,9 @@ final class PreferencesStore: ObservableObject {
         }
         if defaults.object(forKey: completionAnimationsEnabledPreferenceKey) == nil {
             defaults.set(true, forKey: completionAnimationsEnabledPreferenceKey)
+        }
+        if defaults.object(forKey: collapseCompletedParentsPreferenceKey) == nil {
+            defaults.set(false, forKey: collapseCompletedParentsPreferenceKey)
         }
         if defaults.object(forKey: skipClearingHiddenDescendantsPreferenceKey) == nil {
             defaults.set(true, forKey: skipClearingHiddenDescendantsPreferenceKey)
