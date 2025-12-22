@@ -435,6 +435,16 @@ extension TaskView {
         let commandPressed = flags.contains(.command)
 
         if commandPressed {
+            switch event.keyCode {
+            case 36, 76: // Return and Enter
+                taskManager.toggleSelectedTasksCompletion()
+                return true
+            case 51, 117: // Delete and Forward Delete
+                taskManager.deleteSelectedTasks()
+                return true
+            default:
+                break
+            }
             if let key = event.charactersIgnoringModifiers?.lowercased() {
                 switch key {
                 case "a":

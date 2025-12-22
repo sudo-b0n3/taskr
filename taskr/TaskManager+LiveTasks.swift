@@ -218,6 +218,18 @@ extension TaskManager {
         }
     }
 
+    func toggleSelectedTasksCompletion() {
+        let targets = selectedLiveTasks()
+        guard !targets.isEmpty else { return }
+
+        let hasIncomplete = targets.contains { !$0.isCompleted }
+        if hasIncomplete {
+            markSelectedTasksCompleted()
+        } else {
+            markSelectedTasksUncompleted()
+        }
+    }
+
     func canDuplicateSelectedTasks() -> Bool {
         !selectedLiveTasks().isEmpty
     }

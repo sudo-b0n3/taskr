@@ -316,6 +316,40 @@ final class TaskManagerSelectionTests: XCTestCase {
         XCTAssertEqual(copied, expected)
     }
 
+    func testToggleSelectedTasksCompletionMarksIncomplete() throws {
+        let hierarchy = try seedTwoParentHierarchy()
+
+        manager.selectTasks(
+            orderedIDs: [hierarchy.parentA.id, hierarchy.childA.id],
+            anchor: hierarchy.parentA.id,
+            cursor: hierarchy.childA.id
+        )
+
+        manager.toggleSelectedTasksCompletion()
+
+        XCTAssertTrue(hierarchy.parentA.isCompleted)
+        XCTAssertTrue(hierarchy.childA.isCompleted)
+    }
+
+    func testToggleSelectedTasksCompletionUncompletesAllWhenAlreadyCompleted() throws {
+        let hierarchy = try seedTwoParentHierarchy()
+
+        hierarchy.parentA.isCompleted = true
+        hierarchy.childA.isCompleted = true
+        try container.mainContext.save()
+
+        manager.selectTasks(
+            orderedIDs: [hierarchy.parentA.id, hierarchy.childA.id],
+            anchor: hierarchy.parentA.id,
+            cursor: hierarchy.childA.id
+        )
+
+        manager.toggleSelectedTasksCompletion()
+
+        XCTAssertFalse(hierarchy.parentA.isCompleted)
+        XCTAssertFalse(hierarchy.childA.isCompleted)
+    }
+
     func testSetExpandedStateCollapsesParentsAndPrunesHiddenSelection() throws {
         let hierarchy = try seedTwoParentHierarchy()
         let parentA = hierarchy.parentA
