@@ -10,6 +10,7 @@ final class Task {
     var creationDate: Date
     var displayOrder: Int
     var isTemplateComponent: Bool // New flag
+    var isLocked: Bool = false // When true, task thread is protected from "Clear Completed"
 
     @Relationship(deleteRule: .cascade, inverse: \Task.parentTask)
     var subtasks: [Task]?
@@ -23,6 +24,7 @@ final class Task {
         creationDate: Date = Date(),
         displayOrder: Int = 0,
         isTemplateComponent: Bool = false, // Default to false
+        isLocked: Bool = false,
         parentTask: Task? = nil
     ) {
         self.id = id
@@ -31,6 +33,7 @@ final class Task {
         self.creationDate = creationDate
         self.displayOrder = displayOrder
         self.isTemplateComponent = isTemplateComponent
+        self.isLocked = isLocked
         self.parentTask = parentTask
         self.subtasks = []
     }

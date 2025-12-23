@@ -87,6 +87,18 @@ struct TaskRowContentView: View {
     
     var body: some View {
         HStack(alignment: checkboxTopAligned ? .top : .center) {
+            // Lock icon indicator (shown only on the task that is locked, not children)
+            if mode == .live && task.isLocked {
+                Image(systemName: "lock.fill")
+                    .foregroundColor(rowSecondaryColor)
+                    .font(.caption)
+                    .frame(width: 12)
+            } else if mode == .live && isInLockedThread {
+                // Spacer to maintain indentation for children of locked tasks
+                Spacer()
+                    .frame(width: 12)
+            }
+
             Group {
                 if mode == .live {
                     AnimatedCheckCircle(
@@ -332,6 +344,14 @@ struct TaskRowContentView: View {
             }
             .disabled(multiSelectionActive)
             Divider()
+            Button(task.isLocked ? "Unlock Thread" : "Lock Thread") {
+                if multiSelectionActive {
+                    taskManager.toggleLockForSelectedTasks()
+                } else {
+                    taskManager.toggleLockForTask(task)
+                }
+            }
+            Divider()
             Button(role: .destructive) {
                 if multiSelectionActive {
                     taskManager.deleteSelectedTasks()
@@ -391,6 +411,10 @@ struct TaskRowContentView: View {
             taskManager.noteOrphanedTask(id: taskID, context: "TaskRowView.hasCompletedAncestor")
         }
         return taskManager.hasCompletedAncestorCached(for: taskID, kind: listKind)
+    }
+
+    private var isInLockedThread: Bool {
+        taskManager.isTaskInLockedThread(task)
     }
 
     private func startEditing() {

@@ -55,6 +55,7 @@ struct HelpView: View {
         helpSection(title: "Completing & Clearing") {
             Text("• Click the circle beside a task to toggle completion. Subtasks visually strike when any ancestor is complete.")
             Text("• Use Clear Completed from the toolbar to purge finished items; the list keeps its current scroll position.")
+            Text("• Lock a task thread (⌘L or right-click → Lock Thread) to protect it from Clear Completed. A 🔒 icon marks locked tasks.")
         }
     }
 

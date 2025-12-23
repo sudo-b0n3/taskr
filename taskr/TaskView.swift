@@ -456,6 +456,9 @@ extension TaskView {
                 case "a":
                     taskManager.selectAllVisibleTasks()
                     return true
+                case "l":
+                    taskManager.toggleLockForSelectedTasks()
+                    return true
                 default:
                     break
                 }

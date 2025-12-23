@@ -422,8 +422,22 @@ extension TaskManager {
             }
             if visibleTargets.isEmpty { return }
 
-            let targetIDs = Set(visibleTargets.map { $0.id })
-            let topLevelTasks = visibleTargets.filter { task in
+            // Filter out tasks that are in a locked thread (task or any ancestor is locked)
+            func isInLockedThread(_ task: Task) -> Bool {
+                if task.isLocked { return true }
+                var current = task.parentTask
+                while let parent = current {
+                    if parent.isLocked { return true }
+                    current = parent.parentTask
+                }
+                return false
+            }
+
+            let unlockedTargets = visibleTargets.filter { !isInLockedThread($0) }
+            if unlockedTargets.isEmpty { return }
+
+            let targetIDs = Set(unlockedTargets.map { $0.id })
+            let topLevelTasks = unlockedTargets.filter { task in
                 var current = task.parentTask
                 while let parent = current {
                     if targetIDs.contains(parent.id) { return false }
@@ -740,6 +754,52 @@ extension TaskManager {
             } catch {
                 print("Error moving task: \(error)")
             }
+        }
+    }
+
+    // MARK: - Task Locking
+
+    /// Returns true if the task or any of its ancestors is locked
+    func isTaskInLockedThread(_ task: Task) -> Bool {
+        if task.isLocked { return true }
+        var current = task.parentTask
+        while let parent = current {
+            if parent.isLocked { return true }
+            current = parent.parentTask
+        }
+        return false
+    }
+
+    /// Toggle lock state for a single task
+    func toggleLockForTask(_ task: Task) {
+        guard !task.isTemplateComponent else { return }
+        task.isLocked.toggle()
+        do {
+            try modelContext.save()
+            objectWillChange.send()
+        } catch {
+            print("Error toggling lock for task: \(error)")
+        }
+    }
+
+    /// Toggle lock state for all selected tasks
+    func toggleLockForSelectedTasks() {
+        let tasks = selectedLiveTasks()
+        guard !tasks.isEmpty else { return }
+
+        // If any task is unlocked, lock all. Otherwise unlock all.
+        let hasUnlocked = tasks.contains { !$0.isLocked }
+        let newLockState = hasUnlocked
+
+        for task in tasks {
+            task.isLocked = newLockState
+        }
+
+        do {
+            try modelContext.save()
+            objectWillChange.send()
+        } catch {
+            print("Error toggling lock for selected tasks: \(error)")
         }
     }
 }
