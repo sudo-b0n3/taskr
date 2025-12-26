@@ -37,6 +37,7 @@ let defaultHotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
 
 // Screenshot automation coordination artifacts
 let screenshotAutomationConfigFilename = "taskr_screenshot_config.json"
+let screenshotDemoModeActivePreferenceKey = "screenshotDemoModeActivePreference"
 
 // --- Enums ---
 

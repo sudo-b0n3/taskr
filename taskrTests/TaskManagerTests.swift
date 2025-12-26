@@ -559,6 +559,102 @@ final class TaskManagerTests: XCTestCase {
         XCTAssertTrue(livePhase5Children.contains(where: { $0.name == movedStepName }))
     }
 
+    func testExportBackupIncludesTemplatesAndStatuses() throws {
+        manager.addTaskFromPath(pathOverride: "/Work/Item")
+
+        let rootDescriptor = FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { !$0.isTemplateComponent && $0.parentTask == nil && $0.name == "Work" }
+        )
+        guard let root = try container.mainContext.fetch(rootDescriptor).first,
+              let item = root.subtasks?.first else {
+            return XCTFail("Expected Work/Item hierarchy")
+        }
+
+        manager.toggleTaskCompletion(taskID: item.id)
+        manager.toggleLockForTask(root)
+
+        manager.newTemplateName = "Morning"
+        manager.addTemplate()
+
+        let templateDescriptor = FetchDescriptor<TaskTemplate>(
+            predicate: #Predicate<TaskTemplate> { $0.name == "Morning" }
+        )
+        guard let template = try container.mainContext.fetch(templateDescriptor).first else {
+            return XCTFail("Expected Morning template")
+        }
+
+        manager.addTemplateRootTask(to: template, name: "Coffee")
+        guard let templateTask = template.taskStructure?.subtasks?.first else {
+            return XCTFail("Expected template root task")
+        }
+        templateTask.isCompleted = true
+
+        let data = try manager.exportUserBackupData()
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let payload = try decoder.decode(ExportBackupPayload.self, from: data)
+
+        XCTAssertEqual(payload.tasks.count, 1)
+        XCTAssertEqual(payload.templates.count, 1)
+        guard let exportedRoot = payload.tasks.first else {
+            return XCTFail("Expected exported root task")
+        }
+        XCTAssertEqual(exportedRoot.name, "Work")
+        XCTAssertEqual(exportedRoot.isLocked, true)
+        XCTAssertEqual(exportedRoot.subtasks.first?.name, "Item")
+        XCTAssertEqual(exportedRoot.subtasks.first?.isCompleted, true)
+
+        guard let exportedTemplate = payload.templates.first else {
+            return XCTFail("Expected exported template")
+        }
+        XCTAssertEqual(exportedTemplate.name, "Morning")
+        XCTAssertEqual(exportedTemplate.roots.first?.isCompleted, true)
+    }
+
+    func testDuplicateTemplateCopiesStructureAndStatus() throws {
+        manager.newTemplateName = "Morning"
+        manager.addTemplate()
+
+        let templateFetch = FetchDescriptor<TaskTemplate>(predicate: #Predicate<TaskTemplate> { $0.name == "Morning" })
+        guard let template = try container.mainContext.fetch(templateFetch).first else {
+            return XCTFail("Expected Morning template")
+        }
+
+        manager.addTemplateRootTask(to: template, name: "Coffee")
+        guard let root = template.taskStructure?.subtasks?.first else {
+            return XCTFail("Expected template root task")
+        }
+        manager.addTemplateSubtask(to: root, name: "Beans")
+        guard let child = root.subtasks?.first else {
+            return XCTFail("Expected template subtask")
+        }
+
+        root.isCompleted = true
+        root.isLocked = true
+        child.isCompleted = false
+
+        manager.duplicateTemplate(template)
+
+        let templates = try container.mainContext.fetch(FetchDescriptor<TaskTemplate>())
+        XCTAssertEqual(templates.count, 2)
+        guard let duplicate = templates.first(where: { $0.name == "Morning (copy)" }) else {
+            return XCTFail("Expected duplicate template")
+        }
+
+        let dupRoots = (duplicate.taskStructure?.subtasks ?? []).sorted(by: { $0.displayOrder < $1.displayOrder })
+        XCTAssertEqual(dupRoots.count, 1)
+        let dupRoot = try XCTUnwrap(dupRoots.first)
+        XCTAssertEqual(dupRoot.name, "Coffee")
+        XCTAssertTrue(dupRoot.isCompleted)
+        XCTAssertTrue(dupRoot.isLocked)
+
+        let dupChildren = (dupRoot.subtasks ?? []).sorted(by: { $0.displayOrder < $1.displayOrder })
+        XCTAssertEqual(dupChildren.count, 1)
+        let dupChild = try XCTUnwrap(dupChildren.first)
+        XCTAssertEqual(dupChild.name, "Beans")
+        XCTAssertFalse(dupChild.isCompleted)
+    }
+
     func testStressDeleteNestedTasksDoesNotLeaveDanglingState() throws {
         let rootCount = 12
         let childrenPerRoot = 6

@@ -162,6 +162,38 @@ extension TaskManager {
         addTemplateSubtask(to: container, name: name)
     }
 
+    func duplicateTemplate(_ template: TaskTemplate) {
+        guard let container = template.taskStructure else { return }
+        do {
+            let templates = try modelContext.fetch(FetchDescriptor<TaskTemplate>())
+            var existingNames = Set(templates.map { $0.name })
+            let duplicateName = makeDuplicateTemplateName(for: template.name, existingNames: &existingNames)
+
+            let newContainer = Task(
+                name: "TEMPLATE_INTERNAL_ROOT_CONTAINER",
+                displayOrder: 0,
+                isTemplateComponent: true
+            )
+            modelContext.insert(newContainer)
+            newContainer.subtasks = []
+
+            let newTemplate = TaskTemplate(name: duplicateName, taskStructure: newContainer)
+            modelContext.insert(newTemplate)
+
+            let roots = (container.subtasks ?? []).sorted { $0.displayOrder < $1.displayOrder }
+            for root in roots {
+                let copied = cloneTemplateSubtree(from: root, parent: newContainer)
+                newContainer.subtasks?.append(copied)
+            }
+
+            try modelContext.save()
+            invalidateChildTaskCache(for: .template)
+        } catch {
+            modelContext.rollback()
+            print("Error duplicating template: \(error)")
+        }
+    }
+
     func deleteTemplateTask(_ task: Task) {
         guard task.isTemplateComponent else { return }
         // Use generic helper
@@ -181,6 +213,43 @@ extension TaskManager {
 
     func resequenceTemplateDisplayOrder(for parent: Task?) {
         resequenceDisplayOrder(for: parent, kind: .template)
+    }
+
+    private func cloneTemplateSubtree(from original: Task, parent: Task?) -> Task {
+        let copy = Task(
+            name: original.name,
+            isCompleted: original.isCompleted,
+            creationDate: original.creationDate,
+            displayOrder: original.displayOrder,
+            isTemplateComponent: true,
+            isLocked: original.isLocked,
+            parentTask: parent
+        )
+        modelContext.insert(copy)
+        if let originalSubtasks = original.subtasks?.sorted(by: { $0.displayOrder < $1.displayOrder }) {
+            copy.subtasks = []
+            for sub in originalSubtasks {
+                let copiedSub = cloneTemplateSubtree(from: sub, parent: copy)
+                copy.subtasks?.append(copiedSub)
+            }
+        }
+        return copy
+    }
+
+    private func makeDuplicateTemplateName(for baseName: String, existingNames: inout Set<String>) -> String {
+        var candidate = "\(baseName) (copy)"
+        if !existingNames.contains(candidate) {
+            existingNames.insert(candidate)
+            return candidate
+        }
+
+        var index = 2
+        while existingNames.contains("\(baseName) (copy \(index))") {
+            index += 1
+        }
+        candidate = "\(baseName) (copy \(index))"
+        existingNames.insert(candidate)
+        return candidate
     }
 
     private func deepCopyTask(

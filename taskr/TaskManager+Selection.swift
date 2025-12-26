@@ -134,6 +134,9 @@ extension TaskManager {
     // MARK: - Helper routines
 
     func snapshotVisibleTasks() -> [Task] {
+        if isDemoSwapInProgress {
+            return []
+        }
         if let cached = visibleLiveTasksCache {
             return cached
         }
@@ -151,6 +154,9 @@ extension TaskManager {
     }
 
     func snapshotVisibleTasksWithDepth() -> [(task: Task, depth: Int)] {
+        if isDemoSwapInProgress {
+            return []
+        }
         if let cached = visibleLiveTasksWithDepthCache {
             return cached
         }

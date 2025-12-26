@@ -114,6 +114,13 @@ struct TemplateView: View {
                                 }
                                 .padding(.horizontal)
                                 .padding(.vertical, 8)
+                                .contextMenu {
+                                    Button {
+                                        taskManager.duplicateTemplate(template)
+                                    } label: {
+                                        Label("Duplicate", systemImage: "doc.on.doc")
+                                    }
+                                }
 
                                 if let container = template.taskStructure,
                                    taskManager.isTaskExpanded(container.id) {

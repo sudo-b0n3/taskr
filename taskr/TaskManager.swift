@@ -47,6 +47,7 @@ class TaskManager: ObservableObject {
     @Published var completionMutationVersion: Int = 0
     @Published var pendingInlineEditTaskID: UUID? = nil
     @Published var collapsedTaskIDs: Set<UUID> = []
+    @Published var isDemoSwapInProgress: Bool = false
     
     @Published private(set) var isTaskInputFocused: Bool = false
     @Published private(set) var frostedBackgroundEnabled: Bool

@@ -387,7 +387,7 @@ struct SettingsView: View {
         
         if panel.runModal() == .OK, let url = panel.url {
             do {
-                try taskManager.exportUserTasks(to: url)
+                try taskManager.exportUserBackup(to: url)
             } catch {
                 alertMessage = "Export failed: \(error.localizedDescription)"
                 showAlert = true
@@ -401,7 +401,7 @@ struct SettingsView: View {
         
         if panel.runModal() == .OK, let url = panel.url {
             do {
-                try taskManager.importUserTasks(from: url)
+                try taskManager.importUserBackup(from: url)
             } catch {
                 alertMessage = "Import failed: \(error.localizedDescription)"
                 showAlert = true

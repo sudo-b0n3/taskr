@@ -1,6 +1,7 @@
 // taskr/taskr/ContentView.swift
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var taskManager: TaskManager
@@ -98,7 +99,7 @@ struct ContentView: View {
 
     private var headerBar: some View {
         HStack(spacing: 0) {
-            Button(action: { currentView = .tasks }) {
+            Button(action: handleTasksButton) {
                 Text("Tasks").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
                     .foregroundColor(currentView == .tasks ? palette.accentColor : palette.primaryTextColor)
             }
@@ -160,6 +161,16 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.clear)
+    }
+
+    private func handleTasksButton() {
+        #if DEBUG
+        let flags = NSApp.currentEvent?.modifierFlags.intersection(.deviceIndependentFlagsMask) ?? []
+        if flags.contains(.option) {
+            taskManager.toggleScreenshotDemoMode()
+        }
+        #endif
+        currentView = .tasks
     }
 
     private var rootBackground: some View {
