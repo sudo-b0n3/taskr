@@ -28,5 +28,12 @@ xcodebuild -project taskr.xcodeproj -scheme taskr -configuration Debug build
 
 When you run the app for the first time macOS will prompt for accessibility access so Taskr can register the global hotkey. Approve the request from **System Settings → Privacy & Security → Accessibility**.
 
+## Updating
+Taskr does not include an in-app updater yet. To update:
+- Quit Taskr.
+- Download the latest release.
+- Replace `Taskr.app` in `/Applications` with the new copy.
+- Relaunch Taskr.
+
 ## License
 Taskr is released under the MIT License. See [LICENSE](LICENSE) for details.
