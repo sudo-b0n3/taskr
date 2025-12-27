@@ -13,6 +13,16 @@ class SelectionManager: ObservableObject {
     var shiftSelectionActive: Bool = false
     private var selectionInteractionCaptured: Bool = false
     
+    /// Tuple of (taskID, counter) to ensure each scroll request triggers onChange even for same ID
+    @Published var scrollToTaskRequest: (id: UUID, counter: Int)?
+    private var scrollRequestCounter: Int = 0
+    
+    /// Request the view to scroll to a specific task
+    func requestScrollTo(_ taskID: UUID) {
+        scrollRequestCounter += 1
+        scrollToTaskRequest = (id: taskID, counter: scrollRequestCounter)
+    }
+    
     // MARK: - Selection State Queries
     
     func isTaskSelected(_ id: UUID) -> Bool {

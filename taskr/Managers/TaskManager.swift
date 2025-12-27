@@ -233,6 +233,10 @@ class TaskManager: ObservableObject {
         selectionManager.endShiftSelection()
     }
     
+    func requestScrollTo(_ taskID: UUID) {
+        selectionManager.requestScrollTo(taskID)
+    }
+    
     private static func clampFontScale(_ scale: Double) -> Double {
         let stepped = (scale / fontScaleStep).rounded() * fontScaleStep
         return min(max(stepped, fontScaleRange.lowerBound), fontScaleRange.upperBound)

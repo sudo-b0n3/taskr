@@ -198,6 +198,16 @@ extension TaskManager {
         let targets = selectedLiveTasks().filter { !$0.isCompleted }
         guard !targets.isEmpty else { return }
 
+        // Check if move-to-bottom is enabled and find the lowest selected index
+        let willMoveToBottom = UserDefaults.standard.bool(forKey: moveCompletedTasksToBottomPreferenceKey)
+        var lowestSelectedIndex: Int? = nil
+        if willMoveToBottom {
+            let visibleIDs = snapshotVisibleTaskIDs()
+            let targetIDs = Set(targets.map(\.id))
+            let selectedIndices = visibleIDs.indices.filter { targetIDs.contains(visibleIDs[$0]) }
+            lowestSelectedIndex = selectedIndices.min()
+        }
+
         performListMutation {
             for task in targets {
                 task.isCompleted = true
@@ -214,6 +224,18 @@ extension TaskManager {
         } catch {
             modelContext.rollback()
             print("Error marking selected tasks as completed: \(error)")
+        }
+        
+        // After completion, select the task at the original position
+        if let lowestIndex = lowestSelectedIndex {
+            let newVisibleIDs = snapshotVisibleTaskIDs()
+            guard !newVisibleIDs.isEmpty else {
+                clearSelection()
+                return
+            }
+            let safeIndex = min(lowestIndex, newVisibleIDs.count - 1)
+            let targetID = newVisibleIDs[safeIndex]
+            replaceSelection(with: targetID)
         }
     }
 
@@ -280,6 +302,8 @@ extension TaskManager {
             if let first = selectedTaskIDs.first,
                let task = task(withID: first) {
                 moveTaskUp(task)
+                // Request scroll to follow the moved task
+                requestScrollTo(first)
             }
             return
         }
@@ -298,6 +322,11 @@ extension TaskManager {
         reordered.insert(contentsOf: block, at: insertionIndex)
 
         applySiblingOrder(reordered, parent: context.parent, selectedSet: context.selectedSet)
+        
+        // Trigger scroll to follow the moved selection
+        if let firstSelectedID = block.first?.id {
+            requestScrollTo(firstSelectedID)
+        }
     }
 
     func moveSelectedTasksDown() {
@@ -305,6 +334,8 @@ extension TaskManager {
             if let first = selectedTaskIDs.first,
                let task = task(withID: first) {
                 moveTaskDown(task)
+                // Request scroll to follow the moved task
+                requestScrollTo(first)
             }
             return
         }
@@ -327,6 +358,11 @@ extension TaskManager {
         reordered.insert(contentsOf: block, at: targetIndex)
 
         applySiblingOrder(reordered, parent: context.parent, selectedSet: context.selectedSet)
+        
+        // Trigger scroll to follow the moved selection
+        if let lastSelectedID = block.last?.id {
+            requestScrollTo(lastSelectedID)
+        }
     }
 
     @discardableResult
@@ -374,6 +410,21 @@ extension TaskManager {
 
     func toggleTaskCompletion(task: Task) {
         guard !task.isTemplateComponent else { return }
+        
+        // Check if the task is selected and if "move to bottom" is enabled
+        let taskWasSelected = selectedTaskIDs.contains(task.id)
+        let willMoveToBottom = UserDefaults.standard.bool(forKey: moveCompletedTasksToBottomPreferenceKey)
+        
+        // Before completion, find the task's position so we can select an adjacent task
+        var indexToSelectAfter: Int? = nil
+        if taskWasSelected && willMoveToBottom && !task.isCompleted {
+            // Only if completing (not uncompleting) and the setting is on
+            let visibleIDs = snapshotVisibleTaskIDs()
+            if let currentIndex = visibleIDs.firstIndex(of: task.id) {
+                indexToSelectAfter = currentIndex
+            }
+        }
+        
         var isCompletedNow = false
         performListMutation {
             task.isCompleted.toggle()
@@ -393,6 +444,19 @@ extension TaskManager {
         } catch {
             modelContext.rollback()
             print("Error toggling task: \(error)")
+        }
+        
+        // After completion, if the task moved to bottom, select the task at the original position
+        if let targetIndex = indexToSelectAfter, isCompletedNow {
+            let newVisibleIDs = snapshotVisibleTaskIDs()
+            guard !newVisibleIDs.isEmpty else { return }
+            // Select the task that now occupies the original position (or the last task if beyond end)
+            let safeIndex = min(targetIndex, newVisibleIDs.count - 1)
+            let targetID = newVisibleIDs[safeIndex]
+            // Only change selection if the target is different from the completed task
+            if targetID != task.id {
+                replaceSelection(with: targetID)
+            }
         }
     }
 

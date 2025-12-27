@@ -160,6 +160,10 @@ private extension TaskView {
                 guard let cursorID = newCursorID else { return }
                 proxy.scrollTo(cursorID)
             }
+            .onChange(of: selectionManager.scrollToTaskRequest?.counter) { _, _ in
+                guard let request = selectionManager.scrollToTaskRequest else { return }
+                proxy.scrollTo(request.id)
+            }
         }
     }
 }
