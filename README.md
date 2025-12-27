@@ -4,7 +4,7 @@ Taskr is a lightweight macOS menu bar companion for rapidly capturing and organi
 
 ## Features
 - **Fast path-based capture** – Create deeply nested tasks in one line using `/`-delimited paths with optional quoted segments.
-- **Keyboard-first navigation** – Move with ↑/↓, expand with →, collapse with ←, Return to add, Esc to clear focus.
+- **Keyboard-first navigation** – Move with ↑/↓, expand with →, collapse with ←, reorder with M+↑/↓, Return to add, Esc to clear focus.
 - **Readable copy & paste** – Copy selections as a clean checklist for pasting into docs, notes, or tickets.
 - **Reusable templates** – Author checklists once and apply them to live tasks without duplicating work.
 - **Flexible views** – Work from the menu bar or pop out a full window when you need more space.

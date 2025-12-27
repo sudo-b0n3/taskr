@@ -17,6 +17,7 @@ struct TaskView: View {
 
     @FocusState private var isInputFocused: Bool
     @State private var keyboardMonitor: Any?
+    @State private var isMKeyPressed: Bool = false
     @State private var appObserverTokens: [NSObjectProtocol] = []
     @State private var windowObserverTokens: [NSObjectProtocol] = []
     @State private var hostingWindow: NSWindow?
@@ -418,7 +419,11 @@ private struct LiveScrollObserver: NSViewRepresentable {
 extension TaskView {
     private func installKeyboardMonitorIfNeeded() {
         guard keyboardMonitor == nil else { return }
-        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { event in
+            if event.type == .keyUp {
+                handleKeyUpEvent(event)
+                return event
+            }
             guard handleKeyDownEvent(event) else { return event }
             return nil
         }
@@ -428,6 +433,14 @@ extension TaskView {
         if let monitor = keyboardMonitor {
             NSEvent.removeMonitor(monitor)
             keyboardMonitor = nil
+        }
+        isMKeyPressed = false
+    }
+
+    private func handleKeyUpEvent(_ event: NSEvent) {
+        // Track M key release (keyCode 46 is 'm')
+        if event.keyCode == 46 {
+            isMKeyPressed = false
         }
     }
 
@@ -466,11 +479,25 @@ extension TaskView {
         }
 
         switch event.keyCode {
+        case 46: // M key
+            guard noModifiers else { return false }
+            isMKeyPressed = true
+            return false // Don't consume the event, just track state
         case 125: // Down arrow
+            if noModifiers && isMKeyPressed {
+                // M + Down Arrow = Move selected tasks down
+                taskManager.moveSelectedTasksDown()
+                return true
+            }
             guard noModifiers || shiftOnly else { return false }
             taskManager.stepSelection(.down, extend: shiftOnly)
             return true
         case 126: // Up arrow
+            if noModifiers && isMKeyPressed {
+                // M + Up Arrow = Move selected tasks up
+                taskManager.moveSelectedTasksUp()
+                return true
+            }
             guard noModifiers || shiftOnly else { return false }
             taskManager.stepSelection(.up, extend: shiftOnly)
             return true

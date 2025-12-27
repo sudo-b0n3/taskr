@@ -77,6 +77,7 @@ struct HelpView: View {
         helpSection(title: "Keyboard & Autocomplete") {
             Text("• Use Tab/Shift-Tab to accept suggestions, ↑/↓ to navigate them, and Return to commit.")
             Text("• Navigate tasks with ↑/↓; Right Arrow expands parents, Left Arrow collapses them.")
+            Text("• Hold M and press ↑/↓ to move selected tasks up or down within their list.")
             Text("• Command+Return toggles completion for all selected tasks; Command+Delete removes the current selection.")
             Text("• Add tasks from anywhere with your chosen global hotkey once accessibility access is granted (prompt appears on first use).")
         }
