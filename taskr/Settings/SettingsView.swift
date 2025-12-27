@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var globalHotkeyEnabled: Bool = false
     @State private var hotkeyDescription: String = HotkeyPreferences.load().displayString
     @State private var isRecordingHotkey: Bool = false
+    @State private var showKeyboardShortcuts: Bool = false
     var configuresWindow: Bool = true
     
     @AppStorage(showDockIconPreferenceKey) private var showDockIcon: Bool = false
@@ -120,6 +121,21 @@ struct SettingsView: View {
                                 hotkeyDescription = configuration.displayString
                                 appDelegate.updateHotkeyConfiguration(configuration)
                             }
+                            
+                            HStack {
+                                Text("Keyboard Shortcuts")
+                                    .taskrFont(.body)
+                                    .foregroundColor(taskManager.themePalette.primaryTextColor)
+                                Spacer()
+                                Button("View All") {
+                                    showKeyboardShortcuts = true
+                                }
+                                .popover(isPresented: $showKeyboardShortcuts) {
+                                    KeyboardShortcutsView()
+                                        .environmentObject(taskManager)
+                                }
+                            }
+                            .padding(.vertical, 4)
                         }
                         
                         Divider()
