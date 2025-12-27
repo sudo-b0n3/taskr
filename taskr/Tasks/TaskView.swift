@@ -231,7 +231,15 @@ private struct TaskInputHeader: View {
                     onCommit: { taskManager.addTaskFromPath(); isInputFocused.wrappedValue = true },
                     onTextChange: { newText in taskManager.updateAutocompleteSuggestions(for: newText) },
                     onTab: { if inputState.hasSuggestions { taskManager.applySelectedSuggestion(); isInputFocused.wrappedValue = true }},
-                    onShiftTab: { if inputState.hasSuggestions { taskManager.selectPreviousSuggestion() }},
+                    onShiftTab: {
+                        // Shift+Tab: Toggle focus from input to task list
+                        let visibleTasks = taskManager.snapshotVisibleTasks()
+                        if let firstTask = visibleTasks.first {
+                            taskManager.replaceSelection(with: firstTask.id)
+                        }
+                        isInputFocused.wrappedValue = false
+                        taskManager.setTaskInputFocused(false)
+                    },
                     onArrowDown: {
                         guard inputState.hasSuggestions else { return false }
                         taskManager.selectNextSuggestion()
@@ -527,6 +535,12 @@ extension TaskView {
                 return true
             }
             return false
+        case 48: // Tab
+            guard shiftOnly else { return false }
+            // Shift+Tab: Toggle focus from task list to input field
+            isInputFocused = true
+            taskManager.setTaskInputFocused(true)
+            return true
         default:
             break
         }

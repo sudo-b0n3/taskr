@@ -75,7 +75,8 @@ struct HelpView: View {
 
     private var shortcutsSection: some View {
         helpSection(title: "Keyboard & Autocomplete") {
-            Text("• Use Tab/Shift-Tab to accept suggestions, ↑/↓ to navigate them, and Return to commit.")
+            Text("• Use Tab to accept suggestions, ↑/↓ to navigate them, and Return to commit.")
+            Text("• Shift+Tab toggles focus between the input field and task list.")
             Text("• Navigate tasks with ↑/↓; Right Arrow expands parents, Left Arrow collapses them.")
             Text("• Hold M and press ↑/↓ to move selected tasks up or down within their list.")
             Text("• Command+Return toggles completion for all selected tasks; Command+Delete removes the current selection.")
