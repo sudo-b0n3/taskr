@@ -112,27 +112,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
                 return event 
             }
             
-            // Check if the click is on the status item button
+            // Check if the click is anywhere in the status item's window.
+            // The entire status item space should be clickable, matching native macOS behavior
+            // (e.g., battery, WiFi icons respond to clicks anywhere in their allocated space).
             if event.window === buttonWindow {
-                let locationInButton = button.convert(event.locationInWindow, from: nil)
-                if button.bounds.contains(locationInButton) {
-                    // Check logic based on event type
-                    if event.type == .leftMouseDown {
+                // Check logic based on event type
+                if event.type == .leftMouseDown {
+                    self.togglePopover()
+                    return nil // Prevent default behavior
+                } else if event.type == .rightMouseDown {
+                    // For right click, only close if open, otherwise ignore (or show menu if implemented later)
+                    let isPopoverOpen = self.popover?.isShown == true
+                    let isPanelOpen = self.menuPanel?.isVisible == true
+                    
+                    if isPopoverOpen || isPanelOpen {
+                        // If open, close it (toggle handles closing logic correctly)
                         self.togglePopover()
-                        return nil // Prevent default behavior
-                    } else if event.type == .rightMouseDown {
-                        // For right click, only close if open, otherwise ignore (or show menu if implemented later)
-                        let isPopoverOpen = self.popover?.isShown == true
-                        let isPanelOpen = self.menuPanel?.isVisible == true
-                        
-                        if isPopoverOpen || isPanelOpen {
-                            // If open, close it (toggle handles closing logic correctly)
-                            self.togglePopover()
-                            return nil
-                        }
-                        // If closed, return event to let system handle it (e.g. context menu if any)
-                        return event
+                        return nil
                     }
+                    // If closed, return event to let system handle it (e.g. context menu if any)
+                    return event
                 }
             }
             
@@ -308,8 +307,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
               let buttonWindow = button.window,
               let panel = menuPanel else { return }
         
-        let buttonRect = button.convert(button.bounds, to: nil)
-        let screenRect = buttonWindow.convertToScreen(buttonRect)
+        // Use the status item window's frame, which represents the full allocated space
+        // in the menu bar. This matches native macOS behavior where dropdowns align
+        // with the entire status item space, not just the icon graphic.
+        let statusItemFrame = buttonWindow.frame
         
         let panelWidth = panel.frame.width
         let panelHeight = panel.frame.height
@@ -318,21 +319,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         let alignmentRaw = UserDefaults.standard.string(forKey: panelAlignmentPreferenceKey) ?? ""
         let alignment = PanelAlignment(rawValue: alignmentRaw) ?? .center
         
-        // Calculate X position based on alignment
+        // Calculate X position based on alignment to the status item space
         var panelX: CGFloat
         switch alignment {
         case .left:
-            // Panel's left edge aligns with button's left edge
-            panelX = screenRect.minX
+            // Panel's left edge aligns with status item's left edge
+            panelX = statusItemFrame.minX
         case .center:
-            // Panel is centered below the button
-            panelX = screenRect.midX - panelWidth / 2
+            // Panel is centered below the status item
+            panelX = statusItemFrame.midX - panelWidth / 2
         case .right:
-            // Panel's right edge aligns with button's right edge
-            panelX = screenRect.maxX - panelWidth
+            // Panel's right edge aligns with status item's right edge
+            panelX = statusItemFrame.maxX - panelWidth
         }
         
-        let panelY = screenRect.minY - panelHeight  // Touch the menu bar
+        // Position panel below the menu bar (status item window's bottom edge)
+        let panelY = statusItemFrame.minY - panelHeight
         
         // Ensure panel stays on screen
         if let screen = buttonWindow.screen ?? NSScreen.main {
@@ -417,6 +419,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
             popover?.performClose(nil)
         }
         closePanelIfNeeded()
+        // Explicitly clear highlight in case delegate callbacks don't fire
+        statusItem?.button?.isHighlighted = false
     }
 
     func updateStatusItemIcon(systemSymbolName: String) {
