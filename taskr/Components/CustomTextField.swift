@@ -35,17 +35,10 @@ struct CustomTextField: NSViewRepresentable {
     func updateNSView(_ nsView: NSTextField, context: Context) {
         // Update NSTextField when SwiftUI state changes, but be careful about cursor position
         if nsView.stringValue != text { // Avoid resetting if text is same
+            // Mark that we're doing a programmatic update to prevent delegate feedback loop
+            context.coordinator.isProgrammaticUpdate = true
             nsView.stringValue = text
-
-            // Attempt to restore cursor position (can be tricky)
-            // This is a simplified approach; more robust solutions might be needed
-            // if text is being manipulated programmatically frequently while user is typing.
-            // For autocomplete selection, 'text' binding is updated, so this helps.
-            // let currentSelectedRange = nsView.currentEditor()?.selectedRange
-            // nsView.stringValue = text
-            // if let range = currentSelectedRange {
-            //    nsView.currentEditor()?.selectedRange = NSRange(location: min(text.count, range.location), length: 0)
-            // }
+            context.coordinator.isProgrammaticUpdate = false
         }
 
         if let fg = fieldTextColor, nsView.textColor != fg {
@@ -69,12 +62,15 @@ struct CustomTextField: NSViewRepresentable {
 
     class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: CustomTextField
+        var isProgrammaticUpdate: Bool = false
 
         init(_ textField: CustomTextField) {
             self.parent = textField
         }
 
         func controlTextDidChange(_ obj: Notification) {
+            // Skip if this is a programmatic update to avoid feedback loops
+            guard !isProgrammaticUpdate else { return }
             guard let textField = obj.object as? NSTextField else { return }
             parent.text = textField.stringValue
             parent.onTextChange(textField.stringValue) // Notify for suggestions

@@ -29,6 +29,7 @@ struct SettingsView: View {
     @State private var hotkeyDescription: String = HotkeyPreferences.load().displayString
     @State private var isRecordingHotkey: Bool = false
     @State private var showKeyboardShortcuts: Bool = false
+    @State private var showAbout: Bool = false
     var configuresWindow: Bool = true
     
     @AppStorage(showDockIconPreferenceKey) private var showDockIcon: Bool = false
@@ -384,6 +385,25 @@ struct SettingsView: View {
                                 Spacer()
                                 Button("Re-do Setup") {
                                     UserDefaults.standard.set(false, forKey: "hasCompletedSetup")
+                                }
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        // MARK: - About
+                        SettingsSection(title: "About", palette: taskManager.themePalette) {
+                            HStack {
+                                Text("Taskr")
+                                    .taskrFont(.body)
+                                    .foregroundColor(taskManager.themePalette.primaryTextColor)
+                                Spacer()
+                                Button("More Info") {
+                                    showAbout = true
+                                }
+                                .popover(isPresented: $showAbout) {
+                                    AboutView()
+                                        .environmentObject(taskManager)
                                 }
                             }
                         }

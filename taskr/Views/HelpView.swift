@@ -7,7 +7,7 @@ struct HelpView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .center, spacing: 16) {
                 headerSection
                 basicsSection
                 pathsSection
@@ -25,7 +25,7 @@ struct HelpView: View {
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .center, spacing: 8) {
             Text("Taskr Help")
                 .taskrFont(.largeTitle)
                 .bold()
@@ -95,7 +95,7 @@ struct HelpView: View {
     }
 
     private func helpSection<T: View>(title: String, @ViewBuilder content: () -> T) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .center, spacing: 6) {
             Text(title)
                 .taskrFont(.title3)
                 .bold()
