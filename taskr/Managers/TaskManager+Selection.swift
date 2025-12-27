@@ -138,7 +138,14 @@ extension TaskManager {
             return []
         }
         if let cached = visibleLiveTasksCache {
-            return cached
+            // Filter out deleted tasks to prevent SwiftData crashes
+            let validTasks = cached.filter { $0.modelContext != nil }
+            if validTasks.count != cached.count {
+                // Cache contained deleted tasks, invalidate and rebuild
+                visibleLiveTasksCache = nil
+            } else {
+                return cached
+            }
         }
 
         ensureChildCache(for: .live)
@@ -158,7 +165,14 @@ extension TaskManager {
             return []
         }
         if let cached = visibleLiveTasksWithDepthCache {
-            return cached
+            // Filter out deleted tasks to prevent SwiftData crashes
+            let validEntries = cached.filter { $0.task.modelContext != nil }
+            if validEntries.count != cached.count {
+                // Cache contained deleted tasks, invalidate and rebuild
+                visibleLiveTasksWithDepthCache = nil
+            } else {
+                return cached
+            }
         }
 
         ensureChildCache(for: .live)
