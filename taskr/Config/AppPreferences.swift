@@ -30,6 +30,8 @@ let listAnimationsEnabledPreferenceKey = "listAnimationsEnabledPreference" // To
 let animationsMasterEnabledPreferenceKey = "animationsMasterEnabledPreference" // Global animation master switch
 let collapseAnimationsEnabledPreferenceKey = "collapseAnimationsEnabledPreference" // Toggle expand/collapse transitions
 let fontScalePreferenceKey = "fontScalePreference" // Adjust overall text scale
+let menuBarPresentationStylePreferenceKey = "menuBarPresentationStylePreference" // Popover vs panel style
+let panelAlignmentPreferenceKey = "panelAlignmentPreference" // Panel alignment relative to menu bar icon
 
 // Defaults
 let defaultHotkeyKeyCode: UInt16 = UInt16(kVK_ANSI_N)
@@ -81,6 +83,38 @@ enum NewTaskPosition: String, CaseIterable, Identifiable {
         }
     }
     static var defaultPosition: NewTaskPosition = .top
+}
+
+// Menu bar presentation style options
+enum MenuBarPresentationStyle: String, CaseIterable, Identifiable {
+    case popover = "popover"  // Classic macOS popover with arrow
+    case panel = "panel"      // Flat-top panel, instant display
+
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .popover: return "Popover (with arrow)"
+        case .panel: return "Panel (flat top)"
+        }
+    }
+    static var defaultStyle: MenuBarPresentationStyle = .panel
+}
+
+// Panel alignment relative to menu bar icon (only used when panel style is selected)
+enum PanelAlignment: String, CaseIterable, Identifiable {
+    case left = "left"
+    case center = "center"
+    case right = "right"
+
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .left: return "Left"
+        case .center: return "Center"
+        case .right: return "Right"
+        }
+    }
+    static var defaultAlignment: PanelAlignment = .center
 }
 
 // Centralized bridge for UserDefaults-backed preferences so views bind consistently.

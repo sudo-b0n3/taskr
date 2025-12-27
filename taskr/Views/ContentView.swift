@@ -125,6 +125,7 @@ struct ContentView: View {
             if !isStandalone {
                 Divider().frame(height: 20).background(palette.dividerColor)
                 Button(action: {
+                    appDelegate.resetMenuBarPresentation()  // Close popover/panel
                     appDelegate.showMainWindow {
                         openWindow(id: "MainWindow")
                     }

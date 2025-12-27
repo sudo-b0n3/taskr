@@ -14,6 +14,8 @@ struct SettingsView: View {
     @AppStorage(showDockIconPreferenceKey) private var showDockIcon: Bool = false
     @AppStorage(moveCompletedTasksToBottomPreferenceKey) private var moveCompletedTasksToBottom: Bool = false
     @AppStorage(collapseCompletedParentsPreferenceKey) private var collapseCompletedParents: Bool = false
+    @AppStorage(menuBarPresentationStylePreferenceKey) private var menuBarStyleRaw: String = MenuBarPresentationStyle.panel.rawValue
+    @AppStorage(panelAlignmentPreferenceKey) private var panelAlignmentRaw: String = PanelAlignment.center.rawValue
     
     // We'll use a local binding for launch at login since it involves SMAppService
     private var launchAtLoginBinding: Binding<Bool> {
@@ -215,6 +217,34 @@ struct SettingsView: View {
                                 ForEach(MenuBarIcon.allCases) { icon in
                                     Text(icon.displayName).tag(icon)
                                 }
+                            }
+                            
+                            SettingsPicker(title: "Menu Bar Style", selection: Binding(
+                                get: {
+                                    let raw = UserDefaults.standard.string(forKey: menuBarPresentationStylePreferenceKey) ?? ""
+                                    return MenuBarPresentationStyle(rawValue: raw) ?? .defaultStyle
+                                },
+                                set: { style in
+                                    UserDefaults.standard.set(style.rawValue, forKey: menuBarPresentationStylePreferenceKey)
+                                    appDelegate.resetMenuBarPresentation()
+                                }
+                            ), palette: taskManager.themePalette) {
+                                ForEach(MenuBarPresentationStyle.allCases) { style in
+                                    Text(style.displayName).tag(style)
+                                }
+                            }
+                            
+                            // Panel Alignment option - only shown when panel style is selected
+                            if menuBarStyleRaw == MenuBarPresentationStyle.panel.rawValue {
+                                SettingsPicker(title: "Panel Alignment", selection: Binding(
+                                    get: { PanelAlignment(rawValue: panelAlignmentRaw) ?? .center },
+                                    set: { panelAlignmentRaw = $0.rawValue }
+                                ), palette: taskManager.themePalette) {
+                                    ForEach(PanelAlignment.allCases) { alignment in
+                                        Text(alignment.displayName).tag(alignment)
+                                    }
+                                }
+                                .padding(.leading, 20)
                             }
                             
                             SettingsToggle(

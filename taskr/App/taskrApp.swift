@@ -102,6 +102,7 @@ struct taskrApp: App {
                 ))
         }
         .windowStyle(.hiddenTitleBar)
+        .handlesExternalEvents(matching: [])  // Prevent auto-open on launch; window opens via openWindow(id:)
         Settings {
             SettingsView()
         }

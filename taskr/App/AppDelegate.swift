@@ -4,9 +4,24 @@ import AppKit
 import SwiftData
 import Carbon
 
+/// Custom NSPanel subclass that can become key window for keyboard navigation
+private class KeyablePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+    override var acceptsFirstResponder: Bool { true }
+    
+    override func cancelOperation(_ sender: Any?) {
+        // Close panel when Escape is pressed
+        close()
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     var statusItem: NSStatusItem?
     var popover: NSPopover?
+    var menuPanel: NSPanel?
+    private var panelClickMonitor: Any?
+    private var panelLocalClickMonitor: Any?
     private var helpWindowController: NSWindowController?
     private var automationWindow: NSWindow?
     private weak var mainWindow: NSWindow?
@@ -54,6 +69,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
 
         scheduleScreenshotAutomationPresentationIfNeeded()
+        
+        // Close any auto-opened windows (SwiftUI WindowGroup opens by default)
+        // Skip this when running screenshot automation since we want that window open
+        if !isRunningScreenshotAutomation {
+            DispatchQueue.main.async {
+                for window in NSApp.windows where window.title == "Taskr" {
+                    window.close()
+                }
+            }
+        }
     }
     
     func setupPopoverAfterDependenciesSet() {
@@ -75,6 +100,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
     @objc func togglePopover() {
         print("AppDelegate: togglePopover() called.")
+        let style = currentPresentationStyle
+        
+        switch style {
+        case .popover:
+            togglePopoverPresentation()
+        case .panel:
+            togglePanelPresentation()
+        }
+    }
+    
+    // MARK: - Presentation Style Helpers
+    
+    private var currentPresentationStyle: MenuBarPresentationStyle {
+        let raw = UserDefaults.standard.string(forKey: menuBarPresentationStylePreferenceKey) ?? ""
+        return MenuBarPresentationStyle(rawValue: raw) ?? .defaultStyle
+    }
+    
+    private func togglePopoverPresentation() {
         if popover == nil {
             if self.taskManager != nil && self.modelContainer != nil {
                 setupPopoverAfterDependenciesSet()
@@ -87,6 +130,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             if popover?.isShown == true {
                 popover?.performClose(nil)
             } else {
+                // Close panel if open
+                closePanelIfNeeded()
+                
                 let currentPolicy = NSApp.activationPolicy()
                 if currentPolicy == .accessory {
                     NSApp.activate(ignoringOtherApps: true)
@@ -100,6 +146,213 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 popover?.contentViewController?.view.window?.makeKey()
             }
         }
+    }
+    
+    private func togglePanelPresentation() {
+        if let panel = menuPanel, panel.isVisible {
+            closePanelIfNeeded()
+        } else {
+            // Close popover if open
+            if popover?.isShown == true {
+                popover?.performClose(nil)
+            }
+            showPanel()
+        }
+    }
+    
+    private func setupPanelIfNeeded() {
+        guard menuPanel == nil else { return }
+        guard let taskManager = self.taskManager, let modelContainer = self.modelContainer else {
+            print("Warning: Trying to setup panel but dependencies not yet set.")
+            return
+        }
+        
+        let panel = KeyablePanel(
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 450),
+            styleMask: [.fullSizeContentView, .borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isFloatingPanel = true
+        panel.level = .popUpMenu
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.isMovableByWindowBackground = false
+        panel.hasShadow = true
+        
+        // Create a visual effect view with a mask image for rounded corners (Calendr approach)
+        let visualEffectView = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 380, height: 450))
+        visualEffectView.material = .hudWindow
+        visualEffectView.blendingMode = .behindWindow
+        visualEffectView.state = .active
+        visualEffectView.maskImage = Self.roundedCornerMask(radius: 12)
+        
+        let hostingView = NSHostingController(
+            rootView: ContentView()
+                .environmentObject(taskManager)
+                .environmentObject(taskManager.inputState)
+                .environmentObject(taskManager.selectionManager)
+                .modelContainer(modelContainer)
+                .environmentObject(self)
+        )
+        
+        // Embed SwiftUI view inside the visual effect view
+        hostingView.view.translatesAutoresizingMaskIntoConstraints = false
+        visualEffectView.addSubview(hostingView.view)
+        NSLayoutConstraint.activate([
+            hostingView.view.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
+            hostingView.view.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
+            hostingView.view.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
+            hostingView.view.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor)
+        ])
+        
+        panel.contentView = visualEffectView
+        
+        menuPanel = panel
+    }
+    
+    /// Creates a stretchable mask image with rounded corners for the panel
+    private static func roundedCornerMask(radius: CGFloat) -> NSImage {
+        let diameter = radius * 2
+        let image = NSImage(size: NSSize(width: diameter, height: diameter), flipped: false) { rect in
+            NSColor.black.set()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
+    }
+    
+    private func showPanel() {
+        setupPanelIfNeeded()
+        guard let panel = menuPanel else { return }
+        
+        positionPanelBelowStatusItem()
+        
+        // Activate the app to ensure proper focus
+        NSApp.activate(ignoringOtherApps: true)
+        
+        panel.makeKeyAndOrderFront(nil)
+        panel.makeFirstResponder(panel.contentView)
+        
+        // Add click-outside monitor
+        addPanelClickMonitor()
+    }
+    
+    private func positionPanelBelowStatusItem() {
+        guard let button = statusItem?.button,
+              let buttonWindow = button.window,
+              let panel = menuPanel else { return }
+        
+        let buttonRect = button.convert(button.bounds, to: nil)
+        let screenRect = buttonWindow.convertToScreen(buttonRect)
+        
+        let panelWidth = panel.frame.width
+        let panelHeight = panel.frame.height
+        
+        // Get user's alignment preference
+        let alignmentRaw = UserDefaults.standard.string(forKey: panelAlignmentPreferenceKey) ?? ""
+        let alignment = PanelAlignment(rawValue: alignmentRaw) ?? .center
+        
+        // Calculate X position based on alignment
+        var panelX: CGFloat
+        switch alignment {
+        case .left:
+            // Panel's left edge aligns with button's left edge
+            panelX = screenRect.minX
+        case .center:
+            // Panel is centered below the button
+            panelX = screenRect.midX - panelWidth / 2
+        case .right:
+            // Panel's right edge aligns with button's right edge
+            panelX = screenRect.maxX - panelWidth
+        }
+        
+        let panelY = screenRect.minY - panelHeight  // Touch the menu bar
+        
+        // Ensure panel stays on screen
+        if let screen = buttonWindow.screen ?? NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            // Clamp to left edge
+            if panelX < screenFrame.minX {
+                panelX = screenFrame.minX + 8
+            }
+            // Clamp to right edge
+            if panelX + panelWidth > screenFrame.maxX {
+                panelX = screenFrame.maxX - panelWidth - 8
+            }
+        }
+        
+        panel.setFrameOrigin(NSPoint(x: panelX, y: panelY))
+    }
+    
+    private func addPanelClickMonitor() {
+        // Remove existing monitors if any
+        removePanelClickMonitor()
+        
+        panelClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self = self, let panel = self.menuPanel, panel.isVisible else { return }
+            
+            // Check if click is outside the panel
+            let clickLocation = event.locationInWindow
+            let panelFrame = panel.frame
+            
+            // For global events, locationInWindow is in screen coordinates
+            if !panelFrame.contains(clickLocation) {
+                DispatchQueue.main.async {
+                    self.closePanelIfNeeded()
+                }
+            }
+        }
+        
+        // Also monitor local clicks to handle clicks on status item
+        panelLocalClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self = self, let panel = self.menuPanel, panel.isVisible else { return event }
+            
+            // Check if click is on the status item button (to toggle)
+            if let button = self.statusItem?.button,
+               let buttonWindow = button.window,
+               event.window === buttonWindow {
+                // Let the normal toggle logic handle it
+                return event
+            }
+            
+            // Check if click is outside the panel
+            if event.window !== panel {
+                DispatchQueue.main.async {
+                    self.closePanelIfNeeded()
+                }
+            }
+            
+            return event
+        }
+    }
+    
+    private func removePanelClickMonitor() {
+        if let monitor = panelClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            panelClickMonitor = nil
+        }
+        if let monitor = panelLocalClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            panelLocalClickMonitor = nil
+        }
+    }
+    
+    private func closePanelIfNeeded() {
+        menuPanel?.orderOut(nil)
+        removePanelClickMonitor()
+    }
+    
+    /// Resets menu bar presentation, closing any open popover/panel.
+    /// Called when the user changes the presentation style preference.
+    func resetMenuBarPresentation() {
+        if popover?.isShown == true {
+            popover?.performClose(nil)
+        }
+        closePanelIfNeeded()
     }
 
     func updateStatusItemIcon(systemSymbolName: String) {
