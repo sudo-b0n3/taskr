@@ -74,6 +74,11 @@ extension TaskManager {
 
         guard !rootIDs.isEmpty else { return }
 
+        // Before deleting, find the index to select after deletion
+        let visibleIDs = snapshotVisibleTaskIDs()
+        let selectedIndices = visibleIDs.indices.filter { selectedSet.contains(visibleIDs[$0]) }
+        let lowestSelectedIndex = selectedIndices.min()
+
         var tasksToDelete: [Task] = []
         for id in rootIDs {
             guard let task = task(withID: id) else { continue }
@@ -82,6 +87,23 @@ extension TaskManager {
         
         // Use generic helper
         deleteTasks(tasksToDelete)
+
+        // After deletion, select the task at the same position (or the last task if we deleted at the end)
+        let newVisibleIDs = snapshotVisibleTaskIDs()
+        guard !newVisibleIDs.isEmpty else {
+            clearSelection()
+            return
+        }
+
+        if let lowestIndex = lowestSelectedIndex {
+            // Select the task that now occupies the lowest selected position
+            // If that's beyond the list, select the last task
+            let targetIndex = min(lowestIndex, newVisibleIDs.count - 1)
+            let targetID = newVisibleIDs[targetIndex]
+            replaceSelection(with: targetID)
+        } else {
+            clearSelection()
+        }
     }
 
     func duplicateSelectedTasks() {

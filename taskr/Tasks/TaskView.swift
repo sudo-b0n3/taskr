@@ -265,6 +265,7 @@ private struct TaskInputHeader: View {
                         .foregroundColor(palette.accentColor)
                 }
                 .buttonStyle(PlainButtonStyle())
+                .focusable(false)
                 .padding(.leading, 4)
             }
             .padding(.bottom, 8)
@@ -272,6 +273,7 @@ private struct TaskInputHeader: View {
             HStack {
                 Spacer()
                 Button("Clear Completed") { taskManager.clearCompletedTasks() }
+                    .focusable(false)
                     .padding(.top, 4)
                     .foregroundColor(palette.primaryTextColor)
             }
