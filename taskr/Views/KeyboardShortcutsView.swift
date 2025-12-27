@@ -7,7 +7,7 @@ struct KeyboardShortcutsView: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .center, spacing: 16) {
             // Header
             HStack {
                 Text("Keyboard Shortcuts")
@@ -27,7 +27,7 @@ struct KeyboardShortcutsView: View {
             Divider()
             
             // Shortcuts list
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .center, spacing: 6) {
                 // Input
                 sectionHeader("Input")
                 shortcutRow("↩", "Commit task")
@@ -58,7 +58,7 @@ struct KeyboardShortcutsView: View {
             Spacer()
         }
         .padding(16)
-        .frame(width: 350, height: 480)
+        .frame(width: 300, height: 480)
         .background {
             if taskManager.frostedBackgroundEnabled {
                 VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow, state: .active)

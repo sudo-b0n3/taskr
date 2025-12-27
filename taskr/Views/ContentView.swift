@@ -99,6 +99,20 @@ struct ContentView: View {
 
     private var headerBar: some View {
         HStack(spacing: 0) {
+            // Pin button for always-on-top
+            Button(action: { appDelegate.isWindowPinned.toggle() }) {
+                Image(systemName: appDelegate.isWindowPinned ? "pin.fill" : "pin")
+                    .font(.body)
+                    .foregroundColor(appDelegate.isWindowPinned ? palette.accentColor : palette.primaryTextColor)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityIdentifier("HeaderPinButton")
+            .frame(width: 40)
+            .help(appDelegate.isWindowPinned ? "Unpin Window" : "Pin Window on Top")
+            Divider().frame(height: 20).background(palette.dividerColor)
             Button(action: handleTasksButton) {
                 Text("Tasks").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
                     .foregroundColor(currentView == .tasks ? palette.accentColor : palette.primaryTextColor)

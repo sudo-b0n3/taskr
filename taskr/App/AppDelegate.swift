@@ -33,6 +33,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
 
     // Track standalone window presence to auto-toggle activation policy
     private var standaloneWindowCount: Int = 0
+    
+    // Window pinned state for always-on-top functionality
+    @Published var isWindowPinned: Bool = UserDefaults.standard.bool(forKey: windowPinnedPreferenceKey) {
+        didSet {
+            UserDefaults.standard.set(isWindowPinned, forKey: windowPinnedPreferenceKey)
+            applyPinnedState()
+        }
+    }
+    
+    /// Applies the current pinned state to all managed windows
+    func applyPinnedState() {
+        let level: NSWindow.Level = isWindowPinned ? .floating : .normal
+        mainWindow?.level = level
+        
+        // For menuPanel: when pinned, we keep it visible even when clicking outside
+        // This is handled by not closing the panel in the click monitors
+    }
 
     private var globalEventMonitor: Any?
     private var statusItemClickMonitor: Any?  // Intercepts status item clicks to control highlight
@@ -141,6 +158,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
     }
     
     // MARK: - NSPopoverDelegate
+    
+    func popoverShouldClose(_ popover: NSPopover) -> Bool {
+        // Don't auto-close if pinned
+        return !isWindowPinned
+    }
     
     func popoverDidClose(_ notification: Notification) {
         // Remove highlight when popover closes
@@ -359,6 +381,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         panelClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self, let panel = self.menuPanel, panel.isVisible else { return }
             
+            // Don't close if pinned
+            if self.isWindowPinned { return }
+            
             // Check if click is outside the panel
             let clickLocation = event.locationInWindow
             let panelFrame = panel.frame
@@ -382,6 +407,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
                 // Let the normal toggle logic handle it
                 return event
             }
+            
+            // If pinned and clicking on the panel, ensure it gains proper focus
+            if self.isWindowPinned && event.window === panel {
+                DispatchQueue.main.async {
+                    NSApp.activate(ignoringOtherApps: true)
+                    panel.makeKeyAndOrderFront(nil)
+                }
+                return event
+            }
+            
+            // Don't close if pinned
+            if self.isWindowPinned { return event }
             
             // Check if click is outside the panel
             if event.window !== panel {
@@ -498,6 +535,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
 
         guard mainWindow !== window else { return }
         mainWindow = window
+        
+        // Apply pinned state to the newly registered window
+        applyPinnedState()
 
         if let observer = mainWindowObserver {
             NotificationCenter.default.removeObserver(observer)
