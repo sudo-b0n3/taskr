@@ -375,7 +375,7 @@ final class TaskManagerTests: XCTestCase {
             sortBy: [SortDescriptor(\.displayOrder)]
         )
 
-        var children = try container.mainContext.fetch(childDescriptor)
+        let children = try container.mainContext.fetch(childDescriptor)
         XCTAssertEqual(children.count, 20)
 
         manager.moveTask(
