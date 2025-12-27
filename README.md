@@ -3,15 +3,17 @@
 Taskr is a lightweight macOS menu bar companion for rapidly capturing and organizing nested checklists. The app stays out of the way until you trigger it with your global hotkey (default `⌃⌥N`) or click the menu bar icon, letting you focus on the tasks you want to track.
 
 ## Features
-- **Fast path-based capture** – Create deeply nested subtasks in one line using `/`-delimited paths with optional quoted segments.
-- **Status menu and standalone window** – Use the compact popover for quick edits or open the full SwiftUI window when you need elbow room.
+- **Fast path-based capture** – Create deeply nested tasks in one line using `/`-delimited paths with optional quoted segments.
+- **Keyboard-first navigation** – Move with ↑/↓, expand with →, collapse with ←, Return to add, Esc to clear focus.
+- **Readable copy & paste** – Copy selections as a clean checklist for pasting into docs, notes, or tickets.
+- **Reusable templates** – Author checklists once and apply them to live tasks without duplicating work.
+- **Flexible views** – Work from the menu bar or pop out a full window when you need more space.
+- **Preferences in one place** – Tune hotkeys, insertion defaults, themes, and animations without leaving the app.
+- **Import & export** – Back up or move tasks and templates with JSON round-trips.
 - ![Tasks view screenshot](docs/screenshots/01-Tasks.png)
-- **Reusable templates** – Author checklist templates once and apply them to your live task list without duplicating work.
+- ![Popout tasks screenshot](docs/screenshots/04-Popout.png)
 - ![Templates view screenshot](docs/screenshots/02-Templates.png)
-- **Persistent hierarchy** – Duplicate, collapse, and clear tasks while Taskr keeps display order, completion state, and collapsed sections in sync.
-- **Preferences in one place** – Tune hotkeys, insertion defaults, and menu bar styling without leaving the app.
 - ![Settings view screenshot](docs/screenshots/03-Settings.png)
-- **Import & export** – Round-trip non-template tasks as JSON so you can back up or share curated lists.
 
 ## Requirements
 - macOS 14.0 or newer
