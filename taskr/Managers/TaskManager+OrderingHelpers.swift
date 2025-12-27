@@ -72,6 +72,26 @@ extension TaskManager {
         in context: ModelContext
     ) -> Int {
         guard placeAtTop else {
+            // When adding to bottom AND move-completed-to-bottom is enabled,
+            // insert above the first completed task instead of at the very end
+            // (Only applies to live tasks, not templates)
+            let moveCompletedToBottom = UserDefaults.standard.bool(forKey: moveCompletedTasksToBottomPreferenceKey)
+            if moveCompletedToBottom && kind == .live {
+                let descriptor = FetchDescriptor<Task>(
+                    predicate: predicate(for: parent, kind: kind),
+                    sortBy: [SortDescriptor<Task>(\.displayOrder, order: .forward)]
+                )
+                if let siblings = try? context.fetch(descriptor),
+                   let firstCompletedIndex = siblings.firstIndex(where: { $0.isCompleted }) {
+                    let insertionOrder = siblings[firstCompletedIndex].displayOrder
+                    // Shift all completed tasks' displayOrder up by 1 to make room
+                    for i in firstCompletedIndex..<siblings.count {
+                        siblings[i].displayOrder += 1
+                    }
+                    return insertionOrder
+                }
+            }
+            // Fall back to normal append behavior
             return nextDisplayOrder(for: parent, kind: kind, in: context)
         }
 

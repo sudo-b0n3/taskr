@@ -2,6 +2,25 @@ import SwiftUI
 import ServiceManagement
 import UniformTypeIdentifiers
 
+// MARK: - Settings Binding Patterns
+//
+// When adding new settings, use one of these patterns to ensure UI updates correctly:
+//
+// 1. @AppStorage - For simple UserDefaults preferences with no side effects
+//    Example: @AppStorage(keyName) private var setting: Bool = false
+//    Usage:   SettingsToggle(isOn: $setting)
+//
+// 2. TaskManager binding - For settings managed by TaskManager with @Published properties
+//    Example: Binding(get: { taskManager.value }, set: { taskManager.setValue($0) })
+//
+// 3. @State + custom Binding - For settings requiring side effects (API/AppDelegate calls)
+//    Example: @State private var setting: Bool = false
+//             private var settingBinding: Binding<Bool> {
+//                 Binding(get: { setting }, set: { setting = $0; performSideEffect() })
+//             }
+//
+// ⚠️ DO NOT use raw UserDefaults.standard bindings - they don't trigger SwiftUI updates!
+
 struct SettingsView: View {
     @EnvironmentObject var taskManager: TaskManager
     @EnvironmentObject var appDelegate: AppDelegate
@@ -17,6 +36,11 @@ struct SettingsView: View {
     @AppStorage(collapseCompletedParentsPreferenceKey) private var collapseCompletedParents: Bool = false
     @AppStorage(menuBarPresentationStylePreferenceKey) private var menuBarStyleRaw: String = MenuBarPresentationStyle.panel.rawValue
     @AppStorage(panelAlignmentPreferenceKey) private var panelAlignmentRaw: String = PanelAlignment.center.rawValue
+    @AppStorage(addRootTasksToTopPreferenceKey) private var addRootTasksToTop: Bool = true
+    @AppStorage(addSubtasksToTopPreferenceKey) private var addSubtasksToTop: Bool = false
+    @AppStorage(allowClearingStruckDescendantsPreferenceKey) private var allowClearingStruckDescendants: Bool = false
+    @AppStorage(skipClearingHiddenDescendantsPreferenceKey) private var skipClearingHiddenDescendants: Bool = true
+    @AppStorage(checkboxTopAlignedPreferenceKey) private var checkboxTopAligned: Bool = true
     
     // We'll use a local binding for launch at login since it involves SMAppService
     private var launchAtLoginBinding: Binding<Bool> {
@@ -143,8 +167,8 @@ struct SettingsView: View {
                         // MARK: - Behavior
                         SettingsSection(title: "Behavior", palette: taskManager.themePalette) {
                             SettingsPicker(title: "New Task Position", selection: Binding(
-                                get: { UserDefaults.standard.bool(forKey: addRootTasksToTopPreferenceKey) ? NewTaskPosition.top : .bottom },
-                                set: { UserDefaults.standard.set($0 == .top, forKey: addRootTasksToTopPreferenceKey) }
+                                get: { addRootTasksToTop ? NewTaskPosition.top : .bottom },
+                                set: { addRootTasksToTop = ($0 == .top) }
                             ), palette: taskManager.themePalette) {
                                 ForEach(NewTaskPosition.allCases) { position in
                                     Text(position.displayName).tag(position)
@@ -152,8 +176,8 @@ struct SettingsView: View {
                             }
                             
                             SettingsPicker(title: "New Subtask Position", selection: Binding(
-                                get: { UserDefaults.standard.bool(forKey: addSubtasksToTopPreferenceKey) ? NewTaskPosition.top : .bottom },
-                                set: { UserDefaults.standard.set($0 == .top, forKey: addSubtasksToTopPreferenceKey) }
+                                get: { addSubtasksToTop ? NewTaskPosition.top : .bottom },
+                                set: { addSubtasksToTop = ($0 == .top) }
                             ), palette: taskManager.themePalette) {
                                 ForEach(NewTaskPosition.allCases) { position in
                                     Text(position.displayName).tag(position)
@@ -176,20 +200,14 @@ struct SettingsView: View {
                             
                             SettingsToggle(
                                 title: "Clear Inside Completed Parents",
-                                isOn: Binding(
-                                    get: { UserDefaults.standard.bool(forKey: allowClearingStruckDescendantsPreferenceKey) },
-                                    set: { UserDefaults.standard.set($0, forKey: allowClearingStruckDescendantsPreferenceKey) }
-                                ),
+                                isOn: $allowClearingStruckDescendants,
                                 helpText: "Allow clearing completed tasks even if their parent is completed.",
                                 palette: taskManager.themePalette
                             )
                             
                             SettingsToggle(
                                 title: "Skip Hidden Completed Tasks",
-                                isOn: Binding(
-                                    get: { UserDefaults.standard.object(forKey: skipClearingHiddenDescendantsPreferenceKey) as? Bool ?? true },
-                                    set: { UserDefaults.standard.set($0, forKey: skipClearingHiddenDescendantsPreferenceKey) }
-                                ),
+                                isOn: $skipClearingHiddenDescendants,
                                 helpText: "Don't clear completed tasks that are hidden inside collapsed parents.",
                                 palette: taskManager.themePalette
                             )
@@ -287,10 +305,7 @@ struct SettingsView: View {
                             
                             SettingsToggle(
                                 title: "Align Checkbox to Top",
-                                isOn: Binding(
-                                    get: { UserDefaults.standard.object(forKey: checkboxTopAlignedPreferenceKey) as? Bool ?? true },
-                                    set: { UserDefaults.standard.set($0, forKey: checkboxTopAlignedPreferenceKey) }
-                                ),
+                                isOn: $checkboxTopAligned,
                                 helpText: "Align checkbox with the first line of text for multi-line tasks.",
                                 palette: taskManager.themePalette
                             )

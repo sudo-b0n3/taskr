@@ -8,6 +8,7 @@ struct SetupView: View {
     
     @State private var launchAtLogin: Bool = false
     @AppStorage(globalHotkeyEnabledPreferenceKey) private var globalHotkeyEnabled: Bool = false
+    @AppStorage(addRootTasksToTopPreferenceKey) private var addRootTasksToTop: Bool = true
     @State private var showErrorAlert: Bool = false
     @State private var errorMessage: String = ""
     
@@ -234,8 +235,8 @@ struct SetupView: View {
             .accessibilityHint("Press Control Option N by default to toggle the task list from anywhere")
             
             SettingsPicker(title: "New Task Position", selection: Binding(
-                get: { UserDefaults.standard.bool(forKey: addRootTasksToTopPreferenceKey) ? NewTaskPosition.top : .bottom },
-                set: { UserDefaults.standard.set($0 == .top, forKey: addRootTasksToTopPreferenceKey) }
+                get: { addRootTasksToTop ? NewTaskPosition.top : .bottom },
+                set: { addRootTasksToTop = ($0 == .top) }
             ), palette: palette) {
                 ForEach(NewTaskPosition.allCases) { position in
                     Text(position.displayName).tag(position)
