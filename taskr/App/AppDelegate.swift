@@ -16,7 +16,7 @@ private class KeyablePanel: NSPanel {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, ObservableObject {
     var statusItem: NSStatusItem?
     var popover: NSPopover?
     var menuPanel: NSPanel?
@@ -35,6 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     private var standaloneWindowCount: Int = 0
 
     private var globalEventMonitor: Any?
+    private var statusItemClickMonitor: Any?  // Intercepts status item clicks to control highlight
     private var hotkeyConfiguration: HotkeyConfiguration {
         HotkeyPreferences.load()
     }
@@ -51,9 +52,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         let initialIcon = MenuBarIcon(rawValue: preferredIconName ?? "") ?? MenuBarIcon.defaultIcon
         updateStatusItemIcon(systemSymbolName: initialIcon.systemName)
 
-        if let button = statusItem?.button {
-            button.target = self
-            button.action = #selector(togglePopover)
+        if statusItem?.button != nil {
+            // Don't set action - we handle clicks via local event monitor
+            // This allows us to control highlight state and prevent default behavior
+            setupStatusItemClickMonitor()
         }
         
         var hotkeyInitiallyEnabled = UserDefaults.standard.bool(forKey: globalHotkeyEnabledPreferenceKey)
@@ -88,6 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         popover = NSPopover()
         popover?.contentSize = NSSize(width: 380, height: 450)
         popover?.behavior = .transient
+        popover?.delegate = self
         popover?.contentViewController = NSHostingController(
             rootView: ContentView()
                 .environmentObject(taskManager)
@@ -96,6 +99,53 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 .modelContainer(modelContainer)
                 .environmentObject(self)
         )
+    }
+    
+    /// Sets up a local event monitor to intercept clicks on the status item.
+    /// By returning `nil` from the handler, we prevent the default NSStatusBarButton behavior
+    /// (which would reset the highlight on mouse-up), allowing us to control highlight manually.
+    private func setupStatusItemClickMonitor() {
+        statusItemClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self = self,
+                  let button = self.statusItem?.button,
+                  let buttonWindow = button.window else { 
+                return event 
+            }
+            
+            // Check if the click is on the status item button
+            if event.window === buttonWindow {
+                let locationInButton = button.convert(event.locationInWindow, from: nil)
+                if button.bounds.contains(locationInButton) {
+                    // Check logic based on event type
+                    if event.type == .leftMouseDown {
+                        self.togglePopover()
+                        return nil // Prevent default behavior
+                    } else if event.type == .rightMouseDown {
+                        // For right click, only close if open, otherwise ignore (or show menu if implemented later)
+                        let isPopoverOpen = self.popover?.isShown == true
+                        let isPanelOpen = self.menuPanel?.isVisible == true
+                        
+                        if isPopoverOpen || isPanelOpen {
+                            // If open, close it (toggle handles closing logic correctly)
+                            self.togglePopover()
+                            return nil
+                        }
+                        // If closed, return event to let system handle it (e.g. context menu if any)
+                        return event
+                    }
+                }
+            }
+            
+            // Pass through events not on our button
+            return event
+        }
+    }
+    
+    // MARK: - NSPopoverDelegate
+    
+    func popoverDidClose(_ notification: Notification) {
+        // Remove highlight when popover closes
+        statusItem?.button?.isHighlighted = false
     }
 
     @objc func togglePopover() {
@@ -129,6 +179,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         if let button = statusItem?.button {
             if popover?.isShown == true {
                 popover?.performClose(nil)
+                button.isHighlighted = false
             } else {
                 // Close panel if open
                 closePanelIfNeeded()
@@ -137,6 +188,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 if currentPolicy == .accessory {
                     NSApp.activate(ignoringOtherApps: true)
                 }
+                
                 popover?.show(
                     relativeTo: button.bounds,
                     of: button,
@@ -144,6 +196,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 )
                 popover?.contentViewController?.view.window?.isMovableByWindowBackground = false
                 popover?.contentViewController?.view.window?.makeKey()
+                
+                // Set highlight AFTER popover is shown to avoid it being reset
+                DispatchQueue.main.async { [weak self] in
+                    self?.statusItem?.button?.isHighlighted = true
+                }
             }
         }
     }
@@ -236,6 +293,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(panel.contentView)
+        
+        // Highlight the status item button while panel is open
+        DispatchQueue.main.async { [weak self] in
+            self?.statusItem?.button?.isHighlighted = true
+        }
         
         // Add click-outside monitor
         addPanelClickMonitor()
@@ -344,6 +406,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     private func closePanelIfNeeded() {
         menuPanel?.orderOut(nil)
         removePanelClickMonitor()
+        // Remove highlight from status item button
+        statusItem?.button?.isHighlighted = false
     }
     
     /// Resets menu bar presentation, closing any open popover/panel.
