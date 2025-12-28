@@ -417,6 +417,23 @@ struct SettingsView: View {
                                         palette: taskManager.themePalette
                                     )
                                     .padding(.leading, 20)
+                                    
+                                    // Row Layout group
+                                    Text("Row Layout")
+                                        .taskrFont(.caption)
+                                        .foregroundColor(taskManager.themePalette.secondaryTextColor)
+                                        .padding(.top, 8)
+                                    
+                                    SettingsToggle(
+                                        title: "Row Height Changes",
+                                        isOn: Binding(
+                                            get: { taskManager.animationManager.rowHeightAnimationEnabled },
+                                            set: { taskManager.setRowHeightAnimationEnabled($0) }
+                                        ),
+                                        helpText: "Animate row height changes when editing multi-line tasks.",
+                                        palette: taskManager.themePalette
+                                    )
+                                    .padding(.leading, 20)
                                 }
                             }
                         }

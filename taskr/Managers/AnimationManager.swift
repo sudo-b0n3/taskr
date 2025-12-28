@@ -10,6 +10,7 @@ class AnimationManager: ObservableObject {
     @Published private(set) var chevronAnimationEnabled: Bool
     @Published private(set) var itemTransitionsEnabled: Bool
     @Published private(set) var uiMicroAnimationsEnabled: Bool
+    @Published private(set) var rowHeightAnimationEnabled: Bool
     
     private let defaults: UserDefaults
     
@@ -22,6 +23,7 @@ class AnimationManager: ObservableObject {
         self.chevronAnimationEnabled = defaults.object(forKey: chevronAnimationEnabledPreferenceKey) as? Bool ?? true
         self.itemTransitionsEnabled = defaults.object(forKey: itemTransitionsEnabledPreferenceKey) as? Bool ?? true
         self.uiMicroAnimationsEnabled = defaults.object(forKey: uiMicroAnimationsEnabledPreferenceKey) as? Bool ?? true
+        self.rowHeightAnimationEnabled = defaults.object(forKey: rowHeightAnimationEnabledPreferenceKey) as? Bool ?? true
     }
     
     func setAnimationsMasterEnabled(_ enabled: Bool) {
@@ -64,6 +66,12 @@ class AnimationManager: ObservableObject {
         guard uiMicroAnimationsEnabled != enabled else { return }
         uiMicroAnimationsEnabled = enabled
         defaults.set(enabled, forKey: uiMicroAnimationsEnabledPreferenceKey)
+    }
+    
+    func setRowHeightAnimationEnabled(_ enabled: Bool) {
+        guard rowHeightAnimationEnabled != enabled else { return }
+        rowHeightAnimationEnabled = enabled
+        defaults.set(enabled, forKey: rowHeightAnimationEnabledPreferenceKey)
     }
     
     @discardableResult

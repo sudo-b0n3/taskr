@@ -38,6 +38,14 @@ enum TaskrTypography {
         let targetSize = max(baseFont.pointSize * scale, 8)
         return NSFont(descriptor: baseFont.fontDescriptor, size: targetSize) ?? baseFont
     }
+    
+    /// Returns the line height for a given text style at a particular scale.
+    /// This can be used to calculate standardized row heights.
+    static func lineHeight(for style: Font.TextStyle, scale: Double) -> CGFloat {
+        let nsFont = scaledNSFont(for: style, scale: scale)
+        // Use ascender + abs(descender) for reliable line height
+        return ceil(nsFont.ascender + abs(nsFont.descender) + nsFont.leading)
+    }
 
     private static func nsTextStyle(for style: Font.TextStyle) -> NSFont.TextStyle {
         switch style {

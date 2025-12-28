@@ -11,6 +11,7 @@ struct TaskRowContentView: View {
     @EnvironmentObject var selectionManager: SelectionManager
     @Environment(\.isWindowFocused) var isWindowFocused
     @Environment(\.isLiveScrolling) var isLiveScrolling
+    @Environment(\.taskrFontScale) var fontScale
     
     @AppStorage(completionAnimationsEnabledPreferenceKey) private var completionAnimationsEnabled: Bool = true
     @AppStorage(checkboxTopAlignedPreferenceKey) private var checkboxTopAligned: Bool = true
@@ -40,6 +41,22 @@ struct TaskRowContentView: View {
 
     private var chevronAnimEnabled: Bool {
         taskManager.animationsMasterEnabled && taskManager.animationManager.chevronAnimationEnabled
+    }
+    
+    private var rowHeightAnimEnabled: Bool {
+        taskManager.animationsMasterEnabled && taskManager.animationManager.rowHeightAnimationEnabled
+    }
+    
+    /// The base height for a single-line row, based on body font line height plus padding.
+    /// All row heights snap to multiples of this value.
+    private var baseRowHeight: CGFloat {
+        // Line height for body text at current scale
+        let lineHeight = TaskrTypography.lineHeight(for: .body, scale: fontScale)
+        // Add vertical padding (2pts internal on each side) + some buffer for checkbox/elements
+        let padding: CGFloat = 8
+        let calculatedHeight = lineHeight + padding
+        // Ensure we never go below the checkbox size to prevent clipping
+        return max(calculatedHeight, checkboxSize + padding)
     }
     
     private var hasExpandableChildren: Bool {
@@ -203,6 +220,8 @@ struct TaskRowContentView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 2)
+        .frame(minHeight: baseRowHeight)
+        .animation(rowHeightAnimEnabled ? .easeInOut(duration: 0.15) : nil, value: baseRowHeight)
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(highlightColor)

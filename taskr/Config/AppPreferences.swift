@@ -32,6 +32,7 @@ let collapseAnimationsEnabledPreferenceKey = "collapseAnimationsEnabledPreferenc
 let chevronAnimationEnabledPreferenceKey = "chevronAnimationEnabledPreference" // Toggle chevron rotation animation
 let itemTransitionsEnabledPreferenceKey = "itemTransitionsEnabledPreference" // Toggle list item insert/remove transitions
 let uiMicroAnimationsEnabledPreferenceKey = "uiMicroAnimationsEnabledPreference" // Toggle header/pin/suggestion animations
+let rowHeightAnimationEnabledPreferenceKey = "rowHeightAnimationEnabledPreference" // Toggle row height change animations
 let fontScalePreferenceKey = "fontScalePreference" // Adjust overall text scale
 let menuBarPresentationStylePreferenceKey = "menuBarPresentationStylePreference" // Popover vs panel style
 let panelAlignmentPreferenceKey = "panelAlignmentPreference" // Panel alignment relative to menu bar icon
