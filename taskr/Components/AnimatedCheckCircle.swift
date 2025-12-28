@@ -7,7 +7,7 @@ struct AnimatedCheckCircle: View {
     var accentColor: Color
 
     private let targetScale: CGFloat = 0.55
-    private let animation: Animation = .easeInOut(duration: 0.16)
+    private let animation: Animation = .spring(response: 0.25, dampingFraction: 0.7)
 
     var body: some View {
         ZStack {

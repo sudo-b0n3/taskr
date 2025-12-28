@@ -165,7 +165,9 @@ struct TaskRowContentView: View {
             Spacer()
 
             if hasExpandableChildren {
-                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                Image(systemName: "chevron.right")
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .animation(.easeInOut(duration: 0.15), value: isExpanded)
                     .taskrFont(.caption)
                     .foregroundColor(palette.secondaryTextColor)
                     .padding(5)

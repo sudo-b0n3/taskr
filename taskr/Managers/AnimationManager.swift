@@ -59,6 +59,6 @@ class AnimationManager: ObservableObject {
             transaction.disablesAnimations = true
             return withTransaction(transaction) { body() }
         }
-        return withAnimation(.default) { body() }
+        return withAnimation(.easeInOut(duration: 0.2)) { body() }
     }
 }

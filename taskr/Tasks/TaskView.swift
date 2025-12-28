@@ -101,6 +101,10 @@ private extension TaskView {
                                 .padding(.top, 4)
                                 .padding(.bottom, 4)
                                 .id(entry.task.id)
+                                .transition(.asymmetric(
+                                    insertion: .opacity.combined(with: .move(edge: .top)),
+                                    removal: .opacity
+                                ))
                             let nextDepth = index + 1 < visible.count ? visible[index + 1].depth : nil
                             // Only separate roots from the next root; avoid separating roots from their own children
                             if nextDepth == 0 {
@@ -283,31 +287,38 @@ private struct TaskInputHeader: View {
             }
 
             if !inputState.suggestions.isEmpty {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(inputState.suggestions.enumerated()), id: \.0) { index, suggestion in
-                            Text(suggestion)
-                                .foregroundColor(palette.primaryTextColor)
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 6)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    (inputState.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
-                                )
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    inputState.selectedSuggestionIndex = index
-                                    taskManager.applySelectedSuggestion()
-                                    isInputFocused.wrappedValue = true
-                                }
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(inputState.suggestions.enumerated()), id: \.0) { index, suggestion in
+                                Text(suggestion)
+                                    .foregroundColor(palette.primaryTextColor)
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(
+                                        (inputState.selectedSuggestionIndex == index ? palette.accentColor.opacity(0.3) : palette.controlBackgroundColor)
+                                    )
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        inputState.selectedSuggestionIndex = index
+                                        taskManager.applySelectedSuggestion()
+                                        isInputFocused.wrappedValue = true
+                                    }
+                                    .id(index)
+                            }
                         }
                     }
+                    .frame(maxHeight: 100)
+                    .background(palette.controlBackgroundColor)
+                    .cornerRadius(5)
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(palette.dividerColor.opacity(0.7), lineWidth: 1))
+                    .padding(.top, 2)
+                    .onChange(of: inputState.selectedSuggestionIndex) { _, newIndex in
+                        guard let index = newIndex else { return }
+                        proxy.scrollTo(index)
+                    }
                 }
-                .frame(maxHeight: 100)
-                .background(palette.controlBackgroundColor)
-                .cornerRadius(5)
-                .overlay(RoundedRectangle(cornerRadius: 5).stroke(palette.dividerColor.opacity(0.7), lineWidth: 1))
-                .padding(.top, 2)
             }
         }
         .padding([.horizontal, .top])
