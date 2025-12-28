@@ -21,6 +21,7 @@ struct TaskRowContentView: View {
     @State private var isHoveringRow: Bool = false
     @State private var rowHeight: CGFloat = 0
     @State private var originalNameBeforeEdit: String?
+    @State private var chevronExpanded: Bool = false
     
     private let taskID: UUID
     private let checkboxSize: CGFloat = 18
@@ -35,6 +36,10 @@ struct TaskRowContentView: View {
     
     private var isExpanded: Bool {
         taskManager.isTaskExpanded(taskID)
+    }
+
+    private var chevronAnimEnabled: Bool {
+        taskManager.animationsMasterEnabled && taskManager.animationManager.chevronAnimationEnabled
     }
     
     private var hasExpandableChildren: Bool {
@@ -165,10 +170,8 @@ struct TaskRowContentView: View {
             Spacer()
 
             if hasExpandableChildren {
-                let chevronAnimEnabled = taskManager.animationsMasterEnabled && taskManager.animationManager.chevronAnimationEnabled
                 Image(systemName: "chevron.right")
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    .animation(chevronAnimEnabled ? .easeInOut(duration: 0.15) : .none, value: isExpanded)
+                    .rotationEffect(.degrees(chevronExpanded ? 90 : 0))
                     .taskrFont(.caption)
                     .foregroundColor(palette.secondaryTextColor)
                     .padding(5)
@@ -176,6 +179,21 @@ struct TaskRowContentView: View {
                     .onTapGesture {
                         taskManager.registerUserInteractionTap()
                         taskManager.toggleTaskExpansion(taskID)
+                    }
+                    .onAppear {
+                        chevronExpanded = isExpanded
+                    }
+                    .onChange(of: isExpanded) { _, newValue in
+                        if chevronAnimEnabled {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                chevronExpanded = newValue
+                            }
+                        } else {
+                            chevronExpanded = newValue
+                        }
+                    }
+                    .onChange(of: chevronAnimEnabled) { _, _ in
+                        chevronExpanded = isExpanded
                     }
             }
 

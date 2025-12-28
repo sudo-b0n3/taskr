@@ -101,7 +101,9 @@ private extension TaskView {
                                 .padding(.top, 4)
                                 .padding(.bottom, 4)
                                 .id(entry.task.id)
-                                .transition(taskManager.animationsMasterEnabled && taskManager.animationManager.itemTransitionsEnabled
+                                .transition(taskManager.animationsMasterEnabled
+                                    && taskManager.animationManager.itemTransitionsEnabled
+                                    && taskManager.collapseAnimationsEnabled
                                     ? .asymmetric(
                                         insertion: .opacity.combined(with: .move(edge: .top)),
                                         removal: .opacity
@@ -122,12 +124,17 @@ private extension TaskView {
             .background(LiveScrollObserver(isLiveScrolling: $isLiveScrolling))
             .background(
                 ScrollViewConfigurator { scrollView in
-                    scrollView.scrollerStyle = .legacy
+                    scrollView.scrollerStyle = .overlay
                     scrollView.autohidesScrollers = false
                     scrollView.hasHorizontalScroller = false
                     scrollView.hasVerticalScroller = true
                     scrollView.automaticallyAdjustsContentInsets = false
-                    scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+                    let scrollerControlSize = scrollView.verticalScroller?.controlSize ?? .regular
+                    let scrollerWidth = NSScroller.scrollerWidth(
+                        for: scrollerControlSize,
+                        scrollerStyle: scrollView.scrollerStyle
+                    )
+                    scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: scrollerWidth)
                     scrollView.verticalScrollElasticity = .automatic
 #if DEBUG
                     if scrollView.contentView.postsBoundsChangedNotifications == false {
