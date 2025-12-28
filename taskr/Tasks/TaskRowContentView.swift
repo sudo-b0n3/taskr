@@ -165,9 +165,10 @@ struct TaskRowContentView: View {
             Spacer()
 
             if hasExpandableChildren {
+                let chevronAnimEnabled = taskManager.animationsMasterEnabled && taskManager.animationManager.chevronAnimationEnabled
                 Image(systemName: "chevron.right")
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    .animation(.easeInOut(duration: 0.15), value: isExpanded)
+                    .animation(chevronAnimEnabled ? .easeInOut(duration: 0.15) : .none, value: isExpanded)
                     .taskrFont(.caption)
                     .foregroundColor(palette.secondaryTextColor)
                     .padding(5)
@@ -288,12 +289,12 @@ struct TaskRowContentView: View {
             let canMarkCompleted = multiSelectionActive ? taskManager.canMarkSelectedTasksCompleted() : false
             let canMarkUncompleted = multiSelectionActive ? taskManager.canMarkSelectedTasksUncompleted() : false
 
-            Button("Edit") {
+            Button("Edit (⏎)") {
                 taskManager.requestInlineEdit(for: taskID)
             }
             .disabled(multiSelectionActive)
-            Menu("Move") {
-                Button("↑ Up") {
+            Menu("Move (M+↑↓)") {
+                Button("↑ Up (M+↑)") {
                     if multiSelectionActive {
                         taskManager.moveSelectedTasksUp()
                     } else {
@@ -302,7 +303,7 @@ struct TaskRowContentView: View {
                 }
                 .disabled(!canMoveUp)
 
-                Button("↓ Down") {
+                Button("↓ Down (M+↓)") {
                     if multiSelectionActive {
                         taskManager.moveSelectedTasksDown()
                     } else {
@@ -311,7 +312,7 @@ struct TaskRowContentView: View {
                 }
                 .disabled(!canMoveDown)
             }
-            Button("Duplicate") {
+            Button("Duplicate (⌘D)") {
                 if multiSelectionActive {
                     taskManager.duplicateSelectedTasks()
                 } else {
@@ -320,16 +321,16 @@ struct TaskRowContentView: View {
             }
             .disabled(!canDuplicate)
             if multiSelectionActive {
-                Button("Mark as Completed") {
+                Button("Mark as Completed (⌘↩)") {
                     taskManager.markSelectedTasksCompleted()
                 }
                 .disabled(!canMarkCompleted)
-                Button("Mark Uncompleted") {
+                Button("Mark Uncompleted (⌘↩)") {
                     taskManager.markSelectedTasksUncompleted()
                 }
                 .disabled(!canMarkUncompleted)
             }
-            Button("Add Subtask") {
+            Button("Add Subtask (⇧↩)") {
                 if let newTask = taskManager.addSubtask(to: task) {
                     taskManager.requestInlineEdit(for: newTask.id)
                 }
@@ -337,7 +338,7 @@ struct TaskRowContentView: View {
             .disabled(multiSelectionActive)
             Divider()
             if !selectionManager.selectedTaskIDs.isEmpty {
-                Button("Copy Selected Tasks") {
+                Button("Copy Selected Tasks (⌘C)") {
                     taskManager.copySelectedTasksToPasteboard()
                 }
             }
@@ -346,7 +347,7 @@ struct TaskRowContentView: View {
             }
             .disabled(multiSelectionActive)
             Divider()
-            Button(task.isLocked ? "Unlock Thread" : "Lock Thread") {
+            Button(task.isLocked ? "Unlock Thread (⌘L)" : "Lock Thread (⌘L)") {
                 if multiSelectionActive {
                     taskManager.toggleLockForSelectedTasks()
                 } else {
@@ -361,7 +362,7 @@ struct TaskRowContentView: View {
                     taskManager.deleteTask(task)
                 }
             } label: {
-                Text(multiSelectionActive ? "Delete Selected" : "Delete")
+                Text(multiSelectionActive ? "Delete Selected (⌘⌫)" : "Delete (⌘⌫)")
             }
         } else if mode == .template {
             Button("Edit") {

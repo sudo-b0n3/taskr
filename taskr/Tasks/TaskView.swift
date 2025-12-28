@@ -101,10 +101,13 @@ private extension TaskView {
                                 .padding(.top, 4)
                                 .padding(.bottom, 4)
                                 .id(entry.task.id)
-                                .transition(.asymmetric(
-                                    insertion: .opacity.combined(with: .move(edge: .top)),
-                                    removal: .opacity
-                                ))
+                                .transition(taskManager.animationsMasterEnabled && taskManager.animationManager.itemTransitionsEnabled
+                                    ? .asymmetric(
+                                        insertion: .opacity.combined(with: .move(edge: .top)),
+                                        removal: .opacity
+                                    )
+                                    : .identity
+                                )
                             let nextDepth = index + 1 < visible.count ? visible[index + 1].depth : nil
                             // Only separate roots from the next root; avoid separating roots from their own children
                             if nextDepth == 0 {
@@ -120,6 +123,7 @@ private extension TaskView {
             .background(
                 ScrollViewConfigurator { scrollView in
                     scrollView.scrollerStyle = .legacy
+                    scrollView.autohidesScrollers = false
                     scrollView.hasHorizontalScroller = false
                     scrollView.hasVerticalScroller = true
                     scrollView.automaticallyAdjustsContentInsets = false
@@ -319,6 +323,13 @@ private struct TaskInputHeader: View {
                         proxy.scrollTo(index)
                     }
                 }
+                .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
+                .animation(
+                    taskManager.animationsMasterEnabled && taskManager.animationManager.uiMicroAnimationsEnabled
+                        ? .easeOut(duration: 0.15)
+                        : .none,
+                    value: inputState.suggestions.isEmpty
+                )
             }
         }
         .padding([.horizontal, .top])

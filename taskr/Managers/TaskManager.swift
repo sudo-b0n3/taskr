@@ -161,6 +161,18 @@ class TaskManager: ObservableObject {
         animationManager.setCompletionAnimationsEnabled(enabled)
     }
     
+    func setChevronAnimationEnabled(_ enabled: Bool) {
+        animationManager.setChevronAnimationEnabled(enabled)
+    }
+    
+    func setItemTransitionsEnabled(_ enabled: Bool) {
+        animationManager.setItemTransitionsEnabled(enabled)
+    }
+    
+    func setUiMicroAnimationsEnabled(_ enabled: Bool) {
+        animationManager.setUiMicroAnimationsEnabled(enabled)
+    }
+    
     func setFontScale(_ scale: Double) {
         let clamped = Self.clampFontScale(scale)
         guard abs(fontScale - clamped) > 0.0001 else { return }

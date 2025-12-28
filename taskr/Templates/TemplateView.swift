@@ -47,10 +47,20 @@ struct TemplateView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if templates.isEmpty {
-                        Text("No templates yet. Add one above!")
-                            .foregroundColor(palette.secondaryTextColor)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .center)
+                        VStack(spacing: 12) {
+                            Image(systemName: "square.on.square")
+                                .font(.system(size: 40))
+                                .foregroundColor(palette.secondaryTextColor.opacity(0.5))
+                            Text("No templates yet")
+                                .taskrFont(.headline)
+                                .foregroundColor(palette.primaryTextColor)
+                            Text("Templates let you create reusable task lists.\nAdd one above to get started.")
+                                .taskrFont(.subheadline)
+                                .foregroundColor(palette.secondaryTextColor)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.vertical, 40)
+                        .frame(maxWidth: .infinity, alignment: .center)
                     } else {
                         ForEach(templates, id: \.persistentModelID) { template in
                             VStack(alignment: .leading, spacing: 0) {

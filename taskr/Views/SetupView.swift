@@ -309,6 +309,8 @@ struct PrimaryButtonStyle: ButtonStyle {
             .background(palette.accentColor)
             .foregroundColor(.white)
             .cornerRadius(8)
-            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }

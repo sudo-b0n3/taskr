@@ -98,17 +98,20 @@ struct ContentView: View {
     }
 
     private var headerBar: some View {
-        HStack(spacing: 0) {
+        let uiAnimEnabled = taskManager.animationsMasterEnabled && taskManager.animationManager.uiMicroAnimationsEnabled
+        return HStack(spacing: 0) {
             // Pin button for always-on-top
             Button(action: { appDelegate.isWindowPinned.toggle() }) {
                 Image(systemName: appDelegate.isWindowPinned ? "pin.fill" : "pin")
                     .font(.body)
                     .foregroundColor(appDelegate.isWindowPinned ? palette.accentColor : palette.primaryTextColor)
+                    .rotationEffect(.degrees(appDelegate.isWindowPinned ? -45 : 0))
+                    .animation(uiAnimEnabled ? .easeInOut(duration: 0.2) : .none, value: appDelegate.isWindowPinned)
                     .padding(.vertical, 8)
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: uiAnimEnabled))
             .accessibilityIdentifier("HeaderPinButton")
             .frame(width: 40)
             .help(appDelegate.isWindowPinned ? "Unpin Window" : "Pin Window on Top")
@@ -117,21 +120,21 @@ struct ContentView: View {
                 Text("Tasks").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
                     .foregroundColor(currentView == .tasks ? palette.accentColor : palette.primaryTextColor)
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: uiAnimEnabled))
             .accessibilityIdentifier("HeaderTasksButton")
             Divider().frame(height: 20).background(palette.dividerColor)
             Button(action: { currentView = .templates }) {
                 Text("Templates").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
                     .foregroundColor(currentView == .templates ? palette.accentColor : palette.primaryTextColor)
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: uiAnimEnabled))
             .accessibilityIdentifier("HeaderTemplatesButton")
             Divider().frame(height: 20).background(palette.dividerColor)
             Button(action: { currentView = .settings }) {
                 Image(systemName: "gearshape.fill").foregroundColor(currentView == .settings ? palette.accentColor : palette.primaryTextColor)
                     .padding(.vertical, 8).frame(maxWidth: .infinity).contentShape(Rectangle())
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: uiAnimEnabled))
             .accessibilityIdentifier("HeaderSettingsButton")
             .frame(width: 40)
 
@@ -151,7 +154,7 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: uiAnimEnabled))
                 .frame(width: 28)
             }
         }
@@ -236,5 +239,25 @@ struct VisualEffectBlur: NSViewRepresentable {
         nsView.material = material
         nsView.blendingMode = blendingMode
         nsView.state = state
+    }
+}
+
+struct HeaderButtonStyle: ButtonStyle {
+    let palette: ThemePalette
+    var animationsEnabled: Bool = true
+    @State private var isHovering: Bool = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(isHovering || configuration.isPressed ? palette.hoverBackgroundColor.opacity(0.5) : Color.clear)
+            )
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .onHover { hovering in
+                isHovering = hovering
+            }
+            .animation(animationsEnabled ? .easeOut(duration: 0.1) : .none, value: isHovering)
+            .animation(animationsEnabled ? .easeOut(duration: 0.1) : .none, value: configuration.isPressed)
     }
 }
