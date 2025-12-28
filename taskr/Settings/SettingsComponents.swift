@@ -55,29 +55,89 @@ struct SettingsToggle: View {
 struct SettingsSection<Content: View>: View {
     let title: String?
     let palette: ThemePalette
-    let content: Content
+    let contentBuilder: () -> Content
+    private let storageKey: String
     
-    init(title: String? = nil, palette: ThemePalette, @ViewBuilder content: () -> Content) {
+    @EnvironmentObject private var taskManager: TaskManager
+    @State private var isExpanded: Bool?
+    @State private var isHovering: Bool = false
+    
+    init(title: String? = nil, palette: ThemePalette, @ViewBuilder content: @escaping () -> Content) {
         self.title = title
         self.palette = palette
-        self.content = content()
+        self.contentBuilder = content
+        self.storageKey = "settings.section.\(title ?? "default").expanded"
+    }
+    
+    private var effectiveExpanded: Bool {
+        isExpanded ?? (UserDefaults.standard.object(forKey: storageKey) == nil ? true : UserDefaults.standard.bool(forKey: storageKey))
+    }
+    
+    private var chevronAnimationEnabled: Bool {
+        taskManager.animationsMasterEnabled && taskManager.animationManager.chevronAnimationEnabled
+    }
+    
+    private var collapseAnimationEnabled: Bool {
+        taskManager.animationsMasterEnabled && taskManager.collapseAnimationsEnabled
+    }
+    
+    private var uiAnimationsEnabled: Bool {
+        taskManager.animationManager.effectiveHoverHighlightsEnabled
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let title = title {
-                Text(title)
-                    .taskrFont(.headline)
-                    .foregroundColor(palette.accentColor)
-                    .padding(.bottom, 4)
+                Button {
+                    let newValue = !effectiveExpanded
+                    UserDefaults.standard.set(newValue, forKey: storageKey)
+                    if collapseAnimationEnabled {
+                        withAnimation(taskManager.animationManager.selectedAnimation) {
+                            isExpanded = newValue
+                        }
+                    } else {
+                        isExpanded = newValue
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(title)
+                            .taskrFont(.headline)
+                            .foregroundColor(palette.accentColor)
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(palette.secondaryTextColor)
+                            .rotationEffect(.degrees(effectiveExpanded ? 90 : 0))
+                            .animation(chevronAnimationEnabled ? taskManager.animationManager.selectedAnimation : nil, value: effectiveExpanded)
+                            .frame(width: 20, height: 20)
+                    }
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isHovering ? palette.hoverBackgroundColor.opacity(0.5) : Color.clear)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    isHovering = hovering
+                }
+                .animation(uiAnimationsEnabled ? .easeOut(duration: 0.1) : nil, value: isHovering)
             }
             
-            VStack(alignment: .leading, spacing: 8) {
-                content
+            if effectiveExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    contentBuilder()
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+        .clipped()
     }
 }
 

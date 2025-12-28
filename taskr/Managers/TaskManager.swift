@@ -181,6 +181,28 @@ class TaskManager: ObservableObject {
         animationManager.setAnimationStyle(style)
     }
     
+    // Group toggle forwarders
+    func setTaskListAnimationsGroupEnabled(_ enabled: Bool) {
+        animationManager.setTaskListAnimationsGroupEnabled(enabled)
+    }
+    
+    func setExpandCollapseAnimationsGroupEnabled(_ enabled: Bool) {
+        animationManager.setExpandCollapseAnimationsGroupEnabled(enabled)
+    }
+    
+    // Granular UI animation forwarders
+    func setHoverHighlightsEnabled(_ enabled: Bool) {
+        animationManager.setHoverHighlightsEnabled(enabled)
+    }
+    
+    func setPinRotationEnabled(_ enabled: Bool) {
+        animationManager.setPinRotationEnabled(enabled)
+    }
+    
+    func setSuggestionBoxAnimationEnabled(_ enabled: Bool) {
+        animationManager.setSuggestionBoxAnimationEnabled(enabled)
+    }
+    
     func setFontScale(_ scale: Double) {
         let clamped = Self.clampFontScale(scale)
         guard abs(fontScale - clamped) > 0.0001 else { return }

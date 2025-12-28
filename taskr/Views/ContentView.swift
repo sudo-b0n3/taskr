@@ -98,7 +98,8 @@ struct ContentView: View {
     }
 
     private var headerBar: some View {
-        let uiAnimEnabled = taskManager.animationsMasterEnabled && taskManager.animationManager.uiMicroAnimationsEnabled
+        let hoverAnimEnabled = taskManager.animationManager.effectiveHoverHighlightsEnabled
+        let pinAnimEnabled = taskManager.animationManager.effectivePinRotationEnabled
         return HStack(spacing: 0) {
             // Pin button for always-on-top
             Button(action: { appDelegate.isWindowPinned.toggle() }) {
@@ -106,12 +107,12 @@ struct ContentView: View {
                     .font(.body)
                     .foregroundColor(appDelegate.isWindowPinned ? palette.accentColor : palette.primaryTextColor)
                     .rotationEffect(.degrees(appDelegate.isWindowPinned ? -45 : 0))
-                    .animation(uiAnimEnabled ? .easeInOut(duration: 0.2) : .none, value: appDelegate.isWindowPinned)
+                    .animation(pinAnimEnabled ? .easeInOut(duration: 0.2) : .none, value: appDelegate.isWindowPinned)
                     .padding(.vertical, 8)
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: uiAnimEnabled))
+            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: hoverAnimEnabled))
             .accessibilityIdentifier("HeaderPinButton")
             .frame(width: 40)
             .help(appDelegate.isWindowPinned ? "Unpin Window" : "Pin Window on Top")
@@ -120,21 +121,21 @@ struct ContentView: View {
                 Text("Tasks").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
                     .foregroundColor(currentView == .tasks ? palette.accentColor : palette.primaryTextColor)
             }
-            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: uiAnimEnabled))
+            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: hoverAnimEnabled))
             .accessibilityIdentifier("HeaderTasksButton")
             Divider().frame(height: 20).background(palette.dividerColor)
             Button(action: { currentView = .templates }) {
                 Text("Templates").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
                     .foregroundColor(currentView == .templates ? palette.accentColor : palette.primaryTextColor)
             }
-            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: uiAnimEnabled))
+            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: hoverAnimEnabled))
             .accessibilityIdentifier("HeaderTemplatesButton")
             Divider().frame(height: 20).background(palette.dividerColor)
             Button(action: { currentView = .settings }) {
                 Image(systemName: "gearshape.fill").foregroundColor(currentView == .settings ? palette.accentColor : palette.primaryTextColor)
                     .padding(.vertical, 8).frame(maxWidth: .infinity).contentShape(Rectangle())
             }
-            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: uiAnimEnabled))
+            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: hoverAnimEnabled))
             .accessibilityIdentifier("HeaderSettingsButton")
             .frame(width: 40)
 
@@ -154,7 +155,7 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: uiAnimEnabled))
+                .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: hoverAnimEnabled))
                 .frame(width: 28)
             }
         }

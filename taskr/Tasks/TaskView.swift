@@ -300,7 +300,7 @@ private struct TaskInputHeader: View {
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
                 .animation(
-                    taskManager.animationsMasterEnabled && taskManager.animationManager.uiMicroAnimationsEnabled
+                    taskManager.animationManager.effectiveSuggestionBoxAnimationEnabled
                         ? .easeOut(duration: 0.15)
                         : .none,
                     value: inputState.suggestions.isEmpty

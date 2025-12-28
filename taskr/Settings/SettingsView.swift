@@ -146,21 +146,6 @@ struct SettingsView: View {
                                 hotkeyDescription = configuration.displayString
                                 appDelegate.updateHotkeyConfiguration(configuration)
                             }
-                            
-                            HStack {
-                                Text("Keyboard Shortcuts")
-                                    .taskrFont(.body)
-                                    .foregroundColor(taskManager.themePalette.primaryTextColor)
-                                Spacer()
-                                Button("View All") {
-                                    showKeyboardShortcuts = true
-                                }
-                                .popover(isPresented: $showKeyboardShortcuts) {
-                                    KeyboardShortcutsView()
-                                        .environmentObject(taskManager)
-                                }
-                            }
-                            .padding(.vertical, 4)
                         }
                         
                         Divider()
@@ -200,16 +185,16 @@ struct SettingsView: View {
                             )
                             
                             SettingsToggle(
-                                title: "Clear Inside Completed Parents",
+                                title: "Clear Nested Completed",
                                 isOn: $allowClearingStruckDescendants,
-                                helpText: "Allow clearing completed tasks even if their parent is completed.",
+                                helpText: "When clearing completed tasks, also remove tasks inside completed parents.",
                                 palette: taskManager.themePalette
                             )
                             
                             SettingsToggle(
-                                title: "Skip Hidden Completed Tasks",
+                                title: "Protect Collapsed Tasks",
                                 isOn: $skipClearingHiddenDescendants,
-                                helpText: "Don't clear completed tasks that are hidden inside collapsed parents.",
+                                helpText: "Skip completed tasks hidden under collapsed parents when clearing.",
                                 palette: taskManager.themePalette
                             )
                         }
@@ -338,112 +323,155 @@ struct SettingsView: View {
                                 .padding(.leading, 20)
                                 
                                 VStack(alignment: .leading, spacing: 8) {
-                                    // Task List group
-                                    Text("Task List")
-                                        .taskrFont(.caption)
-                                        .foregroundColor(taskManager.themePalette.secondaryTextColor)
-                                        .padding(.top, 8)
-                                    
+                                    // MARK: Task List Group
                                     SettingsToggle(
-                                        title: "List Changes",
+                                        title: "Task List Animations",
                                         isOn: Binding(
-                                            get: { taskManager.listAnimationsEnabled },
-                                            set: { taskManager.setListAnimationsEnabled($0) }
+                                            get: { taskManager.animationManager.taskListAnimationsGroupEnabled },
+                                            set: { taskManager.setTaskListAnimationsGroupEnabled($0) }
                                         ),
-                                        helpText: "Animate add/remove/reorder operations.",
                                         palette: taskManager.themePalette
                                     )
                                     .padding(.leading, 20)
+                                    .padding(.top, 8)
                                     
+                                    if taskManager.animationManager.taskListAnimationsGroupEnabled {
+                                        SettingsToggle(
+                                            title: "List Changes",
+                                            isOn: Binding(
+                                                get: { taskManager.animationManager.listAnimationsEnabled },
+                                                set: { taskManager.setListAnimationsEnabled($0) }
+                                            ),
+                                            helpText: "Add, remove, and reorder operations.",
+                                            palette: taskManager.themePalette
+                                        )
+                                        .padding(.leading, 40)
+                                        .padding(.trailing, 20)
+                                        
+                                        SettingsToggle(
+                                            title: "Row Height Changes",
+                                            isOn: Binding(
+                                                get: { taskManager.animationManager.rowHeightAnimationEnabled },
+                                                set: { taskManager.setRowHeightAnimationEnabled($0) }
+                                            ),
+                                            helpText: "Smooth height transitions for multi-line tasks.",
+                                            palette: taskManager.themePalette
+                                        )
+                                        .padding(.leading, 40)
+                                        .padding(.trailing, 20)
+                                        
+                                        SettingsToggle(
+                                            title: "Item Transitions",
+                                            isOn: Binding(
+                                                get: { taskManager.animationManager.itemTransitionsEnabled },
+                                                set: { taskManager.setItemTransitionsEnabled($0) }
+                                            ),
+                                            helpText: "Fade/slide when tasks appear or disappear.",
+                                            palette: taskManager.themePalette
+                                        )
+                                        .padding(.leading, 40)
+                                        .padding(.trailing, 20)
+                                    }
+                                    
+                                    // MARK: Expand/Collapse Group
                                     SettingsToggle(
-                                        title: "Item Transitions",
+                                        title: "Expand/Collapse Animations",
                                         isOn: Binding(
-                                            get: { taskManager.animationManager.itemTransitionsEnabled },
-                                            set: { taskManager.setItemTransitionsEnabled($0) }
+                                            get: { taskManager.animationManager.expandCollapseAnimationsGroupEnabled },
+                                            set: { taskManager.setExpandCollapseAnimationsGroupEnabled($0) }
                                         ),
-                                        helpText: "Fade/slide effects when tasks appear or disappear.",
                                         palette: taskManager.themePalette
                                     )
                                     .padding(.leading, 20)
+                                    .padding(.top, 8)
                                     
-                                    // Expand/Collapse group
-                                    Text("Expand/Collapse")
-                                        .taskrFont(.caption)
-                                        .foregroundColor(taskManager.themePalette.secondaryTextColor)
-                                        .padding(.top, 8)
+                                    if taskManager.animationManager.expandCollapseAnimationsGroupEnabled {
+                                        SettingsToggle(
+                                            title: "Content Animation",
+                                            isOn: Binding(
+                                                get: { taskManager.animationManager.collapseAnimationsEnabled },
+                                                set: { taskManager.setCollapseAnimationsEnabled($0) }
+                                            ),
+                                            helpText: "Animate subtask reveal and hide.",
+                                            palette: taskManager.themePalette
+                                        )
+                                        .padding(.leading, 40)
+                                        .padding(.trailing, 20)
+                                        
+                                        SettingsToggle(
+                                            title: "Chevron Rotation",
+                                            isOn: Binding(
+                                                get: { taskManager.animationManager.chevronAnimationEnabled },
+                                                set: { taskManager.setChevronAnimationEnabled($0) }
+                                            ),
+                                            helpText: "Rotate chevron when expanding/collapsing.",
+                                            palette: taskManager.themePalette
+                                        )
+                                        .padding(.leading, 40)
+                                        .padding(.trailing, 20)
+                                    }
                                     
+                                    // MARK: UI Micro-interactions Group
                                     SettingsToggle(
-                                        title: "Content Animation",
-                                        isOn: Binding(
-                                            get: { taskManager.collapseAnimationsEnabled },
-                                            set: { taskManager.setCollapseAnimationsEnabled($0) }
-                                        ),
-                                        helpText: "Animate subtask reveal/hide.",
-                                        palette: taskManager.themePalette
-                                    )
-                                    .padding(.leading, 20)
-                                    
-                                    SettingsToggle(
-                                        title: "Chevron Rotation",
-                                        isOn: Binding(
-                                            get: { taskManager.animationManager.chevronAnimationEnabled },
-                                            set: { taskManager.setChevronAnimationEnabled($0) }
-                                        ),
-                                        helpText: "Rotate chevron icon when expanding/collapsing.",
-                                        palette: taskManager.themePalette
-                                    )
-                                    .padding(.leading, 20)
-                                    
-                                    // Completion Effects group
-                                    Text("Completion Effects")
-                                        .taskrFont(.caption)
-                                        .foregroundColor(taskManager.themePalette.secondaryTextColor)
-                                        .padding(.top, 8)
-                                    
-                                    SettingsToggle(
-                                        title: "Checkbox & Strikethrough",
-                                        isOn: Binding(
-                                            get: { taskManager.animationManager.completionAnimationsEnabled },
-                                            set: { taskManager.setCompletionAnimationsEnabled($0) }
-                                        ),
-                                        helpText: "Animate checkbox fill and strikethrough effect.",
-                                        palette: taskManager.themePalette
-                                    )
-                                    .padding(.leading, 20)
-                                    
-                                    // UI Micro-interactions group
-                                    Text("UI Micro-interactions")
-                                        .taskrFont(.caption)
-                                        .foregroundColor(taskManager.themePalette.secondaryTextColor)
-                                        .padding(.top, 8)
-                                    
-                                    SettingsToggle(
-                                        title: "Header & Pin Effects",
+                                        title: "UI Micro-interactions",
                                         isOn: Binding(
                                             get: { taskManager.animationManager.uiMicroAnimationsEnabled },
                                             set: { taskManager.setUiMicroAnimationsEnabled($0) }
                                         ),
-                                        helpText: "Hover highlights, pin rotation, suggestion box transitions.",
                                         palette: taskManager.themePalette
                                     )
                                     .padding(.leading, 20)
+                                    .padding(.top, 8)
                                     
-                                    // Row Layout group
-                                    Text("Row Layout")
-                                        .taskrFont(.caption)
-                                        .foregroundColor(taskManager.themePalette.secondaryTextColor)
-                                        .padding(.top, 8)
-                                    
-                                    SettingsToggle(
-                                        title: "Row Height Changes",
-                                        isOn: Binding(
-                                            get: { taskManager.animationManager.rowHeightAnimationEnabled },
-                                            set: { taskManager.setRowHeightAnimationEnabled($0) }
-                                        ),
-                                        helpText: "Animate row height changes when editing multi-line tasks.",
-                                        palette: taskManager.themePalette
-                                    )
-                                    .padding(.leading, 20)
+                                    if taskManager.animationManager.uiMicroAnimationsEnabled {
+                                        SettingsToggle(
+                                            title: "Completion Effects",
+                                            isOn: Binding(
+                                                get: { taskManager.animationManager.completionAnimationsEnabled },
+                                                set: { taskManager.setCompletionAnimationsEnabled($0) }
+                                            ),
+                                            helpText: "Checkbox fill and strikethrough.",
+                                            palette: taskManager.themePalette
+                                        )
+                                        .padding(.leading, 40)
+                                        .padding(.trailing, 20)
+                                        
+                                        SettingsToggle(
+                                            title: "Hover Highlights",
+                                            isOn: Binding(
+                                                get: { taskManager.animationManager.hoverHighlightsEnabled },
+                                                set: { taskManager.setHoverHighlightsEnabled($0) }
+                                            ),
+                                            helpText: "Hover background transitions.",
+                                            palette: taskManager.themePalette
+                                        )
+                                        .padding(.leading, 40)
+                                        .padding(.trailing, 20)
+                                        
+                                        SettingsToggle(
+                                            title: "Suggestion Box",
+                                            isOn: Binding(
+                                                get: { taskManager.animationManager.suggestionBoxAnimationEnabled },
+                                                set: { taskManager.setSuggestionBoxAnimationEnabled($0) }
+                                            ),
+                                            helpText: "Suggestion dropdown transitions.",
+                                            palette: taskManager.themePalette
+                                        )
+                                        .padding(.leading, 40)
+                                        .padding(.trailing, 20)
+                                        
+                                        SettingsToggle(
+                                            title: "Pin Rotation",
+                                            isOn: Binding(
+                                                get: { taskManager.animationManager.pinRotationEnabled },
+                                                set: { taskManager.setPinRotationEnabled($0) }
+                                            ),
+                                            helpText: "Pin button rotation animation.",
+                                            palette: taskManager.themePalette
+                                        )
+                                        .padding(.leading, 40)
+                                        .padding(.trailing, 20)
+                                    }
                                 }
                             }
                         }
@@ -467,11 +495,16 @@ struct SettingsView: View {
                             Divider().padding(.vertical, 5)
                             
                             HStack {
-                                Text("Reset")
-                                    .taskrFont(.body)
-                                    .foregroundColor(taskManager.themePalette.primaryTextColor)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Reset Onboarding")
+                                        .taskrFont(.body)
+                                        .foregroundColor(taskManager.themePalette.primaryTextColor)
+                                    Text("Show the welcome wizard again.")
+                                        .taskrFont(.caption)
+                                        .foregroundColor(taskManager.themePalette.secondaryTextColor)
+                                }
                                 Spacer()
-                                Button("Re-do Setup") {
+                                Button("Reset") {
                                     UserDefaults.standard.set(false, forKey: "hasCompletedSetup")
                                 }
                             }
@@ -481,6 +514,21 @@ struct SettingsView: View {
                         
                         // MARK: - About
                         SettingsSection(title: "About", palette: taskManager.themePalette) {
+                            HStack {
+                                Text("Keyboard Shortcuts")
+                                    .taskrFont(.body)
+                                    .foregroundColor(taskManager.themePalette.primaryTextColor)
+                                Spacer()
+                                Button("View All") {
+                                    showKeyboardShortcuts = true
+                                }
+                                .popover(isPresented: $showKeyboardShortcuts) {
+                                    KeyboardShortcutsView()
+                                        .environmentObject(taskManager)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            
                             HStack {
                                 Text("Taskr")
                                     .taskrFont(.body)

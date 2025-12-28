@@ -73,6 +73,10 @@ struct TaskRowContentView: View {
         selectionManager.isTaskSelected(taskID)
     }
     
+    private var hoverHighlightsEnabled: Bool {
+        taskManager.animationManager.effectiveHoverHighlightsEnabled
+    }
+    
     private var highlightColor: Color {
         if isSelected {
             return selectionBackgroundColor
@@ -225,6 +229,7 @@ struct TaskRowContentView: View {
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(highlightColor)
+                .animation(hoverHighlightsEnabled ? .easeInOut(duration: 0.10) : nil, value: isHoveringRow)
         )
         .background(
             Group {
