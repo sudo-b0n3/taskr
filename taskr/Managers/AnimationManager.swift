@@ -11,6 +11,7 @@ class AnimationManager: ObservableObject {
     @Published private(set) var itemTransitionsEnabled: Bool
     @Published private(set) var uiMicroAnimationsEnabled: Bool
     @Published private(set) var rowHeightAnimationEnabled: Bool
+    @Published private(set) var animationStyle: AnimationStyle
     
     private let defaults: UserDefaults
     
@@ -24,6 +25,7 @@ class AnimationManager: ObservableObject {
         self.itemTransitionsEnabled = defaults.object(forKey: itemTransitionsEnabledPreferenceKey) as? Bool ?? true
         self.uiMicroAnimationsEnabled = defaults.object(forKey: uiMicroAnimationsEnabledPreferenceKey) as? Bool ?? true
         self.rowHeightAnimationEnabled = defaults.object(forKey: rowHeightAnimationEnabledPreferenceKey) as? Bool ?? true
+        self.animationStyle = AnimationStyle(rawValue: defaults.string(forKey: animationStylePreferenceKey) ?? "") ?? .defaultStyle
     }
     
     func setAnimationsMasterEnabled(_ enabled: Bool) {
@@ -74,6 +76,21 @@ class AnimationManager: ObservableObject {
         defaults.set(enabled, forKey: rowHeightAnimationEnabledPreferenceKey)
     }
     
+    func setAnimationStyle(_ style: AnimationStyle) {
+        guard animationStyle != style else { return }
+        animationStyle = style
+        defaults.set(style.rawValue, forKey: animationStylePreferenceKey)
+    }
+    
+    var selectedAnimation: Animation {
+        switch animationStyle {
+        case .easeInOut: return .easeInOut(duration: 0.2)
+        case .spring: return .spring(response: 0.35, dampingFraction: 0.7)
+        case .snappy: return .spring(response: 0.25, dampingFraction: 0.85)
+        case .linear: return .linear(duration: 0.15)
+        }
+    }
+    
     @discardableResult
     func performListMutation<Result>(_ body: () -> Result) -> Result {
         performAnimation(isEnabled: listAnimationsEnabled, body)
@@ -91,6 +108,6 @@ class AnimationManager: ObservableObject {
             transaction.disablesAnimations = true
             return withTransaction(transaction) { body() }
         }
-        return withAnimation(.easeInOut(duration: 0.2)) { body() }
+        return withAnimation(selectedAnimation) { body() }
     }
 }

@@ -122,6 +122,27 @@ enum PanelAlignment: String, CaseIterable, Identifiable {
     static var defaultAlignment: PanelAlignment = .center
 }
 
+// Animation style options for list and UI animations
+enum AnimationStyle: String, CaseIterable, Identifiable {
+    case easeInOut = "easeInOut"
+    case spring = "spring"
+    case snappy = "snappy"
+    case linear = "linear"
+
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .easeInOut: return "Ease In/Out"
+        case .spring: return "Spring"
+        case .snappy: return "Snappy"
+        case .linear: return "Linear"
+        }
+    }
+    static var defaultStyle: AnimationStyle = .easeInOut
+}
+
+let animationStylePreferenceKey = "animationStylePreference"
+
 // Centralized bridge for UserDefaults-backed preferences so views bind consistently.
 final class PreferencesStore: ObservableObject {
     private let defaults: UserDefaults

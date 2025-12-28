@@ -177,6 +177,10 @@ class TaskManager: ObservableObject {
         animationManager.setRowHeightAnimationEnabled(enabled)
     }
     
+    func setAnimationStyle(_ style: AnimationStyle) {
+        animationManager.setAnimationStyle(style)
+    }
+    
     func setFontScale(_ scale: Double) {
         let clamped = Self.clampFontScale(scale)
         guard abs(fontScale - clamped) > 0.0001 else { return }

@@ -122,38 +122,6 @@ private extension TaskView {
                 .allowsHitTesting(!isLiveScrolling)
             }
             .background(LiveScrollObserver(isLiveScrolling: $isLiveScrolling))
-            .background(
-                ScrollViewConfigurator { scrollView in
-                    scrollView.scrollerStyle = .overlay
-                    scrollView.autohidesScrollers = false
-                    scrollView.hasHorizontalScroller = false
-                    scrollView.hasVerticalScroller = true
-                    scrollView.automaticallyAdjustsContentInsets = false
-                    let scrollerControlSize = scrollView.verticalScroller?.controlSize ?? .regular
-                    let scrollerWidth = NSScroller.scrollerWidth(
-                        for: scrollerControlSize,
-                        scrollerStyle: scrollView.scrollerStyle
-                    )
-                    scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: scrollerWidth)
-                    scrollView.verticalScrollElasticity = .automatic
-#if DEBUG
-                    if scrollView.contentView.postsBoundsChangedNotifications == false {
-                        scrollView.contentView.postsBoundsChangedNotifications = true
-                        NotificationCenter.default.addObserver(
-                            forName: NSView.boundsDidChangeNotification,
-                            object: scrollView.contentView,
-                            queue: .main
-                        ) { [weak scrollView] _ in
-                            guard let scrollView else { return }
-                            let visibleWidth = scrollView.contentView.documentVisibleRect.width
-                            let scrollerWidth = scrollView.verticalScroller?.frame.width ?? 0
-                            let knobProportion = scrollView.verticalScroller?.knobProportion ?? 0
-                            print("Scroll debug -> visibleWidth: \(visibleWidth), scrollerWidth: \(scrollerWidth), knobProportion: \(knobProportion)")
-                        }
-                }
-#endif
-                }
-            )
             .onAppear {
                 if hasCompletedSetup {
                     isInputFocused = true
@@ -363,28 +331,6 @@ private struct FlatTaskRowView: View {
     }
 }
 
-private struct ScrollViewConfigurator: NSViewRepresentable {
-    var configure: (NSScrollView) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            apply(to: view)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            apply(to: nsView)
-        }
-    }
-
-    private func apply(to view: NSView) {
-        guard let scrollView = view.enclosingScrollView else { return }
-        configure(scrollView)
-    }
-}
 
 private struct LiveScrollObserver: NSViewRepresentable {
     @Binding var isLiveScrolling: Bool

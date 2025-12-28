@@ -327,6 +327,16 @@ struct SettingsView: View {
                             )
                             
                             if taskManager.animationsMasterEnabled {
+                                SettingsPicker(title: "Animation Style", selection: Binding(
+                                    get: { taskManager.animationManager.animationStyle },
+                                    set: { taskManager.setAnimationStyle($0) }
+                                ), palette: taskManager.themePalette) {
+                                    ForEach(AnimationStyle.allCases) { style in
+                                        Text(style.displayName).tag(style)
+                                    }
+                                }
+                                .padding(.leading, 20)
+                                
                                 VStack(alignment: .leading, spacing: 8) {
                                     // Task List group
                                     Text("Task List")
