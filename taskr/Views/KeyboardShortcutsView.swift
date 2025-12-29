@@ -51,6 +51,8 @@ struct KeyboardShortcutsView: View {
                 sectionHeader("Actions")
                 shortcutRow("⌘↩", "Toggle completion")
                 shortcutRow("⌘D", "Duplicate selected")
+                shortcutRow("⌘C", "Copy selected tasks")
+                shortcutRow("⌘V", "Paste under selected")
                 shortcutRow("⌘⌫", "Delete selected")
                 shortcutRow("⌘L", "Lock/unlock thread")
                 shortcutRow("M + ↑/↓", "Move selected task")

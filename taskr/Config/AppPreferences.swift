@@ -42,6 +42,7 @@ let fontScalePreferenceKey = "fontScalePreference" // Adjust overall text scale
 let menuBarPresentationStylePreferenceKey = "menuBarPresentationStylePreference" // Popover vs panel style
 let panelAlignmentPreferenceKey = "panelAlignmentPreference" // Panel alignment relative to menu bar icon
 let windowPinnedPreferenceKey = "windowPinnedPreference" // Keep window always on top
+let skipPasteRootConfirmationPreferenceKey = "skipPasteRootConfirmation" // Skip confirmation when pasting at root level
 
 // Defaults
 let defaultHotkeyKeyCode: UInt16 = UInt16(kVK_ANSI_N)

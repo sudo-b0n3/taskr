@@ -23,6 +23,13 @@ struct TaskView: View {
     @State private var hostingWindow: NSWindow?
     @State private var isWindowFocused: Bool = false
     @State private var isLiveScrolling: Bool = false
+    
+    // Paste dialog state
+    @State private var showPasteRootConfirmation: Bool = false
+    @State private var showPasteError: Bool = false
+    @State private var pasteErrorMessage: String = ""
+    @State private var dontAskPasteAgain: Bool = false
+    @State private var pendingPasteTaskCount: Int = 0
 
     private var palette: ThemePalette { taskManager.themePalette }
     private var backgroundColor: Color {
@@ -73,6 +80,24 @@ struct TaskView: View {
                     handleWindowChange(window)
                 }
             }
+        }
+        .onChange(of: taskManager.pendingPasteResult) { _, result in
+            handlePasteResult(result)
+        }
+        .overlay(alignment: .top) {
+            if showPasteRootConfirmation {
+                pasteRootConfirmationView
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(100)
+            }
+        }
+        .animation(taskManager.animationManager.animationsMasterEnabled ? .easeInOut(duration: 0.2) : .none, value: showPasteRootConfirmation)
+        .alert("Cannot Paste", isPresented: $showPasteError) {
+            Button("OK", role: .cancel) {
+                taskManager.pendingPasteResult = nil
+            }
+        } message: {
+            Text(pasteErrorMessage)
         }
     } // End body
 } // End TaskView
@@ -147,6 +172,92 @@ private extension TaskView {
                 guard let request = selectionManager.scrollToTaskRequest else { return }
                 proxy.scrollTo(request.id)
             }
+        }
+    }
+    
+    /// Compact confirmation bar for pasting at root level
+    @ViewBuilder
+    var pasteRootConfirmationView: some View {
+        let palette = taskManager.themePalette
+        
+        HStack(spacing: 12) {
+            Text("Paste at root?")
+                .taskrFont(.callout)
+                .foregroundColor(palette.primaryTextColor)
+            
+            Spacer()
+            
+            Toggle("Don't ask", isOn: $dontAskPasteAgain)
+                .toggleStyle(.checkbox)
+                .taskrFont(.caption)
+                .foregroundColor(palette.secondaryTextColor)
+            
+            Button("Cancel") {
+                dismissPasteConfirmation()
+            }
+            .buttonStyle(.plain)
+            .taskrFont(.callout)
+            .foregroundColor(palette.secondaryTextColor)
+            .keyboardShortcut(.escape, modifiers: [])
+            
+            Button("Paste") {
+                confirmPaste()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(palette.accentColor)
+            .taskrFont(.callout)
+            .keyboardShortcut(.return, modifiers: [])
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(palette.inputBackgroundColor)
+                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+    }
+    
+    private func dismissPasteConfirmation() {
+        showPasteRootConfirmation = false
+        taskManager.pendingPasteResult = nil
+    }
+    
+    private func confirmPaste() {
+        if dontAskPasteAgain {
+            UserDefaults.standard.set(true, forKey: skipPasteRootConfirmationPreferenceKey)
+        }
+        showPasteRootConfirmation = false
+        _ = taskManager.pasteTasksAtRootLevel()
+        taskManager.pendingPasteResult = nil
+    }
+    
+    func handlePasteResult(_ result: TaskManager.PasteResult?) {
+        guard let result = result else { return }
+        
+        switch result {
+        case .success:
+            // Nothing to show
+            break
+        case .noSelection:
+            // Count tasks in clipboard for the confirmation message
+            if let content = NSPasteboard.general.string(forType: .string),
+               let entries = taskManager.parseClipboardContent(content) {
+                pendingPasteTaskCount = entries.count
+            } else {
+                pendingPasteTaskCount = 0
+            }
+            showPasteRootConfirmation = true
+        case .multipleSelection:
+            pasteErrorMessage = "Select a single task to paste under, or clear selection to paste at root level."
+            showPasteError = true
+        case .emptyClipboard:
+            pasteErrorMessage = "Clipboard is empty."
+            showPasteError = true
+        case .parseError:
+            pasteErrorMessage = "Could not parse clipboard content."
+            showPasteError = true
         }
     }
 }
@@ -463,6 +574,9 @@ extension TaskView {
                     return true
                 case "l":
                     taskManager.toggleLockForSelectedTasks()
+                    return true
+                case "v":
+                    taskManager.triggerPaste()
                     return true
                 default:
                     break

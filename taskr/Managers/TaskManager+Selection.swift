@@ -73,17 +73,12 @@ extension TaskManager {
 
     func copySelectedTasksToPasteboard() {
         guard !selectedTaskIDs.isEmpty else { return }
-        var entries: [(task: Task, depth: Int)] = []
-
-        let visibleTasks = snapshotVisibleTasks()
-        let cache = Dictionary(uniqueKeysWithValues: visibleTasks.map { ($0.id, $0) })
-
-        for id in selectedTaskIDs {
-            guard let task = cache[id] ?? task(withID: id) else { continue }
-            let depth = taskDepth(task)
-            entries.append((task, depth))
-        }
-
+        let selectedSet = Set(selectedTaskIDs)
+        
+        // Iterate in visual display order by filtering visible tasks
+        let visibleTasksWithDepth = snapshotVisibleTasksWithDepth()
+        let entries = visibleTasksWithDepth.filter { selectedSet.contains($0.task.id) }
+        
         guard !entries.isEmpty else { return }
 
         let minDepth = entries.map(\.depth).min() ?? 0

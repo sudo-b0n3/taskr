@@ -54,6 +54,9 @@ class TaskManager: ObservableObject {
     @Published private(set) var frostedBackgroundLevel: FrostLevel
     @Published private(set) var fontScale: Double
     @Published private(set) var isApplicationActive: Bool = true
+    
+    // Paste state for UI dialogs
+    @Published var pendingPasteResult: PasteResult?
 
     lazy var pathCoordinator = PathInputCoordinator(taskManager: self)
     let inputState: TaskInputState
