@@ -31,6 +31,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
     private var spaceChangeObserver: NSObjectProtocol?
     private var statusItemBaseImage: NSImage?
     private var statusItemHighlightedImage: NSImage?
+    private var panelVisibilityObserver: NSObjectProtocol?
+    private var panelOrderOutObserver: NSObjectProtocol?
+    private var statusItemHighlightLayer: CALayer?
 
     var taskManager: TaskManager?
     var modelContainer: ModelContainer?
@@ -292,6 +295,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         panel.contentView = visualEffectView
         
         menuPanel = panel
+        
+        // Observe panel visibility changes for status item highlight
+        let center = NotificationCenter.default
+        panelVisibilityObserver = center.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateStatusItemHighlight()
+        }
+        panelOrderOutObserver = center.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self] _ in
+            // Small delay to allow isVisible to update
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                self?.updateStatusItemHighlight()
+            }
+        }
     }
     
     /// Creates a stretchable mask image with rounded corners for the panel
@@ -462,14 +485,59 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         let isPopoverOpen = popover?.isShown == true
         let isPanelOpen = menuPanel?.isVisible == true
         let shouldHighlight = isPopoverOpen || isPanelOpen
+        
         if let button = statusItem?.button {
-            button.state = .off
-            button.isHighlighted = shouldHighlight
+            // Update icon
             if shouldHighlight, let highlightedImage = statusItemHighlightedImage {
                 button.image = highlightedImage
             } else if let baseImage = statusItemBaseImage {
                 button.image = baseImage
             }
+            
+            // Update custom highlight layer (since isHighlighted resets on space changes)
+            updateHighlightLayer(for: button, highlighted: shouldHighlight)
+        }
+    }
+    
+    private func updateHighlightLayer(for button: NSStatusBarButton, highlighted: Bool) {
+        // Ensure the button has a layer
+        button.wantsLayer = true
+        guard let buttonLayer = button.layer else { return }
+        
+        if highlighted {
+            // Create highlight layer if needed
+            if statusItemHighlightLayer == nil {
+                let highlightLayer = CALayer()
+                highlightLayer.cornerRadius = 4
+                // Use a subtle highlight color that matches macOS appearance
+                highlightLayer.backgroundColor = NSColor.white.withAlphaComponent(0.15).cgColor
+                statusItemHighlightLayer = highlightLayer
+            }
+            
+            if let highlightLayer = statusItemHighlightLayer {
+                // Use the full status item width from the window, not just button bounds
+                // The window frame represents the full allocated menu bar space
+                var highlightFrame = button.bounds
+                if let buttonWindow = button.window {
+                    // Convert window width to button's coordinate system
+                    highlightFrame.size.width = buttonWindow.frame.width
+                    // Center the highlight horizontally
+                    highlightFrame.origin.x = (button.bounds.width - highlightFrame.width) / 2
+                }
+                
+                // Apply small vertical inset for visual polish
+                let verticalInset: CGFloat = 3
+                highlightFrame = highlightFrame.insetBy(dx: 0, dy: verticalInset)
+                highlightLayer.frame = highlightFrame
+                
+                // Add to button layer if not already added
+                if highlightLayer.superlayer !== buttonLayer {
+                    buttonLayer.insertSublayer(highlightLayer, at: 0)
+                }
+            }
+        } else {
+            // Remove highlight layer
+            statusItemHighlightLayer?.removeFromSuperlayer()
         }
     }
 
@@ -763,6 +831,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         }
         if let observer = spaceChangeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
+        if let observer = panelVisibilityObserver {
+            center.removeObserver(observer)
+        }
+        if let observer = panelOrderOutObserver {
+            center.removeObserver(observer)
         }
     }
 
