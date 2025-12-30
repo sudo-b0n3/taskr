@@ -4,30 +4,12 @@ import SwiftData
 /// A compact, readable view showing all keyboard shortcuts
 struct KeyboardShortcutsView: View {
     @EnvironmentObject var taskManager: TaskManager
-    @Environment(\.dismiss) private var dismiss
+    
+    private var palette: ThemePalette { taskManager.themePalette }
     
     var body: some View {
-        VStack(alignment: .center, spacing: 16) {
-            // Header
-            HStack {
-                Text("Keyboard Shortcuts")
-                    .taskrFont(.headline)
-                    .foregroundColor(taskManager.themePalette.primaryTextColor)
-                Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(taskManager.themePalette.secondaryTextColor)
-                        .imageScale(.large)
-                }
-                .buttonStyle(.plain)
-            }
-            
-            Divider()
-            
-            // Shortcuts list
-            VStack(alignment: .center, spacing: 6) {
+        InfoSheet(title: "Keyboard Shortcuts") {
+            VStack(alignment: .leading, spacing: 6) {
                 // Input
                 sectionHeader("Input")
                 shortcutRow("↩", "Commit task")
@@ -56,21 +38,12 @@ struct KeyboardShortcutsView: View {
                 shortcutRow("⌘⌫", "Delete selected")
                 shortcutRow("⌘L", "Lock/unlock thread")
                 shortcutRow("M + ↑/↓", "Move selected task")
-            }
-            
-            Spacer()
-        }
-        .padding(16)
-        .frame(width: 300, height: 520)
-        .background {
-            if taskManager.frostedBackgroundEnabled {
-                VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow, state: .active)
-            } else {
-                taskManager.themePalette.backgroundColor
+                
+                // Window
+                sectionHeader("Window")
+                shortcutRow("⌘P", "Pin/unpin window")
             }
         }
-        .environment(\.taskrFontScale, taskManager.fontScale)
-        .environment(\.font, TaskrTypography.scaledFont(for: .body, scale: taskManager.fontScale))
     }
     
     private func shortcutRow(_ key: String, _ description: String) -> some View {
@@ -78,12 +51,12 @@ struct KeyboardShortcutsView: View {
             Text(key)
                 .taskrFont(.callout)
                 .fontWeight(.medium)
-                .foregroundColor(taskManager.themePalette.accentColor)
+                .foregroundColor(palette.accentColor)
                 .frame(width: 70, alignment: .trailing)
             
             Text(description)
                 .taskrFont(.callout)
-                .foregroundColor(taskManager.themePalette.primaryTextColor)
+                .foregroundColor(palette.primaryTextColor)
             
             Spacer()
         }
@@ -93,7 +66,7 @@ struct KeyboardShortcutsView: View {
         Text(title)
             .taskrFont(.caption)
             .fontWeight(.semibold)
-            .foregroundColor(taskManager.themePalette.secondaryTextColor)
+            .foregroundColor(palette.secondaryTextColor)
             .padding(.top, 6)
     }
 }

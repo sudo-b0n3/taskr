@@ -443,8 +443,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
             // Don't close if pinned
             if self.isWindowPinned { return event }
             
-            // Check if click is outside the panel
-            if event.window !== panel {
+            // Check if the click is on the panel or any of its attached sheets
+            let clickedWindow = event.window
+            let isOnPanelOrSheet = clickedWindow === panel || panel.sheets.contains(where: { $0 === clickedWindow })
+            
+            // Check if click is outside the panel and its sheets
+            if !isOnPanelOrSheet {
                 DispatchQueue.main.async {
                     self.closePanelIfNeeded()
                 }

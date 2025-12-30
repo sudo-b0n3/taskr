@@ -6,6 +6,7 @@ import AppKit
 struct TaskView: View {
     @EnvironmentObject var taskManager: TaskManager
     @EnvironmentObject var selectionManager: SelectionManager
+    @EnvironmentObject var appDelegate: AppDelegate
     @Environment(\.modelContext) private var modelContext
     // Fetch tasks sorted by displayOrder for stable UI diffs
     @Query(
@@ -288,6 +289,7 @@ struct TaskView_Previews: PreviewProvider {
             .environmentObject(taskManager)
             .environmentObject(taskManager.inputState)
             .environmentObject(taskManager.selectionManager)
+            .environmentObject(AppDelegate())
             .frame(width: 380, height: 400) // Standard preview frame
             .background(taskManager.themePalette.backgroundColor) // Match background
     }
@@ -581,6 +583,9 @@ extension TaskView {
                 case "v":
                     taskManager.triggerPaste()
                     return true
+                case "p":
+                    appDelegate.isWindowPinned.toggle()
+                    return true
                 default:
                     break
                 }
@@ -591,7 +596,8 @@ extension TaskView {
         case 46: // M key
             guard noModifiers else { return false }
             isMKeyPressed = true
-            return false // Don't consume the event, just track state
+            // Consume the event when tasks are selected to prevent system beep
+            return !taskManager.selectedTaskIDs.isEmpty
         case 125: // Down arrow
             if noModifiers && isMKeyPressed {
                 // M + Down Arrow = Move selected tasks down

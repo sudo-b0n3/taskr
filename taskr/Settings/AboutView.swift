@@ -12,78 +12,76 @@ struct AboutView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header
-            HStack(spacing: 12) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .frame(width: 48, height: 48)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Taskr")
-                        .taskrFont(.title2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(palette.primaryTextColor)
+        InfoSheet(title: "About Taskr") {
+            VStack(alignment: .leading, spacing: 16) {
+                // App Icon and Version
+                HStack(spacing: 12) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 48, height: 48)
                     
-                    Text(appVersion)
-                        .taskrFont(.caption)
-                        .foregroundColor(palette.secondaryTextColor)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Taskr")
+                            .taskrFont(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(palette.primaryTextColor)
+                        
+                        Text(appVersion)
+                            .taskrFont(.caption)
+                            .foregroundColor(palette.secondaryTextColor)
+                    }
                 }
-            }
-            
-            Divider()
-            
-            // Description
-            Text("A simple, elegant task manager for your menu bar.")
-                .taskrFont(.body)
-                .foregroundColor(palette.primaryTextColor)
-            
-            // Links Section
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Links")
-                    .taskrFont(.headline)
+                
+                Divider()
+                
+                // Description
+                Text("A simple, elegant task manager for your menu bar.")
+                    .taskrFont(.body)
                     .foregroundColor(palette.primaryTextColor)
                 
-                // TODO: Replace these placeholder URLs with your actual links
-                AboutLinkRow(
-                    icon: "globe",
-                    title: "b0n3.net",
-                    url: "https://b0n3.net",
-                    palette: palette
-                )
+                // Links Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Links")
+                        .taskrFont(.headline)
+                        .foregroundColor(palette.primaryTextColor)
+                    
+                    AboutLinkRow(
+                        icon: "globe",
+                        title: "b0n3.net",
+                        url: "https://b0n3.net",
+                        palette: palette
+                    )
+                    
+                    AboutLinkRow(
+                        icon: "heart.fill",
+                        title: "Buy me a coffee",
+                        url: "https://ko-fi.com/b0n3",
+                        palette: palette
+                    )
+                    
+                    AboutLinkRow(
+                        icon: "bubble.left.and.bubble.right.fill",
+                        title: "Twitter / X",
+                        url: "https://x.com/bonecrisis",
+                        palette: palette
+                    )
+                    
+                    AboutLinkRow(
+                        icon: "chevron.left.forwardslash.chevron.right",
+                        title: "GitHub",
+                        url: "https://github.com/sudo-b0n3/taskr",
+                        palette: palette
+                    )
+                }
                 
-                AboutLinkRow(
-                    icon: "heart.fill",
-                    title: "Buy me a coffee",
-                    url: "https://ko-fi.com/b0n3",
-                    palette: palette
-                )
+                Divider()
                 
-                AboutLinkRow(
-                    icon: "bubble.left.and.bubble.right.fill",
-                    title: "Twitter / X",
-                    url: "https://x.com/bonecrisis",
-                    palette: palette
-                )
-                
-                AboutLinkRow(
-                    icon: "chevron.left.forwardslash.chevron.right",
-                    title: "GitHub",
-                    url: "https://github.com/sudo-b0n3/taskr",
-                    palette: palette
-                )
+                // Credits / Copyright
+                Text("© 2025 b0n3. All rights reserved.")
+                    .taskrFont(.caption)
+                    .foregroundColor(palette.secondaryTextColor)
             }
-            
-            Divider()
-            
-            // Credits / Copyright
-            Text("© 2025 b0n3. All rights reserved.")
-                .taskrFont(.caption)
-                .foregroundColor(palette.secondaryTextColor)
         }
-        .padding(20)
-        .frame(width: 280)
-        .background(palette.backgroundColor)
     }
 }
 

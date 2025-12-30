@@ -522,10 +522,6 @@ struct SettingsView: View {
                                 Button("View All") {
                                     showKeyboardShortcuts = true
                                 }
-                                .popover(isPresented: $showKeyboardShortcuts) {
-                                    KeyboardShortcutsView()
-                                        .environmentObject(taskManager)
-                                }
                             }
                             .padding(.vertical, 4)
                             
@@ -537,11 +533,15 @@ struct SettingsView: View {
                                 Button("More Info") {
                                     showAbout = true
                                 }
-                                .popover(isPresented: $showAbout) {
-                                    AboutView()
-                                        .environmentObject(taskManager)
-                                }
                             }
+                        }
+                        .sheet(isPresented: $showKeyboardShortcuts) {
+                            KeyboardShortcutsView()
+                                .environmentObject(taskManager)
+                        }
+                        .sheet(isPresented: $showAbout) {
+                            AboutView()
+                                .environmentObject(taskManager)
                         }
                         
                         Divider()
