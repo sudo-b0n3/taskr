@@ -26,6 +26,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
     private var automationWindow: NSWindow?
     private weak var mainWindow: NSWindow?
     private var mainWindowObserver: NSObjectProtocol?
+    private var appActivationObserver: NSObjectProtocol?
+    private var appDeactivationObserver: NSObjectProtocol?
+    private var spaceChangeObserver: NSObjectProtocol?
+    private var statusItemBaseImage: NSImage?
+    private var statusItemHighlightedImage: NSImage?
 
     var taskManager: TaskManager?
     var modelContainer: ModelContainer?
@@ -74,6 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
             // This allows us to control highlight state and prevent default behavior
             setupStatusItemClickMonitor()
         }
+        setupStatusItemHighlightObservers()
         
         var hotkeyInitiallyEnabled = UserDefaults.standard.bool(forKey: globalHotkeyEnabledPreferenceKey)
         if UserDefaults.standard.object(forKey: globalHotkeyEnabledPreferenceKey) == nil {
@@ -165,8 +171,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
     }
     
     func popoverDidClose(_ notification: Notification) {
-        // Remove highlight when popover closes
-        statusItem?.button?.isHighlighted = false
+        updateStatusItemHighlight()
+    }
+
+    func popoverDidShow(_ notification: Notification) {
+        updateStatusItemHighlight()
     }
 
     @objc func togglePopover() {
@@ -200,7 +209,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         if let button = statusItem?.button {
             if popover?.isShown == true {
                 popover?.performClose(nil)
-                button.isHighlighted = false
+                updateStatusItemHighlight()
             } else {
                 // Close panel if open
                 closePanelIfNeeded()
@@ -217,11 +226,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
                 )
                 popover?.contentViewController?.view.window?.isMovableByWindowBackground = false
                 popover?.contentViewController?.view.window?.makeKey()
-                
-                // Set highlight AFTER popover is shown to avoid it being reset
-                DispatchQueue.main.async { [weak self] in
-                    self?.statusItem?.button?.isHighlighted = true
-                }
             }
         }
     }
@@ -314,11 +318,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(panel.contentView)
-        
-        // Highlight the status item button while panel is open
-        DispatchQueue.main.async { [weak self] in
-            self?.statusItem?.button?.isHighlighted = true
-        }
+        updateStatusItemHighlight()
         
         // Add click-outside monitor
         addPanelClickMonitor()
@@ -445,8 +445,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
     private func closePanelIfNeeded() {
         menuPanel?.orderOut(nil)
         removePanelClickMonitor()
-        // Remove highlight from status item button
-        statusItem?.button?.isHighlighted = false
+        updateStatusItemHighlight()
     }
     
     /// Resets menu bar presentation, closing any open popover/panel.
@@ -456,17 +455,76 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
             popover?.performClose(nil)
         }
         closePanelIfNeeded()
-        // Explicitly clear highlight in case delegate callbacks don't fire
-        statusItem?.button?.isHighlighted = false
+        updateStatusItemHighlight()
+    }
+
+    private func updateStatusItemHighlight() {
+        let isPopoverOpen = popover?.isShown == true
+        let isPanelOpen = menuPanel?.isVisible == true
+        let shouldHighlight = isPopoverOpen || isPanelOpen
+        if let button = statusItem?.button {
+            button.state = .off
+            button.isHighlighted = shouldHighlight
+            if shouldHighlight, let highlightedImage = statusItemHighlightedImage {
+                button.image = highlightedImage
+            } else if let baseImage = statusItemBaseImage {
+                button.image = baseImage
+            }
+        }
+    }
+
+    private func makeStatusItemImage(systemSymbolName: String, tintColor: NSColor?) -> NSImage? {
+        guard var image = NSImage(systemSymbolName: systemSymbolName, accessibilityDescription: "Taskr") else {
+            return nil
+        }
+        if let tintColor {
+            let config = NSImage.SymbolConfiguration(paletteColors: [tintColor])
+            if let configured = image.withSymbolConfiguration(config) {
+                image = configured
+            }
+            image.isTemplate = false
+        } else {
+            image.isTemplate = true
+        }
+        return image
+    }
+
+    private func setupStatusItemHighlightObservers() {
+        let center = NotificationCenter.default
+        appActivationObserver = center.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateStatusItemHighlight()
+        }
+        appDeactivationObserver = center.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateStatusItemHighlight()
+        }
+        spaceChangeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateStatusItemHighlight()
+        }
     }
 
     func updateStatusItemIcon(systemSymbolName: String) {
+        statusItemBaseImage = makeStatusItemImage(systemSymbolName: systemSymbolName, tintColor: nil)
+        statusItemHighlightedImage = makeStatusItemImage(
+            systemSymbolName: systemSymbolName,
+            tintColor: NSColor.controlAccentColor
+        )
         if let button = statusItem?.button {
-            button.image = NSImage(
-                systemSymbolName: systemSymbolName,
-                accessibilityDescription: "Taskr"
-            )
+            button.image = statusItemBaseImage
+            button.alternateImage = nil
         }
+        updateStatusItemHighlight()
     }
 
     func setDockIconVisibility(show: Bool) {
@@ -695,6 +753,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         if let monitor = globalEventMonitor {
             NSEvent.removeMonitor(monitor)
             globalEventMonitor = nil
+        }
+        let center = NotificationCenter.default
+        if let observer = appActivationObserver {
+            center.removeObserver(observer)
+        }
+        if let observer = appDeactivationObserver {
+            center.removeObserver(observer)
+        }
+        if let observer = spaceChangeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
     }
 

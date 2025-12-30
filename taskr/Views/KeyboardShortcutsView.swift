@@ -61,7 +61,7 @@ struct KeyboardShortcutsView: View {
             Spacer()
         }
         .padding(16)
-        .frame(width: 300, height: 480)
+        .frame(width: 300, height: 520)
         .background {
             if taskManager.frostedBackgroundEnabled {
                 VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow, state: .active)
