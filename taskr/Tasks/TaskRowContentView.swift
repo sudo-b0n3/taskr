@@ -148,33 +148,19 @@ struct TaskRowContentView: View {
 
             Group {
                 if isEditing {
-                    TextField("", text: $editText)
-                        .textFieldStyle(.plain)
-                        .focused($isTextFieldFocused)
-                        .onSubmit { commitEdit() }
-                        .onExitCommand { cancelEdit() }
-                        .onMoveCommand { direction in
-                            guard isEditing else { return }
-                            switch direction {
-                            case .up:
-                                commitEdit()
-                                isTextFieldFocused = false
-                                taskManager.stepSelection(.up, extend: false)
-                            case .down:
-                                commitEdit()
-                                isTextFieldFocused = false
-                                taskManager.stepSelection(.down, extend: false)
-                            default:
-                                break
-                            }
-                        }
-                        .onChange(of: isTextFieldFocused) { _, isFocusedNow in
-                            if !isFocusedNow && isEditing { commitEdit() }
-                        }
-                        .taskrFont(.body)
-                        .padding(.horizontal, 2)
-                        .background(palette.inputBackgroundColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                    ExpandingTextEditor(
+                        text: $editText,
+                        isTextFieldFocused: $isTextFieldFocused,
+                        onSubmit: { commitEdit() },
+                        onCancel: { cancelEdit() }
+                    )
+                    .onChange(of: isTextFieldFocused) { _, isFocusedNow in
+                        if !isFocusedNow && isEditing { commitEdit() }
+                    }
+                    .taskrFont(.body)
+                    .padding(.horizontal, 2)
+                    .background(palette.inputBackgroundColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
                 } else {
                     AnimatedStrikeText(
                         text: task.name,

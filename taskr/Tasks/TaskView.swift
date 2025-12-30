@@ -322,8 +322,8 @@ private struct TaskInputHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                CustomTextField(
+            HStack(alignment: .top, spacing: 8) {
+                ExpandingTaskInput(
                     text: $inputState.text,
                     placeholder: "Type task or path /task/subtask",
                     onCommit: { taskManager.addTaskFromPath(); isInputFocused.wrappedValue = true },
@@ -357,6 +357,8 @@ private struct TaskInputHeader: View {
                 .padding(.horizontal, 10)
                 .background(palette.controlBackgroundColor)
                 .cornerRadius(10)
+                
+                // Button wrapped with matching vertical padding to align with input's first line
                 Button(action: { taskManager.addTaskFromPath(); isInputFocused.wrappedValue = true }) {
                     Image(systemName: "plus.circle.fill")
                         .taskrFont(.title2)
@@ -364,7 +366,8 @@ private struct TaskInputHeader: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 .focusable(false)
-                .padding(.leading, 4)
+                .padding(.vertical, 8) // Match the input field's vertical padding
+                .padding(.trailing, -4) // Pull closer to the edge
             }
             .padding(.bottom, 8)
 
