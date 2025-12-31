@@ -127,19 +127,20 @@ struct TaskRowContentView: View {
 
             Group {
                 if mode == .live {
-                    AnimatedCheckCircle(
-                        isOn: task.isCompleted,
-                        enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
-                        baseColor: rowSecondaryColor,
-                        accentColor: palette.accentColor
-                    )
-                        .frame(width: checkboxSize, height: checkboxSize)
-                        .contentShape(Rectangle().inset(by: -checkboxTapExpansion))
-                        .onTapGesture {
-                            releaseInputFocus?()
-                            taskManager.registerUserInteractionTap()
-                            taskManager.toggleTaskCompletion(task: task)
-                        }
+                    ClickThroughWrapper(onTap: {
+                        releaseInputFocus?()
+                        taskManager.registerUserInteractionTap()
+                        taskManager.toggleTaskCompletion(task: task)
+                    }) {
+                        AnimatedCheckCircle(
+                            isOn: task.isCompleted,
+                            enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
+                            baseColor: rowSecondaryColor,
+                            accentColor: palette.accentColor
+                        )
+                            .frame(width: checkboxSize, height: checkboxSize)
+                    }
+                    .frame(width: checkboxSize, height: checkboxSize)
                 } else {
                     Text("•").foregroundColor(palette.secondaryTextColor)
                 }
