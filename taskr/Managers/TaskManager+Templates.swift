@@ -199,6 +199,85 @@ extension TaskManager {
         // Use generic helper
         deleteTasks([task])
     }
+    
+    func duplicateTemplateTask(_ task: Task) {
+        guard task.isTemplateComponent else { return }
+        guard let parent = task.parentTask else { return }
+        
+        let copy = cloneTemplateSubtree(from: task, parent: parent)
+        
+        // Update display order to place after original
+        if let siblings = parent.subtasks?.sorted(by: { $0.displayOrder < $1.displayOrder }),
+           let originalIndex = siblings.firstIndex(where: { $0.id == task.id }) {
+            // Shift all tasks after the original to make room
+            for i in (originalIndex + 1)..<siblings.count {
+                siblings[i].displayOrder += 1
+            }
+            copy.displayOrder = task.displayOrder + 1
+        }
+        
+        try? modelContext.save()
+        resequenceTemplateDisplayOrder(for: parent)
+        invalidateChildTaskCache(for: .template)
+        
+        // Select the newly created copy
+        replaceSelection(with: copy.id)
+    }
+    
+    func createTemplateTasksFromParsed(entries: [ParsedTaskEntry], under parent: Task) {
+        guard parent.isTemplateComponent, !entries.isEmpty else { return }
+        
+        let minDepth = entries.map(\.depth).min() ?? 0
+        var taskStack: [(task: Task, depth: Int)] = []
+        var createdTasks: [Task] = []
+        
+        do {
+            for entry in entries {
+                let adjustedDepth = entry.depth - minDepth
+                
+                // Find the correct parent for this depth
+                let effectiveParent: Task
+                if adjustedDepth == 0 {
+                    effectiveParent = parent
+                } else {
+                    while let last = taskStack.last, last.depth >= adjustedDepth {
+                        taskStack.removeLast()
+                    }
+                    effectiveParent = taskStack.last?.task ?? parent
+                }
+                
+                let displayOrder = getNextDisplayOrderForTemplates(for: effectiveParent, in: modelContext)
+                
+                let newTask = Task(
+                    name: entry.name,
+                    isCompleted: entry.isCompleted,
+                    creationDate: Date(),
+                    displayOrder: displayOrder,
+                    isTemplateComponent: true,
+                    parentTask: effectiveParent
+                )
+                modelContext.insert(newTask)
+                createdTasks.append(newTask)
+                
+                taskStack.append((task: newTask, depth: adjustedDepth))
+            }
+            
+            try modelContext.save()
+            
+            // Expand parent to show pasted tasks
+            setTaskExpanded(parent.id, expanded: true)
+            
+            // Select the first created task
+            if let firstTask = createdTasks.first {
+                replaceSelection(with: firstTask.id)
+            }
+            
+            invalidateChildTaskCache(for: .template)
+        } catch {
+            modelContext.rollback()
+            print("Error pasting template tasks: \(error)")
+        }
+    }
 
     func fetchTemplateSiblings(for parent: Task?) throws -> [Task] {
         try fetchSiblings(for: parent, kind: .template)

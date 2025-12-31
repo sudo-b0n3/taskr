@@ -280,6 +280,10 @@ struct TaskRowContentView: View {
     
     @ViewBuilder
     private var templateActions: some View {
+        let selectedCount = selectionManager.selectedTaskIDs.count
+        let isSelected = selectionManager.isTaskSelected(taskID)
+        let multiSelectionActive = selectedCount > 1 && isSelected
+        
         HStack(spacing: 8) {
             Button {
                 taskManager.addTemplateSubtask(to: task)
@@ -291,14 +295,23 @@ struct TaskRowContentView: View {
             .help("Add a subtask under \(task.name)")
 
             Button {
-                taskManager.deleteTemplateTask(task)
+                if multiSelectionActive {
+                    for id in selectionManager.selectedTaskIDs {
+                        if let t = taskManager.task(withID: id), t.isTemplateComponent {
+                            taskManager.deleteTemplateTask(t)
+                        }
+                    }
+                    selectionManager.clearSelection()
+                } else {
+                    taskManager.deleteTemplateTask(task)
+                }
             } label: {
-                Label("Delete", systemImage: "trash")
+                Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
             .controlSize(.small)
             .foregroundColor(.red)
-            .help("Delete \(task.name) from this template")
+            .help(multiSelectionActive ? "Delete selected tasks" : "Delete \(task.name)")
         }
         .fixedSize()
         .frame(height: 22, alignment: .center)
@@ -393,19 +406,52 @@ struct TaskRowContentView: View {
                 Text(multiSelectionActive ? "Delete Selected (⌘⌫)" : "Delete (⌘⌫)")
             }
         } else if mode == .template {
-            Button("Edit") {
+            SelectionContextPrimingView(taskManager: taskManager, selectionManager: selectionManager, taskID: taskID)
+            let selectedCount = selectionManager.selectedTaskIDs.count
+            let isRowSelected = selectionManager.isTaskSelected(taskID)
+            let multiSelectionActive = selectedCount > 1 && isRowSelected
+            
+            Button("Edit (⏎)") {
                 taskManager.requestInlineEdit(for: taskID)
             }
-            Menu("Move") {
-                Button("↑ Up") {
+            .disabled(multiSelectionActive)
+            
+            Menu("Move (M+↑↓)") {
+                Button("↑ Up (M+↑)") {
                     taskManager.moveTemplateTaskUp(task)
                 }
                 .disabled(!taskManager.canMoveTemplateTaskUp(task))
 
-                Button("↓ Down") {
+                Button("↓ Down (M+↓)") {
                     taskManager.moveTemplateTaskDown(task)
                 }
                 .disabled(!taskManager.canMoveTemplateTaskDown(task))
+            }
+            
+            Button("Duplicate (⌘D)") {
+                taskManager.duplicateTemplateTask(task)
+            }
+            
+            Button("Add Subtask (⇧↩)") {
+                taskManager.addTemplateSubtask(to: task)
+            }
+            .disabled(multiSelectionActive)
+            
+            Divider()
+            
+            Button(role: .destructive) {
+                if multiSelectionActive {
+                    for id in selectionManager.selectedTaskIDs {
+                        if let t = taskManager.task(withID: id), t.isTemplateComponent {
+                            taskManager.deleteTemplateTask(t)
+                        }
+                    }
+                    selectionManager.clearSelection()
+                } else {
+                    taskManager.deleteTemplateTask(task)
+                }
+            } label: {
+                Text(multiSelectionActive ? "Delete Selected (⌘⌫)" : "Delete (⌘⌫)")
             }
         }
     }
@@ -522,12 +568,62 @@ struct TaskRowContentView: View {
         let modifiers = currentModifierFlags()
 
         if modifiers.contains(.shift) {
-            taskManager.extendSelection(to: taskID)
+            if mode == .template {
+                // For templates, we can't use taskManager.extendSelection which uses live task snapshot
+                // Instead, use selectionManager directly (the visible IDs will be computed by the caller context)
+                // Fall back to simple extend without range support for now
+                if selectionManager.selectionAnchorID == nil {
+                    selectionManager.replaceSelection(with: taskID)
+                } else {
+                    // Build visible template task IDs from cache
+                    let kind = TaskManager.TaskListKind.template
+                    taskManager.ensureChildCache(for: kind)
+                    let visibleIDs = buildVisibleTemplateIDs()
+                    selectionManager.extendSelection(to: taskID, visibleTaskIDs: visibleIDs)
+                }
+            } else {
+                taskManager.extendSelection(to: taskID)
+            }
         } else if modifiers.contains(.command) {
-            taskManager.toggleSelection(for: taskID)
+            if mode == .template {
+                let visibleIDs = buildVisibleTemplateIDs()
+                selectionManager.toggleSelection(for: taskID, visibleTaskIDs: visibleIDs)
+            } else {
+                taskManager.toggleSelection(for: taskID)
+            }
         } else {
             taskManager.replaceSelection(with: taskID)
         }
+    }
+    
+    private func buildVisibleTemplateIDs() -> [UUID] {
+        let kind = TaskManager.TaskListKind.template
+        taskManager.ensureChildCache(for: kind)
+        guard let childMap = taskManager.childTaskCache[kind] else { return [] }
+        
+        // Get all root template containers (those with nil parent that are containers)
+        var visibleIDs: [UUID] = []
+        
+        func collectVisible(parentID: UUID?) {
+            let children = childMap[parentID] ?? []
+            for child in children.sorted(by: { $0.displayOrder < $1.displayOrder }) {
+                // Skip internal container nodes (TEMPLATE_INTERNAL_ROOT_CONTAINER)
+                if child.name == "TEMPLATE_INTERNAL_ROOT_CONTAINER" {
+                    // Still recurse into its children if expanded
+                    if taskManager.isTaskExpanded(child.id) {
+                        collectVisible(parentID: child.id)
+                    }
+                } else {
+                    visibleIDs.append(child.id)
+                    if taskManager.isTaskExpanded(child.id) {
+                        collectVisible(parentID: child.id)
+                    }
+                }
+            }
+        }
+        
+        collectVisible(parentID: nil)
+        return visibleIDs
     }
     
     private func handleDoubleTapEdit() {
