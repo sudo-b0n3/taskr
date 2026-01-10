@@ -530,20 +530,31 @@ struct TaskRowContentView: View {
             }
         }
 
+        originalNameBeforeEdit = nil  // Clear FIRST to prevent race with cancelEdit
         isEditing = false
-        originalNameBeforeEdit = nil
     }
     
     private func cancelEdit() {
         guard isEditing else { return }
-        if let original = originalNameBeforeEdit {
+        
+        // Take the original name and clear immediately to prevent race conditions
+        guard let original = originalNameBeforeEdit else {
+            editText = task.name
+            isEditing = false
+            return
+        }
+        originalNameBeforeEdit = nil
+        
+        // Only revert if the task name hasn't already been modified (e.g., by commitEdit)
+        if task.name != original {
+            // Name was already changed (likely committed), don't revert
+            editText = task.name
+        } else {
+            // Name unchanged, safe to revert
             task.name = original
             editText = original
-        } else {
-            editText = task.name
         }
         isEditing = false
-        originalNameBeforeEdit = nil
     }
 
     private func handleInlineEditRequestIfNeeded() {
