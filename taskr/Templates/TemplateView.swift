@@ -53,12 +53,15 @@ struct TemplateView: View {
                 .background(palette.controlBackgroundColor)
                 .cornerRadius(10)
                 Button(action: { taskManager.addTemplate() }) {
-                    Label("Add Template", systemImage: "plus.circle")
+                    Image(systemName: "plus.circle.fill")
+                        .taskrFont(.title2)
+                        .foregroundColor(palette.accentColor)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(PlainButtonStyle())
+                .focusable(false)
                 .help("Create a new empty template")
-                .padding(.leading, 4)
+                .padding(.vertical, 8)
+                .padding(.trailing, -4)
             }
             .padding([.horizontal, .top]).padding(.bottom, 8) // Padding for this section
             // --- End Add Template Section ---

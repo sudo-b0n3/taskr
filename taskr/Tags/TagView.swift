@@ -27,16 +27,22 @@ struct TagView: View {
 
     private var addTagSection: some View {
         HStack(alignment: .top, spacing: 8) {
-            TextField("New Tag Phrase", text: $newTagPhrase)
-                .textFieldStyle(.plain)
-                .taskrFont(.body)
+            ExpandingTaskInput(
+                text: $newTagPhrase,
+                placeholder: "New Tag Phrase",
+                onCommit: { createTagFromDraft() },
+                onTextChange: { _ in },
+                onTab: { },
+                onShiftTab: { },
+                onArrowDown: { false },
+                onArrowUp: { false },
+                fieldTextColor: palette.primaryText,
+                placeholderTextColor: palette.secondaryText
+            )
                 .padding(.vertical, 8)
                 .padding(.horizontal, 10)
                 .background(palette.controlBackgroundColor)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .onSubmit {
-                    createTagFromDraft()
-                }
+                .cornerRadius(10)
 
             Menu {
                 colorSelectionMenu(selectedKey: selectedColorKey) { key in
@@ -47,17 +53,21 @@ struct TagView: View {
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
+            .frame(minWidth: 32, minHeight: 28)
             .fixedSize()
             .accessibilityLabel("Tag color")
             .accessibilityValue(TaskTagPalette.title(for: selectedColorKey))
             .help("Tag color")
 
             Button(action: createTagFromDraft) {
-                Label("Add Tag", systemImage: "plus.circle")
+                Image(systemName: "plus.circle.fill")
+                    .taskrFont(.title2)
+                    .foregroundColor(palette.accentColor)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(newTagPhrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .buttonStyle(PlainButtonStyle())
+            .focusable(false)
+            .padding(.vertical, 8)
+            .padding(.trailing, -4)
         }
         .padding([.horizontal, .top])
         .padding(.bottom, 8)
