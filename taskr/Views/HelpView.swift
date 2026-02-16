@@ -109,7 +109,7 @@ struct HelpView: View {
 
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Task.self, TaskTemplate.self, configurations: config)
+    let container = try! ModelContainer(for: Task.self, TaskTemplate.self, TaskTag.self, configurations: config)
     let taskManager = TaskManager(modelContext: container.mainContext)
     
     HelpView()

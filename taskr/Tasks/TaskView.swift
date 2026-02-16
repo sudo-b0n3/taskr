@@ -263,7 +263,7 @@ private extension TaskView {
 struct TaskView_Previews: PreviewProvider {
     static var previews: some View {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(for: Task.self, TaskTemplate.self, configurations: config)
+        let container = try! ModelContainer(for: Task.self, TaskTemplate.self, TaskTag.self, configurations: config)
         let taskManager = TaskManager(modelContext: container.mainContext)
         
         // Create some preview tasks with different display orders

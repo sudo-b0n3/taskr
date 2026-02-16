@@ -18,7 +18,7 @@ final class TaskManagerThemeTests: XCTestCase {
         defaults.removePersistentDomain(forName: suiteName)
         self.defaults = defaults
 
-        let schema = Schema([Task.self, TaskTemplate.self])
+        let schema = Schema([Task.self, TaskTemplate.self, TaskTag.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         container = try ModelContainer(for: schema, configurations: [configuration])
     }

@@ -15,7 +15,7 @@ struct ContentView: View {
     var isStandalone: Bool = false
 
     enum DisplayedView {
-        case tasks, templates, settings
+        case tasks, templates, tags, settings
     }
     @State private var currentView: DisplayedView = .tasks
 
@@ -125,11 +125,28 @@ struct ContentView: View {
             .accessibilityIdentifier("HeaderTasksButton")
             Divider().frame(height: 20).background(palette.dividerColor)
             Button(action: { currentView = .templates }) {
-                Text("Templates").padding(.vertical, 8).padding(.horizontal, 12).frame(maxWidth: .infinity).contentShape(Rectangle())
+                Image(systemName: "list.bullet")
                     .foregroundColor(currentView == .templates ? palette.accentColor : palette.primaryTextColor)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: hoverAnimEnabled))
             .accessibilityIdentifier("HeaderTemplatesButton")
+            .help("Templates")
+            .frame(width: 40)
+            Divider().frame(height: 20).background(palette.dividerColor)
+            Button(action: { currentView = .tags }) {
+                Image(systemName: "tag.fill")
+                    .foregroundColor(currentView == .tags ? palette.accentColor : palette.primaryTextColor)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(HeaderButtonStyle(palette: palette, animationsEnabled: hoverAnimEnabled))
+            .accessibilityIdentifier("HeaderTagsButton")
+            .help("Tags")
+            .frame(width: 40)
             Divider().frame(height: 20).background(palette.dividerColor)
             Button(action: { currentView = .settings }) {
                 Image(systemName: "gearshape.fill").foregroundColor(currentView == .settings ? palette.accentColor : palette.primaryTextColor)
@@ -172,6 +189,8 @@ struct ContentView: View {
                 TaskView()
             case .templates:
                 TemplateView()
+            case .tags:
+                TagView()
             case .settings:
                 SettingsView(configuresWindow: false)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -207,7 +226,7 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(for: Task.self, TaskTemplate.self, configurations: config)
+        let container = try! ModelContainer(for: Task.self, TaskTemplate.self, TaskTag.self, configurations: config)
         let taskManager = TaskManager(modelContext: container.mainContext)
         let appDelegate = AppDelegate()
 

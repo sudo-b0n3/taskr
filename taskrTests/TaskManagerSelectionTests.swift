@@ -10,7 +10,7 @@ final class TaskManagerSelectionTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        let schema = Schema([Task.self, TaskTemplate.self])
+        let schema = Schema([Task.self, TaskTemplate.self, TaskTag.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         container = try ModelContainer(for: schema, configurations: [configuration])
         manager = TaskManager(modelContext: container.mainContext)

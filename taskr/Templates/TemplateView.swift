@@ -667,7 +667,7 @@ private struct WindowAccessor: NSViewRepresentable {
 struct TemplateView_Previews: PreviewProvider {
     static var previews: some View {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(for: Task.self, TaskTemplate.self, configurations: config)
+        let container = try! ModelContainer(for: Task.self, TaskTemplate.self, TaskTag.self, configurations: config)
         let taskManager = TaskManager(modelContext: container.mainContext)
 
         let previewTemplateStructure = Task(name: "TEMPLATE_INTERNAL_ROOT_CONTAINER", isTemplateComponent: true)

@@ -118,101 +118,118 @@ struct TaskRowContentView: View {
     }
     
     var body: some View {
-        HStack(alignment: checkboxTopAligned ? .top : .center) {
-            // Lock icon indicator (shown only on the task that is locked, not children)
-            if mode == .live && task.isLocked {
-                Image(systemName: "lock.fill")
-                    .foregroundColor(rowSecondaryColor)
-                    .font(.caption)
-                    .frame(width: 12)
-            } else if mode == .live && isInLockedThread {
-                // Spacer to maintain indentation for children of locked tasks
-                Spacer()
-                    .frame(width: 12)
-            }
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: checkboxTopAligned ? .top : .center) {
+                // Lock icon indicator (shown only on the task that is locked, not children)
+                if mode == .live && task.isLocked {
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(rowSecondaryColor)
+                        .font(.caption)
+                        .frame(width: 12)
+                } else if mode == .live && isInLockedThread {
+                    // Spacer to maintain indentation for children of locked tasks
+                    Spacer()
+                        .frame(width: 12)
+                }
 
-            Group {
-                if mode == .live {
-                    ClickThroughWrapper(onTap: {
-                        releaseInputFocus?()
-                        taskManager.registerUserInteractionTap()
-                        taskManager.toggleTaskCompletion(task: task)
-                    }) {
-                        AnimatedCheckCircle(
-                            isOn: task.isCompleted,
-                            enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
-                            baseColor: rowSecondaryColor,
-                            accentColor: palette.accentColor
+                Group {
+                    if mode == .live {
+                        ClickThroughWrapper(onTap: {
+                            releaseInputFocus?()
+                            taskManager.registerUserInteractionTap()
+                            taskManager.toggleTaskCompletion(task: task)
+                        }) {
+                            AnimatedCheckCircle(
+                                isOn: task.isCompleted,
+                                enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
+                                baseColor: rowSecondaryColor,
+                                accentColor: palette.accentColor
+                            )
+                                .frame(width: checkboxSize, height: checkboxSize)
+                        }
+                        .frame(width: checkboxSize, height: checkboxSize)
+                    } else {
+                        Text("•").foregroundColor(palette.secondaryTextColor)
+                    }
+                }
+                .taskrFont(.body)
+
+                Group {
+                    if isEditing {
+                        ExpandingTextEditor(
+                            text: $editText,
+                            isTextFieldFocused: $isTextFieldFocused,
+                            onSubmit: { commitEdit() },
+                            onCancel: { cancelEdit() }
                         )
-                            .frame(width: checkboxSize, height: checkboxSize)
+                        .onChange(of: isTextFieldFocused) { _, isFocusedNow in
+                            if !isFocusedNow && isEditing { commitEdit() }
+                        }
+                        .taskrFont(.body)
+                        .padding(.horizontal, 2)
+                        .background(palette.inputBackgroundColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                    } else {
+                        AnimatedStrikeText(
+                            text: task.name,
+                            isStruck: task.isCompleted || hasCompletedAncestor,
+                            enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
+                            strikeColor: rowSecondaryColor
+                        )
+                        .taskrFont(.body)
+                        .padding(.horizontal, 2)
                     }
-                    .frame(width: checkboxSize, height: checkboxSize)
-                } else {
-                    Text("•").foregroundColor(palette.secondaryTextColor)
                 }
-            }
-            .taskrFont(.body)
+                .layoutPriority(1)
 
-            Group {
-                if isEditing {
-                    ExpandingTextEditor(
-                        text: $editText,
-                        isTextFieldFocused: $isTextFieldFocused,
-                        onSubmit: { commitEdit() },
-                        onCancel: { cancelEdit() }
-                    )
-                    .onChange(of: isTextFieldFocused) { _, isFocusedNow in
-                        if !isFocusedNow && isEditing { commitEdit() }
-                    }
-                    .taskrFont(.body)
-                    .padding(.horizontal, 2)
-                    .background(palette.inputBackgroundColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
-                } else {
-                    AnimatedStrikeText(
-                        text: task.name,
-                        isStruck: task.isCompleted || hasCompletedAncestor,
-                        enabled: taskManager.animationsMasterEnabled && completionAnimationsEnabled,
-                        strikeColor: rowSecondaryColor
-                    )
-                    .taskrFont(.body)
-                    .padding(.horizontal, 2)
-                }
-            }
-            .layoutPriority(1)
+                Spacer()
 
-            Spacer()
-
-            if hasExpandableChildren {
-                Image(systemName: "chevron.right")
-                    .rotationEffect(.degrees(chevronExpanded ? 90 : 0))
-                    .taskrFont(.caption)
-                    .foregroundColor(palette.secondaryTextColor)
-                    .padding(5)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        taskManager.registerUserInteractionTap()
-                        taskManager.toggleTaskExpansion(taskID)
-                    }
-                    .onAppear {
-                        chevronExpanded = isExpanded
-                    }
-                    .onChange(of: isExpanded) { _, newValue in
-                        if chevronAnimEnabled {
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                if hasExpandableChildren {
+                    Image(systemName: "chevron.right")
+                        .rotationEffect(.degrees(chevronExpanded ? 90 : 0))
+                        .taskrFont(.caption)
+                        .foregroundColor(palette.secondaryTextColor)
+                        .padding(5)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            taskManager.registerUserInteractionTap()
+                            taskManager.toggleTaskExpansion(taskID)
+                        }
+                        .onAppear {
+                            chevronExpanded = isExpanded
+                        }
+                        .onChange(of: isExpanded) { _, newValue in
+                            if chevronAnimEnabled {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    chevronExpanded = newValue
+                                }
+                            } else {
                                 chevronExpanded = newValue
                             }
-                        } else {
-                            chevronExpanded = newValue
                         }
-                    }
-                    .onChange(of: chevronAnimEnabled) { _, _ in
-                        chevronExpanded = isExpanded
-                    }
+                        .onChange(of: chevronAnimEnabled) { _, _ in
+                            chevronExpanded = isExpanded
+                        }
+                }
+
+                if mode == .template {
+                    templateActions
+                }
             }
 
-            if mode == .template {
-                templateActions
+            if mode == .live && !displayTags.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(displayTags, id: \.id) { tag in
+                        Text(tag.phrase)
+                            .taskrFont(.caption)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(TaskTagPalette.color(for: tag.colorKey))
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                    }
+                }
+                .padding(.leading, tagChipLeadingPadding)
             }
         }
         .padding(.horizontal)
@@ -384,6 +401,35 @@ struct TaskRowContentView: View {
                 }
             }
             .disabled(multiSelectionActive)
+            Menu("Tags") {
+                let allTags = taskManager.fetchAllTags()
+                let selectedLiveTasks = multiSelectionActive
+                    ? taskManager.selectedTaskIDs.compactMap { id -> Task? in
+                        guard let candidate = taskManager.task(withID: id),
+                              !candidate.isTemplateComponent else { return nil }
+                        return candidate
+                    }
+                    : [task]
+                if allTags.isEmpty {
+                    Button("No tags created") { }
+                        .disabled(true)
+                } else {
+                    ForEach(allTags, id: \.id) { tag in
+                        Button {
+                            taskManager.toggleTag(tag, for: selectedLiveTasks)
+                        } label: {
+                            let appliedToAll = !selectedLiveTasks.isEmpty && selectedLiveTasks.allSatisfy { candidate in
+                                (candidate.tags ?? []).contains(where: { $0.id == tag.id })
+                            }
+                            if appliedToAll {
+                                Label(tag.phrase, systemImage: "checkmark")
+                            } else {
+                                Text(tag.phrase)
+                            }
+                        }
+                    }
+                }
+            }
             Divider()
             if !taskManager.selectedTaskIDs.isEmpty {
                 Button("Copy Selected Tasks (⌘C)") {
@@ -494,6 +540,19 @@ struct TaskRowContentView: View {
             taskManager.noteOrphanedTask(id: taskID, context: "TaskRowView.hasCompletedAncestor")
         }
         return taskManager.hasCompletedAncestorCached(for: taskID, kind: listKind)
+    }
+
+    private var displayTags: [TaskTag] {
+        guard mode == .live else { return [] }
+        return taskManager.tagsForDisplay(on: task)
+    }
+
+    private var tagChipLeadingPadding: CGFloat {
+        var indent = checkboxSize + 8
+        if task.isLocked || isInLockedThread {
+            indent += 12 + 8
+        }
+        return indent
     }
 
     private var isInLockedThread: Bool {

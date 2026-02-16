@@ -38,6 +38,7 @@ struct taskrApp: App {
             let schema = Schema([
                 Task.self,
                 TaskTemplate.self,
+                TaskTag.self,
             ])
             let config: ModelConfiguration
             if isScreenshotCapture {
