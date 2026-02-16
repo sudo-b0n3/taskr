@@ -144,6 +144,29 @@ final class TaskManagerSelectionTests: XCTestCase {
         XCTAssertEqual(selectedNames, ["Task Alpha (copy)", "Task Beta (copy)"])
     }
 
+    func testDuplicateSelectedTasksSelectionOrderMatchesVisibleOrderAcrossParents() throws {
+        let roots = try seedRootTasks(names: ["Parent A", "Parent B"])
+        let parentA = roots[0]
+        let parentB = roots[1]
+
+        let childA = Task(name: "A Child", displayOrder: 0, isTemplateComponent: false, parentTask: parentA)
+        let childB = Task(name: "B Child", displayOrder: 0, isTemplateComponent: false, parentTask: parentB)
+        container.mainContext.insert(childA)
+        container.mainContext.insert(childB)
+        parentA.subtasks?.append(childA)
+        parentB.subtasks?.append(childB)
+        try container.mainContext.save()
+
+        _ = manager.snapshotVisibleTaskIDs() // Warm cache to guard against stale-order regressions
+
+        manager.replaceSelection(with: childB.id)
+        manager.toggleSelection(for: childA.id)
+        manager.duplicateSelectedTasks()
+
+        let selectedNames = manager.selectedTaskIDs.compactMap { manager.task(withID: $0)?.name }
+        XCTAssertEqual(selectedNames, ["A Child (copy)", "B Child (copy)"])
+    }
+
     func testMoveSelectedTasksUpAsBlock() throws {
         let tasks = try seedRootTasks(names: ["Root A", "Root B", "Root C"])
         let rootA = tasks[0]
@@ -244,6 +267,33 @@ final class TaskManagerSelectionTests: XCTestCase {
         manager.endShiftSelection()
 
         XCTAssertEqual(manager.selectedTaskIDs, [beta.id, tasks[2].id, delta.id])
+    }
+
+    func testSelectionStateNotifiesWhenRowRemainsSelectedButSelectionExpands() throws {
+        let tasks = try seedRootTasks(names: ["Alpha", "Beta"])
+        let alpha = tasks[0]
+        let beta = tasks[1]
+
+        let alphaState = manager.selectionManager.selectionState(for: alpha.id)
+        manager.replaceSelection(with: alpha.id)
+        let generationAfterSingleSelect = alphaState.selectionGeneration
+
+        manager.toggleSelection(for: beta.id)
+
+        XCTAssertTrue(manager.selectedTaskIDs.contains(alpha.id))
+        XCTAssertEqual(manager.selectedTaskIDs.count, 2)
+        XCTAssertGreaterThan(alphaState.selectionGeneration, generationAfterSingleSelect)
+    }
+
+    func testDeletingTaskPrunesSelectionStateCacheForDeletedID() throws {
+        let tasks = try seedRootTasks(names: ["Alpha"])
+        let alpha = tasks[0]
+
+        let originalState = manager.selectionManager.selectionState(for: alpha.id)
+        manager.deleteTask(alpha)
+
+        let replacementState = manager.selectionManager.selectionState(for: alpha.id)
+        XCTAssertFalse(originalState === replacementState)
     }
 
     func testCopySelectedTasksFormatsExpectedOutput() throws {

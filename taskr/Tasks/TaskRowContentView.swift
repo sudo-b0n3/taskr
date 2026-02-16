@@ -5,10 +5,10 @@ import AppKit
 struct TaskRowContentView: View {
     @Bindable var task: Task
     var mode: TaskRowView.RowMode
+    @ObservedObject var selectionState: TaskSelectionState
     var releaseInputFocus: (() -> Void)?
     
     @EnvironmentObject var taskManager: TaskManager
-    @EnvironmentObject var selectionManager: SelectionManager
     @Environment(\.isWindowFocused) var isWindowFocused
     @Environment(\.isLiveScrolling) var isLiveScrolling
     @Environment(\.taskrFontScale) var fontScale
@@ -28,9 +28,15 @@ struct TaskRowContentView: View {
     private let checkboxSize: CGFloat = 18
     private let checkboxTapExpansion: CGFloat = 6
     
-    init(task: Task, mode: TaskRowView.RowMode, releaseInputFocus: (() -> Void)?) {
+    init(
+        task: Task,
+        mode: TaskRowView.RowMode,
+        selectionState: TaskSelectionState,
+        releaseInputFocus: (() -> Void)?
+    ) {
         self._task = Bindable(task)
         self.mode = mode
+        self.selectionState = selectionState
         self.releaseInputFocus = releaseInputFocus
         self.taskID = task.id
     }
@@ -70,7 +76,7 @@ struct TaskRowContentView: View {
     
     private var palette: ThemePalette { taskManager.themePalette }
     private var isSelected: Bool {
-        selectionManager.isTaskSelected(taskID)
+        selectionState.isSelected
     }
     
     private var hoverHighlightsEnabled: Bool {
@@ -269,7 +275,7 @@ struct TaskRowContentView: View {
         .onChange(of: taskManager.pendingInlineEditTaskID) { _, _ in
             handleInlineEditRequestIfNeeded()
         }
-        .onChange(of: selectionManager.selectedTaskIDs) { _, _ in
+        .onChange(of: selectionState.selectionGeneration) { _, _ in
             handleSelectionChangeWhileEditing()
         }
         .onAppear {
@@ -281,8 +287,8 @@ struct TaskRowContentView: View {
     
     @ViewBuilder
     private var templateActions: some View {
-        let selectedCount = selectionManager.selectedTaskIDs.count
-        let isSelected = selectionManager.isTaskSelected(taskID)
+        let selectedCount = taskManager.selectedTaskIDs.count
+        let isSelected = taskManager.isTaskSelected(taskID)
         let multiSelectionActive = selectedCount > 1 && isSelected
         
         HStack(spacing: 8) {
@@ -297,12 +303,12 @@ struct TaskRowContentView: View {
 
             Button {
                 if multiSelectionActive {
-                    for id in selectionManager.selectedTaskIDs {
+                    for id in taskManager.selectedTaskIDs {
                         if let t = taskManager.task(withID: id), t.isTemplateComponent {
                             taskManager.deleteTemplateTask(t)
                         }
                     }
-                    selectionManager.clearSelection()
+                    taskManager.clearSelection()
                 } else {
                     taskManager.deleteTemplateTask(task)
                 }
@@ -321,9 +327,9 @@ struct TaskRowContentView: View {
     @ViewBuilder
     private func menuContent() -> some View {
         if mode == .live {
-            SelectionContextPrimingView(taskManager: taskManager, selectionManager: selectionManager, taskID: taskID)
-            let selectedCount = selectionManager.selectedTaskIDs.count
-            let isRowSelected = selectionManager.isTaskSelected(taskID)
+            SelectionContextPrimingView(taskManager: taskManager, taskID: taskID)
+            let selectedCount = taskManager.selectedTaskIDs.count
+            let isRowSelected = taskManager.isTaskSelected(taskID)
             let multiSelectionActive = selectedCount > 1 && isRowSelected
             let canMoveUp = multiSelectionActive ? taskManager.canMoveSelectedTasksUp() : taskManager.canMoveTaskUp(task)
             let canMoveDown = multiSelectionActive ? taskManager.canMoveSelectedTasksDown() : taskManager.canMoveTaskDown(task)
@@ -379,7 +385,7 @@ struct TaskRowContentView: View {
             }
             .disabled(multiSelectionActive)
             Divider()
-            if !selectionManager.selectedTaskIDs.isEmpty {
+            if !taskManager.selectedTaskIDs.isEmpty {
                 Button("Copy Selected Tasks (⌘C)") {
                     taskManager.copySelectedTasksToPasteboard()
                 }
@@ -407,9 +413,9 @@ struct TaskRowContentView: View {
                 Text(multiSelectionActive ? "Delete Selected (⌘⌫)" : "Delete (⌘⌫)")
             }
         } else if mode == .template {
-            SelectionContextPrimingView(taskManager: taskManager, selectionManager: selectionManager, taskID: taskID)
-            let selectedCount = selectionManager.selectedTaskIDs.count
-            let isRowSelected = selectionManager.isTaskSelected(taskID)
+            SelectionContextPrimingView(taskManager: taskManager, taskID: taskID)
+            let selectedCount = taskManager.selectedTaskIDs.count
+            let isRowSelected = taskManager.isTaskSelected(taskID)
             let multiSelectionActive = selectedCount > 1 && isRowSelected
             
             Button("Edit (⏎)") {
@@ -442,12 +448,12 @@ struct TaskRowContentView: View {
             
             Button(role: .destructive) {
                 if multiSelectionActive {
-                    for id in selectionManager.selectedTaskIDs {
+                    for id in taskManager.selectedTaskIDs {
                         if let t = taskManager.task(withID: id), t.isTemplateComponent {
                             taskManager.deleteTemplateTask(t)
                         }
                     }
-                    selectionManager.clearSelection()
+                    taskManager.clearSelection()
                 } else {
                     taskManager.deleteTemplateTask(task)
                 }
@@ -459,7 +465,6 @@ struct TaskRowContentView: View {
 
     private struct SelectionContextPrimingView: View {
         let taskManager: TaskManager
-        let selectionManager: SelectionManager
         let taskID: UUID
 
         var body: some View {
@@ -468,7 +473,7 @@ struct TaskRowContentView: View {
                 .onAppear {
                     guard isContextMenuInvocation else { return }
                     DispatchQueue.main.async {
-                        if !selectionManager.isTaskSelected(taskID) {
+                        if !taskManager.isTaskSelected(taskID) {
                             taskManager.replaceSelection(with: taskID)
                         }
                     }
@@ -566,9 +571,7 @@ struct TaskRowContentView: View {
     
     private func handleSelectionChangeWhileEditing() {
         guard isEditing else { return }
-        let selectedIDs = selectionManager.selectedTaskIDs
-        // If selection moves away or includes multiple tasks, finalize the edit like Finder.
-        if selectedIDs.count != 1 || selectedIDs.first != taskID {
+        if !selectionState.isSelected || taskManager.selectedTaskIDs.count != 1 {
             isTextFieldFocused = false
             commitEdit()
         }
@@ -581,17 +584,14 @@ struct TaskRowContentView: View {
 
         if modifiers.contains(.shift) {
             if mode == .template {
-                // For templates, we can't use taskManager.extendSelection which uses live task snapshot
-                // Instead, use selectionManager directly (the visible IDs will be computed by the caller context)
-                // Fall back to simple extend without range support for now
-                if selectionManager.selectionAnchorID == nil {
-                    selectionManager.replaceSelection(with: taskID)
+                if taskManager.selectionAnchorID == nil {
+                    taskManager.replaceSelection(with: taskID)
                 } else {
                     // Build visible template task IDs from cache
                     let kind = TaskManager.TaskListKind.template
                     taskManager.ensureChildCache(for: kind)
                     let visibleIDs = buildVisibleTemplateIDs()
-                    selectionManager.extendSelection(to: taskID, visibleTaskIDs: visibleIDs)
+                    taskManager.extendSelection(to: taskID, visibleTaskIDs: visibleIDs)
                 }
             } else {
                 taskManager.extendSelection(to: taskID)
@@ -599,7 +599,7 @@ struct TaskRowContentView: View {
         } else if modifiers.contains(.command) {
             if mode == .template {
                 let visibleIDs = buildVisibleTemplateIDs()
-                selectionManager.toggleSelection(for: taskID, visibleTaskIDs: visibleIDs)
+                taskManager.toggleSelection(for: taskID, visibleTaskIDs: visibleIDs)
             } else {
                 taskManager.toggleSelection(for: taskID)
             }
@@ -640,7 +640,7 @@ struct TaskRowContentView: View {
     
     private func handleDoubleTapEdit() {
         taskManager.registerUserInteractionTap()
-        if !selectionManager.isTaskSelected(taskID) {
+        if !taskManager.isTaskSelected(taskID) {
             taskManager.replaceSelection(with: taskID)
         }
         startEditing()

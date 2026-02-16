@@ -163,30 +163,32 @@ extension TaskManager {
                 print("Error duplicating selected tasks: \(error)")
                 return
             }
+        }
 
-            let visibleIDs = snapshotVisibleTaskIDs()
-            var remaining = Set(duplicatedIDs)
-            var orderedDuplicates: [UUID] = []
-            orderedDuplicates.reserveCapacity(duplicatedIDs.count)
+        guard !duplicatedIDs.isEmpty else { return }
 
-            for id in visibleIDs where remaining.contains(id) {
+        let visibleIDs = snapshotVisibleTaskIDs()
+        var remaining = Set(duplicatedIDs)
+        var orderedDuplicates: [UUID] = []
+        orderedDuplicates.reserveCapacity(duplicatedIDs.count)
+
+        for id in visibleIDs where remaining.contains(id) {
+            orderedDuplicates.append(id)
+            remaining.remove(id)
+        }
+        if !remaining.isEmpty {
+            for id in duplicatedIDs where remaining.contains(id) {
                 orderedDuplicates.append(id)
                 remaining.remove(id)
             }
-            if !remaining.isEmpty {
-                for id in duplicatedIDs where remaining.contains(id) {
-                    orderedDuplicates.append(id)
-                    remaining.remove(id)
-                }
-            }
+        }
 
-            if !orderedDuplicates.isEmpty {
-                selectTasks(
-                    orderedIDs: orderedDuplicates,
-                    anchor: orderedDuplicates.first,
-                    cursor: orderedDuplicates.last
-                )
-            }
+        if !orderedDuplicates.isEmpty {
+            selectTasks(
+                orderedIDs: orderedDuplicates,
+                anchor: orderedDuplicates.first,
+                cursor: orderedDuplicates.last
+            )
         }
     }
 
@@ -208,7 +210,7 @@ extension TaskManager {
             lowestSelectedIndex = selectedIndices.min()
         }
 
-        performListMutation {
+        performListMutation(invalidateChildCache: willMoveToBottom) {
             for task in targets {
                 task.isCompleted = true
             }
@@ -247,7 +249,7 @@ extension TaskManager {
         let targets = selectedLiveTasks().filter { $0.isCompleted }
         guard !targets.isEmpty else { return }
 
-        performListMutation {
+        performListMutation(invalidateChildCache: false) {
             for task in targets {
                 task.isCompleted = false
             }
@@ -426,7 +428,7 @@ extension TaskManager {
         }
         
         var isCompletedNow = false
-        performListMutation {
+        performListMutation(invalidateChildCache: willMoveToBottom && !task.isCompleted) {
             task.isCompleted.toggle()
             isCompletedNow = task.isCompleted
             if isCompletedNow {
@@ -715,7 +717,6 @@ extension TaskManager {
         guard !completed.isEmpty else { return }
 
         let grouped = Dictionary(grouping: completed) { $0.parentTask }
-        var didReorder = false
         for (parent, group) in grouped {
             do {
                 var siblings = try fetchSiblings(for: parent, kind: .live)
@@ -737,15 +738,9 @@ extension TaskManager {
                 for (index, task) in siblings.enumerated() {
                     task.displayOrder = index
                 }
-                didReorder = true
             } catch {
                 continue
             }
-        }
-        if didReorder {
-            invalidateVisibleTasksCache()
-            invalidateChildTaskCache(for: .live)
-            objectWillChange.send()
         }
     }
 

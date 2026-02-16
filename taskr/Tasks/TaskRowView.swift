@@ -56,7 +56,12 @@ struct TaskRowView: View {
     private var renderedRow: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Use the isolated content view for the row itself
-            TaskRowContentView(task: task, mode: mode, releaseInputFocus: releaseInputFocus)
+            TaskRowContentView(
+                task: task,
+                mode: mode,
+                selectionState: taskManager.selectionManager.selectionState(for: taskID),
+                releaseInputFocus: releaseInputFocus
+            )
 
             // Recursively render children if expanded
             if isExpanded && !displaySubtasks.isEmpty {

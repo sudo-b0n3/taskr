@@ -87,9 +87,14 @@ class TaskManager: ObservableObject {
 
     var visibleLiveTasksCache: [Task]? = nil
     var visibleLiveTasksWithDepthCache: [(task: Task, depth: Int)]? = nil
+    var visibleLiveTaskIDsCache: [UUID]? = nil
+    private(set) var visibleCacheVersion: UInt64 = 0
     var childTaskCache: [TaskListKind: [UUID?: [Task]]] = [:]
     var taskIndexCache: [TaskListKind: [UUID: Task]] = [:]
     var completedAncestorCache: [TaskListKind: [UUID: Bool]] = [:]
+    private var activeShiftDragVisibleIDs: [UUID]? = nil
+    private var activeShiftDragVisibleCacheVersion: UInt64 = 0
+    private var activeShiftDragLastTargetID: UUID? = nil
     private var orphanedTaskLog: Set<UUID> = []
 
     private var cancellables = Set<AnyCancellable>()
@@ -256,9 +261,17 @@ class TaskManager: ObservableObject {
     func toggleSelection(for id: UUID) {
         selectionManager.toggleSelection(for: id, visibleTaskIDs: snapshotVisibleTaskIDs())
     }
+
+    func toggleSelection(for id: UUID, visibleTaskIDs: [UUID]) {
+        selectionManager.toggleSelection(for: id, visibleTaskIDs: visibleTaskIDs)
+    }
     
     func extendSelection(to id: UUID) {
         selectionManager.extendSelection(to: id, visibleTaskIDs: snapshotVisibleTaskIDs())
+    }
+
+    func extendSelection(to id: UUID, visibleTaskIDs: [UUID]) {
+        selectionManager.extendSelection(to: id, visibleTaskIDs: visibleTaskIDs)
     }
     
     func selectTasks(orderedIDs: [UUID], anchor: UUID?, cursor: UUID?) {
@@ -270,8 +283,15 @@ class TaskManager: ObservableObject {
     }
     
     func updateShiftSelection(to targetID: UUID) {
-        let visibleIDs = snapshotVisibleTaskIDs()
+        guard selectionCursorID != targetID || !shiftSelectionActive else { return }
+        let visibleIDs = shiftDragVisibleIDs()
+        guard !visibleIDs.isEmpty else { return }
         selectionManager.updateShiftSelection(to: targetID, visibleTaskIDs: visibleIDs)
+    }
+
+    func updateShiftSelection(to targetID: UUID, visibleTaskIDs: [UUID]) {
+        guard selectionCursorID != targetID || !shiftSelectionActive else { return }
+        selectionManager.updateShiftSelection(to: targetID, visibleTaskIDs: visibleTaskIDs)
     }
 
     func endShiftSelection() {
@@ -304,6 +324,8 @@ class TaskManager: ObservableObject {
     func invalidateVisibleTasksCache() {
         visibleLiveTasksCache = nil
         visibleLiveTasksWithDepthCache = nil
+        visibleLiveTaskIDsCache = nil
+        visibleCacheVersion &+= 1
         invalidateCompletionCache(for: .live)
     }
 
@@ -398,10 +420,16 @@ class TaskManager: ObservableObject {
     }
 
     @discardableResult
-    func performListMutation<Result>(_ body: () -> Result) -> Result {
+    func performListMutation<Result>(
+        invalidateChildCache: Bool = true,
+        _ body: () -> Result
+    ) -> Result {
+        let result = animationManager.performListMutation(body)
         invalidateVisibleTasksCache()
-        invalidateChildTaskCache(for: nil)
-        return animationManager.performListMutation(body)
+        if invalidateChildCache {
+            invalidateChildTaskCache(for: nil)
+        }
+        return result
     }
 
     @discardableResult
@@ -522,7 +550,8 @@ class TaskManager: ObservableObject {
         // We need to calculate the target task ID based on the offset and row heights.
         // This requires visible tasks and their heights.
         
-        let visibleIDs = snapshotVisibleTaskIDs()
+        let visibleIDs = shiftDragVisibleIDs()
+        guard !visibleIDs.isEmpty else { return }
         
         guard let startIndex = visibleIDs.firstIndex(of: startTaskID) else { return }
         
@@ -552,17 +581,27 @@ class TaskManager: ObservableObject {
         }
         
         let targetID = visibleIDs[targetIndex]
-        updateShiftSelection(to: targetID)
+        guard activeShiftDragLastTargetID != targetID else { return }
+        activeShiftDragLastTargetID = targetID
+        updateShiftSelection(to: targetID, visibleTaskIDs: visibleIDs)
     }
     
     func resetShiftDragTracking() {
-        // Any cleanup if needed in managers
+        activeShiftDragVisibleIDs = nil
+        activeShiftDragVisibleCacheVersion = 0
+        activeShiftDragLastTargetID = nil
     }
 
     // Helper to get flattened visible IDs (re-implementing or exposing if it was private)
     // Helper to get flattened visible IDs
     func snapshotVisibleTaskIDs() -> [UUID] {
-        snapshotVisibleTasks().map(\.id)
+        if let cached = visibleLiveTaskIDsCache {
+            return cached
+        }
+        let visible = snapshotVisibleTasksWithDepth()
+        let ids = visible.map { $0.task.id }
+        visibleLiveTaskIDsCache = ids
+        return ids
     }
     
     // Re-adding fetchSiblings since it was used in the original code but might be private/missing in my replacement
@@ -575,5 +614,16 @@ class TaskManager: ObservableObject {
 #if DEBUG
         print("TaskManager notice: encountered orphaned task \(id) during \(context)")
 #endif
+    }
+
+    private func shiftDragVisibleIDs() -> [UUID] {
+        if let cached = activeShiftDragVisibleIDs,
+           activeShiftDragVisibleCacheVersion == visibleCacheVersion {
+            return cached
+        }
+        let visibleIDs = snapshotVisibleTaskIDs()
+        activeShiftDragVisibleIDs = visibleIDs
+        activeShiftDragVisibleCacheVersion = visibleCacheVersion
+        return visibleIDs
     }
 }

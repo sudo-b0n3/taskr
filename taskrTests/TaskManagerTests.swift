@@ -732,6 +732,60 @@ final class TaskManagerTests: XCTestCase {
         XCTAssertTrue(manager.collapsedTaskIDs.isEmpty)
     }
 
+    func testSelectionStateNotifiesWhenSelectionExpandsAroundSelectedTask() throws {
+        manager.addTaskFromPath(pathOverride: "/Alpha")
+        manager.addTaskFromPath(pathOverride: "/Beta")
+
+        guard let alpha = manager.findUserTask(named: "Alpha", under: nil),
+              let beta = manager.findUserTask(named: "Beta", under: nil) else {
+            return XCTFail("Expected Alpha/Beta root tasks")
+        }
+
+        let alphaState = manager.selectionManager.selectionState(for: alpha.id)
+        manager.replaceSelection(with: alpha.id)
+        let generationAfterSingleSelect = alphaState.selectionGeneration
+
+        manager.toggleSelection(for: beta.id)
+
+        XCTAssertTrue(manager.selectedTaskIDs.contains(alpha.id))
+        XCTAssertEqual(manager.selectedTaskIDs.count, 2)
+        XCTAssertGreaterThan(alphaState.selectionGeneration, generationAfterSingleSelect)
+    }
+
+    func testDeleteTaskPrunesSelectionStateCacheForDeletedTaskID() throws {
+        manager.addTaskFromPath(pathOverride: "/Alpha")
+        guard let alpha = manager.findUserTask(named: "Alpha", under: nil) else {
+            return XCTFail("Expected Alpha root task")
+        }
+
+        let originalState = manager.selectionManager.selectionState(for: alpha.id)
+        manager.deleteTask(alpha)
+
+        let replacementState = manager.selectionManager.selectionState(for: alpha.id)
+        XCTAssertFalse(originalState === replacementState)
+    }
+
+    func testDuplicateSelectedTasksSelectionOrderAcrossParentsMatchesVisibleOrder() throws {
+        manager.addTaskFromPath(pathOverride: "/Parent A/A Child")
+        manager.addTaskFromPath(pathOverride: "/Parent B/B Child")
+
+        guard let parentA = manager.findUserTask(named: "Parent A", under: nil),
+              let parentB = manager.findUserTask(named: "Parent B", under: nil),
+              let childA = manager.findUserTask(named: "A Child", under: parentA),
+              let childB = manager.findUserTask(named: "B Child", under: parentB) else {
+            return XCTFail("Expected parent/child hierarchy")
+        }
+
+        _ = manager.snapshotVisibleTaskIDs() // Warm cache to catch stale-order regressions.
+
+        manager.replaceSelection(with: childB.id)
+        manager.toggleSelection(for: childA.id)
+        manager.duplicateSelectedTasks()
+
+        let selectedNames = manager.selectedTaskIDs.compactMap { manager.task(withID: $0)?.name }
+        XCTAssertEqual(selectedNames, ["A Child (copy)", "B Child (copy)"])
+    }
+
     @discardableResult
     private func seedLinearHierarchy(rootName: String, childCount: Int) throws -> Task? {
         manager.addTaskFromPath(pathOverride: "/\(rootName)")

@@ -2,11 +2,32 @@ import SwiftUI
 import Combine
 
 @MainActor
+final class TaskSelectionState: ObservableObject {
+    @Published fileprivate(set) var isSelected: Bool = false
+    @Published fileprivate(set) var selectionGeneration: UInt64 = 0
+
+    fileprivate func setSelected(_ selected: Bool) {
+        guard isSelected != selected else { return }
+        isSelected = selected
+        selectionGeneration &+= 1
+    }
+
+    fileprivate func notifySelectionContextChanged() {
+        selectionGeneration &+= 1
+    }
+}
+
+@MainActor
 class SelectionManager: ObservableObject {
     @Published var selectedTaskIDs: [UUID] = [] {
-        didSet { selectedTaskIDSet = Set(selectedTaskIDs) }
+        didSet {
+            let previousSet = selectedTaskIDSet
+            selectedTaskIDSet = Set(selectedTaskIDs)
+            updateSelectionStates(previous: previousSet, current: selectedTaskIDSet)
+        }
     }
     private(set) var selectedTaskIDSet: Set<UUID> = []
+    private var rowSelectionStates: [UUID: TaskSelectionState] = [:]
     
     var selectionAnchorID: UUID?
     @Published var selectionCursorID: UUID?
@@ -27,6 +48,23 @@ class SelectionManager: ObservableObject {
     
     func isTaskSelected(_ id: UUID) -> Bool {
         selectedTaskIDSet.contains(id)
+    }
+
+    func selectionState(for id: UUID) -> TaskSelectionState {
+        if let existing = rowSelectionStates[id] {
+            return existing
+        }
+        let created = TaskSelectionState()
+        created.setSelected(selectedTaskIDSet.contains(id))
+        rowSelectionStates[id] = created
+        return created
+    }
+
+    func forgetSelectionStates(for ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        for id in ids where !selectedTaskIDSet.contains(id) {
+            rowSelectionStates.removeValue(forKey: id)
+        }
     }
     
     var isShiftSelectionInProgress: Bool {
@@ -172,5 +210,28 @@ class SelectionManager: ObservableObject {
         }
 
         return ordered
+    }
+
+    private func updateSelectionStates(previous: Set<UUID>, current: Set<UUID>) {
+        let removed = previous.subtracting(current)
+        for id in removed {
+            rowSelectionStates[id]?.setSelected(false)
+        }
+
+        let added = current.subtracting(previous)
+        for id in added {
+            if let state = rowSelectionStates[id] {
+                state.setSelected(true)
+            } else {
+                let created = TaskSelectionState()
+                created.setSelected(true)
+                rowSelectionStates[id] = created
+            }
+        }
+
+        let retainedSelected = current.intersection(previous)
+        for id in retainedSelected {
+            rowSelectionStates[id]?.notifySelectionContextChanged()
+        }
     }
 }

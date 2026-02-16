@@ -5,7 +5,6 @@ import AppKit
 
 struct TaskView: View {
     @EnvironmentObject var taskManager: TaskManager
-    @EnvironmentObject var selectionManager: SelectionManager
     @EnvironmentObject var appDelegate: AppDelegate
     @Environment(\.modelContext) private var modelContext
     // Fetch tasks sorted by displayOrder for stable UI diffs
@@ -122,6 +121,7 @@ private extension TaskView {
                             FlatTaskRowView(
                                 task: entry.task,
                                 depth: entry.depth,
+                                selectionState: taskManager.selectionManager.selectionState(for: entry.task.id),
                                 releaseInputFocus: releaseTaskInputFocus
                             )
                                 .padding(.top, 4)
@@ -148,6 +148,10 @@ private extension TaskView {
                 .allowsHitTesting(!isLiveScrolling)
             }
             .background(LiveScrollObserver(isLiveScrolling: $isLiveScrolling))
+            .overlay {
+                SelectionScrollCoordinator(proxy: proxy)
+                    .environmentObject(taskManager.selectionManager)
+            }
             .onAppear {
                 if hasCompletedSetup {
                     isInputFocused = true
@@ -164,14 +168,6 @@ private extension TaskView {
                     isInputFocused = false
                     taskManager.setTaskInputFocused(false)
                 }
-            }
-            .onChange(of: selectionManager.selectionCursorID) { _, newCursorID in
-                guard let cursorID = newCursorID else { return }
-                proxy.scrollTo(cursorID)
-            }
-            .onChange(of: selectionManager.scrollToTaskRequest?.counter) { _, _ in
-                guard let request = selectionManager.scrollToTaskRequest else { return }
-                proxy.scrollTo(request.id)
             }
         }
     }
@@ -434,15 +430,40 @@ private struct TaskInputHeader: View {
     }
 }
 
+private struct SelectionScrollCoordinator: View {
+    let proxy: ScrollViewProxy
+
+    @EnvironmentObject var selectionManager: SelectionManager
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onChange(of: selectionManager.selectionCursorID) { _, newCursorID in
+                guard let cursorID = newCursorID else { return }
+                proxy.scrollTo(cursorID)
+            }
+            .onChange(of: selectionManager.scrollToTaskRequest?.counter) { _, _ in
+                guard let request = selectionManager.scrollToTaskRequest else { return }
+                proxy.scrollTo(request.id)
+            }
+    }
+}
+
 private struct FlatTaskRowView: View {
     @Bindable var task: Task
     var depth: Int
+    @ObservedObject var selectionState: TaskSelectionState
     var releaseInputFocus: (() -> Void)?
 
     @EnvironmentObject var taskManager: TaskManager
 
     var body: some View {
-        TaskRowContentView(task: task, mode: .live, releaseInputFocus: releaseInputFocus)
+        TaskRowContentView(
+            task: task,
+            mode: .live,
+            selectionState: selectionState,
+            releaseInputFocus: releaseInputFocus
+        )
             .padding(.leading, CGFloat(depth) * 20)
     }
 }

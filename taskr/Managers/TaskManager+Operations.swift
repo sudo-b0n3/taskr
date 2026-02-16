@@ -66,7 +66,8 @@ extension TaskManager {
             
             // Prune collapsed state for all deleted IDs
             pruneCollapsedState(removingIDs: allIDsToDelete)
-            
+            selectionManager.forgetSelectionStates(for: allIDsToDelete)
+
             // Invalidate caches
             invalidateChildTaskCache(for: nil)
             invalidateVisibleTasksCache()
