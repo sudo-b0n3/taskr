@@ -69,6 +69,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         let showDockIcon = UserDefaults.standard.bool(forKey: showDockIconPreferenceKey)
         setDockIconVisibility(show: showDockIcon)
 
+        MainThreadStallDetector.shared.start()
+
         statusItem = NSStatusBar.system.statusItem(
             withLength: NSStatusItem.squareLength
         )

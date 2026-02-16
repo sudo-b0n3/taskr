@@ -9,6 +9,8 @@ extension TaskManager {
     }
 
     func toggleTaskExpansion(_ taskID: UUID) {
+        TaskrDiagnostics.logExpansion("toggleTaskExpansion begin id=\(taskID.uuidString)")
+        TaskrDiagnostics.signpostBegin(TaskrDiagnostics.Signpost.toggleExpansion, message: taskID.uuidString)
         performCollapseTransition {
             let willCollapse = !collapsedTaskIDs.contains(taskID)
             if willCollapse {
@@ -21,9 +23,13 @@ extension TaskManager {
                 pruneSelectionToVisibleTasks()
             }
         }
+        TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.toggleExpansion, message: taskID.uuidString)
+        TaskrDiagnostics.logExpansion("toggleTaskExpansion end id=\(taskID.uuidString) expanded=\(!collapsedTaskIDs.contains(taskID))")
     }
 
     func setTaskExpanded(_ taskID: UUID, expanded: Bool) {
+        TaskrDiagnostics.logExpansion("setTaskExpanded begin id=\(taskID.uuidString) expanded=\(expanded)")
+        TaskrDiagnostics.signpostBegin(TaskrDiagnostics.Signpost.setTaskExpanded, message: "\(taskID.uuidString) expanded=\(expanded)")
         performCollapseTransition {
             let wasCollapsed = collapsedTaskIDs.contains(taskID)
             if expanded {
@@ -36,6 +42,8 @@ extension TaskManager {
                 pruneSelectionToVisibleTasks()
             }
         }
+        TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.setTaskExpanded, message: "\(taskID.uuidString) expanded=\(expanded)")
+        TaskrDiagnostics.logExpansion("setTaskExpanded end id=\(taskID.uuidString) expanded=\(!collapsedTaskIDs.contains(taskID))")
     }
 
     func setExpandedState(for taskIDs: [UUID], expanded: Bool, kind: TaskListKind = .live) {
@@ -45,6 +53,8 @@ extension TaskManager {
         let parentIDs = uniqueIDs.filter { hasCachedChildren(forParentID: $0, kind: kind) }
         guard !parentIDs.isEmpty else { return }
 
+        TaskrDiagnostics.logExpansion("setExpandedState begin ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
+        TaskrDiagnostics.signpostBegin(TaskrDiagnostics.Signpost.setExpandedState, message: "ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
         performCollapseTransition {
             var updated = collapsedTaskIDs
             var changed = false
@@ -68,6 +78,8 @@ extension TaskManager {
                 pruneSelectionToVisibleTasks()
             }
         }
+        TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.setExpandedState, message: "ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
+        TaskrDiagnostics.logExpansion("setExpandedState end ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
     }
 
     func requestInlineEdit(for taskID: UUID) {
