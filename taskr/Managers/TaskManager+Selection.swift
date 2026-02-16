@@ -133,7 +133,12 @@ extension TaskManager {
             return []
         }
         if let cached = visibleLiveTasksCache {
-            return cached
+            let validTasks = cached.filter(isCachedTaskValid)
+            if validTasks.count == cached.count {
+                return cached
+            }
+            visibleLiveTasksCache = nil
+            visibleLiveTaskIDsCache = nil
         }
 
         ensureChildCache(for: .live)
@@ -154,7 +159,12 @@ extension TaskManager {
             return []
         }
         if let cached = visibleLiveTasksWithDepthCache {
-            return cached
+            let validEntries = cached.filter { isCachedTaskValid($0.task) }
+            if validEntries.count == cached.count {
+                return cached
+            }
+            visibleLiveTasksWithDepthCache = nil
+            visibleLiveTaskIDsCache = nil
         }
 
         ensureChildCache(for: .live)
@@ -201,5 +211,9 @@ extension TaskManager {
             current = parent.parentTask
         }
         return depth
+    }
+
+    private func isCachedTaskValid(_ task: Task) -> Bool {
+        task.modelContext != nil && !task.isDeleted
     }
 }

@@ -442,7 +442,7 @@ class TaskManager: ObservableObject {
         ensureChildCache(for: kind)
         if let cached = childTaskCache[kind]?[parentID] {
             // Filter out deleted tasks to prevent SwiftData crashes
-            let validTasks = cached.filter { $0.modelContext != nil }
+            let validTasks = cached.filter { $0.modelContext != nil && !$0.isDeleted }
             if validTasks.count != cached.count {
                 // Cache contained deleted tasks, invalidate this entry
                 childTaskCache[kind]?[parentID] = nil
