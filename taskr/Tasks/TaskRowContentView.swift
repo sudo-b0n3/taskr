@@ -21,6 +21,7 @@ struct TaskRowContentView: View {
     @State private var editText: String = ""
     @FocusState private var isTextFieldFocused: Bool
     @State private var isHoveringRow: Bool = false
+    @State private var isHoveringChevron: Bool = false
     @State private var originalNameBeforeEdit: String?
     @State private var chevronExpanded: Bool = false
     
@@ -189,11 +190,22 @@ struct TaskRowContentView: View {
                         .rotationEffect(.degrees(chevronExpanded ? 90 : 0))
                         .taskrFont(.caption)
                         .foregroundColor(palette.secondaryTextColor)
-                        .padding(5)
+                        .frame(width: 28, height: 24, alignment: .center)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(isHoveringChevron ? palette.hoverBackgroundColor.opacity(0.5) : Color.clear)
+                                .animation(
+                                    hoverHighlightsEnabled ? .easeInOut(duration: 0.10) : nil,
+                                    value: isHoveringChevron
+                                )
+                        )
                         .contentShape(Rectangle())
                         .onTapGesture {
                             taskManager.registerUserInteractionTap()
                             taskManager.toggleTaskExpansion(taskID)
+                        }
+                        .onHover { hovering in
+                            isHoveringChevron = hovering
                         }
                         .onAppear {
                             chevronExpanded = isExpanded
@@ -291,6 +303,7 @@ struct TaskRowContentView: View {
         }
         .onDisappear {
             isHoveringRow = false
+            isHoveringChevron = false
             taskManager.clearRowHeight(for: taskID)
         }
         .modifier(ShiftSelectionModifier(taskID: taskID, taskManager: taskManager))
