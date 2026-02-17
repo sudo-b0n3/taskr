@@ -141,6 +141,7 @@ private struct CopySelectionCommands: View {
 
 #if DEBUG
 private let uiTestPanelReopenFocusResultFilename = "taskr_ui_panel_focus_result.txt"
+private let uiTestPanelReopenFocusResultPathEnvironmentKey = "UITEST_PANEL_FOCUS_RESULT_PATH"
 
 private func configureUITestAutomationIfNeeded(taskManager: TaskManager, appDelegate: AppDelegate) {
     let arguments = ProcessInfo.processInfo.arguments
@@ -209,8 +210,15 @@ private func ensureAtLeastOneLiveTask(taskManager: TaskManager) {
 }
 
 private func writePanelReopenFocusResult(_ value: String) {
-    let url = URL(fileURLWithPath: NSTemporaryDirectory())
-        .appendingPathComponent(uiTestPanelReopenFocusResultFilename)
+    let environment = ProcessInfo.processInfo.environment
+    let url: URL
+    if let explicitPath = environment[uiTestPanelReopenFocusResultPathEnvironmentKey],
+       !explicitPath.isEmpty {
+        url = URL(fileURLWithPath: explicitPath)
+    } else {
+        url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(uiTestPanelReopenFocusResultFilename)
+    }
     try? value.write(to: url, atomically: true, encoding: .utf8)
 }
 

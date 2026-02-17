@@ -4,6 +4,11 @@ import AppKit
 final class TaskrPanelFocusUITests: XCTestCase {
     private let bundleID = "com.bone.taskr"
     private let resultFilename = "taskr_ui_panel_focus_result.txt"
+    private let resultPathEnvironmentKey = "UITEST_PANEL_FOCUS_RESULT_PATH"
+    private lazy var explicitResultURL: URL = {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("taskr_ui_panel_focus_\(UUID().uuidString).txt")
+    }()
     private lazy var resultURLs: [URL] = {
         let username = NSUserName()
         let hostBase = URL(fileURLWithPath: "/Users", isDirectory: true)
@@ -18,9 +23,9 @@ final class TaskrPanelFocusUITests: XCTestCase {
         let hostURL = buildURL(base: hostBase)
         let runnerURL = buildURL(base: runnerHome)
         if hostURL == runnerURL {
-            return [hostURL]
+            return [explicitResultURL, hostURL]
         }
-        return [hostURL, runnerURL]
+        return [explicitResultURL, hostURL, runnerURL]
     }()
 
     func testPanelReopenKeepsKeyFocusSignal() {
@@ -28,6 +33,7 @@ final class TaskrPanelFocusUITests: XCTestCase {
         clearPanelFocusResultFile()
 
         let app = XCUIApplication()
+        app.launchEnvironment[resultPathEnvironmentKey] = explicitResultURL.path
         app.launchArguments.append("-UITestPanelReopenFocus")
         app.launch()
 
