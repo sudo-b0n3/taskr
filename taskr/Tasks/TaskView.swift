@@ -129,6 +129,10 @@ private extension TaskView {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
+                    Color.clear
+                        .frame(height: 0)
+                        .background(ScrollbarStyleEnforcer())
+
                     if visible.isEmpty {
                         Text("No tasks yet. Add one above!")
                             .foregroundColor(palette.secondaryTextColor)
@@ -463,6 +467,80 @@ private struct FlatTaskRowView: View {
             releaseInputFocus: releaseInputFocus
         )
             .padding(.leading, CGFloat(depth) * 20)
+    }
+}
+
+private struct ScrollbarStyleEnforcer: NSViewRepresentable {
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            context.coordinator.bind(to: view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            context.coordinator.bind(to: nsView)
+        }
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.teardown()
+    }
+
+    final class Coordinator {
+        private weak var scrollView: NSScrollView?
+        private var scrollerStyleObservation: NSKeyValueObservation?
+
+        func bind(to view: NSView) {
+            guard let scrollView = resolveScrollView(from: view) else {
+                DispatchQueue.main.async { [weak self, weak view] in
+                    guard let self, let view else { return }
+                    self.bind(to: view)
+                }
+                return
+            }
+            guard self.scrollView !== scrollView else { return }
+
+            teardown()
+            self.scrollView = scrollView
+            installObservers(on: scrollView)
+        }
+
+        private func resolveScrollView(from view: NSView) -> NSScrollView? {
+            if let enclosing = view.enclosingScrollView {
+                return enclosing
+            }
+            var current: NSView? = view
+            while let candidate = current {
+                if let scrollView = candidate as? NSScrollView {
+                    return scrollView
+                }
+                current = candidate.superview
+            }
+            return nil
+        }
+
+        private func installObservers(on scrollView: NSScrollView) {
+            // Force overlay scrollers for this list so scrollbar visibility never consumes content width.
+            if scrollView.scrollerStyle != .overlay {
+                scrollView.scrollerStyle = .overlay
+            }
+            scrollerStyleObservation = scrollView.observe(\.scrollerStyle, options: [.new]) { scrollView, _ in
+                if scrollView.scrollerStyle != .overlay {
+                    scrollView.scrollerStyle = .overlay
+                }
+            }
+        }
+
+        func teardown() {
+            scrollerStyleObservation = nil
+            scrollView = nil
+        }
     }
 }
 
