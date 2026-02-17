@@ -9,7 +9,7 @@ struct TaskRowContentView: View {
     var releaseInputFocus: (() -> Void)?
     
     @EnvironmentObject var taskManager: TaskManager
-    @Environment(\.isWindowFocused) var isWindowFocused
+    @Environment(\.isWindowKey) var isWindowKey
     @Environment(\.isLiveScrolling) var isLiveScrolling
     @Environment(\.taskrFontScale) var fontScale
     
@@ -20,7 +20,6 @@ struct TaskRowContentView: View {
     @State private var editText: String = ""
     @FocusState private var isTextFieldFocused: Bool
     @State private var isHoveringRow: Bool = false
-    @State private var rowHeight: CGFloat = 0
     @State private var originalNameBeforeEdit: String?
     @State private var chevronExpanded: Bool = false
     
@@ -94,7 +93,7 @@ struct TaskRowContentView: View {
     }
     
     private var selectionBackgroundColor: Color {
-        let baseColor = (taskManager.isApplicationActive && isWindowFocused)
+        let baseColor = isWindowKey
             ? NSColor.selectedContentBackgroundColor
             : NSColor.unemphasizedSelectedContentBackgroundColor
         let blendFraction: CGFloat = palette.isDark ? 0.35 : 0.25
@@ -104,14 +103,14 @@ struct TaskRowContentView: View {
     
     private var rowForegroundColor: Color {
         guard isSelected else { return palette.primaryTextColor }
-        if taskManager.isApplicationActive && isWindowFocused {
+        if isWindowKey {
             return Color(nsColor: NSColor.alternateSelectedControlTextColor)
         }
         return palette.primaryTextColor
     }
     
     private var rowSecondaryColor: Color {
-        if isSelected && taskManager.isApplicationActive && isWindowFocused {
+        if isSelected && isWindowKey {
             return rowForegroundColor.opacity(0.75)
         }
         return palette.secondaryTextColor
@@ -249,10 +248,11 @@ struct TaskRowContentView: View {
             }
         )
         .onPreferenceChange(RowHeightPreferenceKey.self) { heights in
+            guard mode == .live else { return }
             if let height = heights[taskID], height > 0 {
-                let needsUpdate = rowHeight == 0 || abs(rowHeight - height) > 0.5
+                let cachedHeight = taskManager.rowHeight(for: taskID)
+                let needsUpdate = cachedHeight == nil || abs((cachedHeight ?? 0) - height) > 0.5
                 if needsUpdate {
-                    rowHeight = height
                     taskManager.setRowHeight(height, for: taskID)
                 }
             }
@@ -282,6 +282,11 @@ struct TaskRowContentView: View {
             if liveScrolling {
                 isHoveringRow = false
             }
+        }
+        .onChange(of: isWindowKey) { _, focused in
+            guard !focused, isEditing else { return }
+            isTextFieldFocused = false
+            commitEdit()
         }
         .onDisappear {
             isHoveringRow = false
@@ -719,12 +724,9 @@ struct TaskRowContentView: View {
         }
     }
 
-    private var effectiveRowHeight: CGFloat {
-        rowHeight > 0 ? rowHeight : 28
-    }
-
     private var shouldReportRowHeight: Bool {
-        taskManager.isShiftSelectionInProgress || taskManager.rowHeight(for: taskID) == nil
+        guard mode == .live else { return false }
+        return taskManager.isShiftSelectionInProgress || taskManager.rowHeight(for: taskID) == nil
     }
 
     private var rowHeightReporter: some View {

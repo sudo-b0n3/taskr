@@ -213,6 +213,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         }
         if let button = statusItem?.button {
             if popover?.isShown == true {
+                endActiveEditingSession()
                 popover?.performClose(nil)
                 updateStatusItemHighlight()
             } else {
@@ -241,6 +242,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
         } else {
             // Close popover if open
             if popover?.isShown == true {
+                endActiveEditingSession()
                 popover?.performClose(nil)
             }
             showPanel()
@@ -472,6 +474,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
     }
     
     private func closePanelIfNeeded() {
+        endActiveEditingSession()
         menuPanel?.orderOut(nil)
         removePanelClickMonitor()
         updateStatusItemHighlight()
@@ -481,10 +484,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
     /// Called when the user changes the presentation style preference.
     func resetMenuBarPresentation() {
         if popover?.isShown == true {
+            endActiveEditingSession()
             popover?.performClose(nil)
         }
         closePanelIfNeeded()
         updateStatusItemHighlight()
+    }
+
+    /// Forces the current first responder to end editing before we hide or close UI.
+    /// This avoids "sticky" field editors surviving panel/popover reopen cycles.
+    private func endActiveEditingSession() {
+        if let panel = menuPanel, panel.isVisible {
+            panel.makeFirstResponder(nil)
+            panel.endEditing(for: nil)
+        }
+        if let popoverWindow = popover?.contentViewController?.view.window, popoverWindow.isVisible {
+            popoverWindow.makeFirstResponder(nil)
+            popoverWindow.endEditing(for: nil)
+        }
+        if let keyWindow = NSApp.keyWindow {
+            keyWindow.makeFirstResponder(nil)
+            keyWindow.endEditing(for: nil)
+        }
     }
 
     private func updateStatusItemHighlight() {

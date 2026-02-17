@@ -7,6 +7,7 @@ struct TemplateView: View {
     @EnvironmentObject var taskManager: TaskManager
     @EnvironmentObject var selectionManager: SelectionManager
     @Environment(\.modelContext) private var modelContext
+    var isActive: Bool = true
 
     @Query(sort: [SortDescriptor(\TaskTemplate.name)]) private var templates: [TaskTemplate]
     @Query(
@@ -17,7 +18,7 @@ struct TemplateView: View {
     @State private var editingTemplateName: String = ""
     
     // Selection system state
-    @State private var isWindowFocused: Bool = false
+    @State private var isWindowKey: Bool = false
     @State private var isLiveScrolling: Bool = false
     @State private var hostingWindow: NSWindow?
     @State private var windowObserverTokens: [NSObjectProtocol] = []
@@ -29,6 +30,17 @@ struct TemplateView: View {
     private var palette: ThemePalette { taskManager.themePalette }
     private var backgroundColor: Color {
         taskManager.frostedBackgroundEnabled ? .clear : palette.backgroundColor
+    }
+    private var templateChildrenByParentID: [UUID: [Task]] {
+        var grouped: [UUID: [Task]] = [:]
+        for task in templateTasks {
+            guard let parentID = task.parentTask?.id else { continue }
+            grouped[parentID, default: []].append(task)
+        }
+        for key in grouped.keys {
+            grouped[key]?.sort { $0.displayOrder < $1.displayOrder }
+        }
+        return grouped
     }
 
     var body: some View {
@@ -90,6 +102,7 @@ struct TemplateView: View {
                             .padding(.vertical, 40)
                             .frame(maxWidth: .infinity, alignment: .center)
                         } else {
+                            let childrenByParent = templateChildrenByParentID
                             ForEach(templates, id: \.persistentModelID) { template in
                                 VStack(alignment: .leading, spacing: 0) {
                                     HStack {
@@ -162,11 +175,8 @@ struct TemplateView: View {
 
                                     if let container = template.taskStructure,
                                        taskManager.isTaskExpanded(container.id) {
-                                        // Render the template's root tasks using the same row view in template mode.
-                                        // Pull from the templateTasks query so inserts reflect immediately.
-                                        let subs = templateTasks
-                                            .filter { $0.parentTask?.id == container.id }
-                                            .sorted { $0.displayOrder < $1.displayOrder }
+                                        // Render root tasks from pre-grouped children for fewer repeated scans/sorts.
+                                        let subs = childrenByParent[container.id] ?? []
                                         ForEach(subs, id: \.persistentModelID) { t in
                                             TaskRowView(task: t, mode: .template)
                                                 .padding(.leading, 20)
@@ -194,7 +204,7 @@ struct TemplateView: View {
         }
         .foregroundColor(palette.primaryTextColor)
         .background(backgroundColor)
-        .environment(\.isWindowFocused, isWindowFocused)
+        .environment(\.isWindowKey, isWindowKey)
         .environment(\.isLiveScrolling, isLiveScrolling)
         .simultaneousGesture(
             TapGesture()
@@ -208,14 +218,27 @@ struct TemplateView: View {
                 }
         )
         .background {
-            WindowAccessor { window in
-                DispatchQueue.main.async {
-                    handleWindowChange(window)
+            if isActive {
+                WindowAccessor { window in
+                    DispatchQueue.main.async {
+                        handleWindowChange(window)
+                    }
                 }
             }
         }
         .onAppear {
-            installKeyboardMonitorIfNeeded()
+            if isActive {
+                installKeyboardMonitorIfNeeded()
+            }
+        }
+        .onChange(of: isActive) { _, active in
+            if active {
+                installKeyboardMonitorIfNeeded()
+                syncWindowFocusState()
+            } else {
+                removeKeyboardMonitor()
+                removeWindowObservers(resetFocus: false)
+            }
         }
         .onDisappear {
             removeKeyboardMonitor()
@@ -252,11 +275,11 @@ struct TemplateView: View {
         hostingWindow = window
 
         guard let window else {
-            isWindowFocused = false
+            isWindowKey = false
             return
         }
 
-        isWindowFocused = window.isKeyWindow
+        isWindowKey = window.isKeyWindow
 
         let become = center.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
@@ -264,7 +287,7 @@ struct TemplateView: View {
             queue: .main
         ) { _ in
             _Concurrency.Task { @MainActor in
-                isWindowFocused = true
+                isWindowKey = true
             }
         }
         let resign = center.addObserver(
@@ -273,21 +296,32 @@ struct TemplateView: View {
             queue: .main
         ) { _ in
             _Concurrency.Task { @MainActor in
-                isWindowFocused = false
+                isWindowKey = false
             }
         }
         windowObserverTokens = [become, resign]
     }
+
+    @MainActor
+    private func syncWindowFocusState() {
+        if let hostingWindow {
+            isWindowKey = hostingWindow.isKeyWindow
+        } else {
+            isWindowKey = NSApp.isActive
+        }
+    }
     
     @MainActor
-    private func removeWindowObservers() {
+    private func removeWindowObservers(resetFocus: Bool = true) {
         let center = NotificationCenter.default
         for token in windowObserverTokens {
             center.removeObserver(token)
         }
         windowObserverTokens.removeAll()
         hostingWindow = nil
-        isWindowFocused = false
+        if resetFocus {
+            isWindowKey = false
+        }
     }
 }
 
@@ -411,6 +445,7 @@ private extension TemplateView {
     }
 
     func shouldHandleKeyEvent(_ event: NSEvent) -> Bool {
+        guard isActive else { return false }
         guard let window = event.window else { return false }
         guard window.isKeyWindow else { return false }
 
@@ -550,26 +585,25 @@ private extension TemplateView {
     }
     
     func snapshotVisibleTemplateTasks() -> [Task] {
+        let childrenByParent = templateChildrenByParentID
         var result: [Task] = []
         for template in templates {
             guard let container = template.taskStructure,
                   taskManager.isTaskExpanded(container.id) else { continue }
-            let rootTasks = templateTasks
-                .filter { $0.parentTask?.id == container.id }
-                .sorted { $0.displayOrder < $1.displayOrder }
+            let rootTasks = childrenByParent[container.id] ?? []
             for task in rootTasks {
-                result.append(contentsOf: collectVisibleTasks(from: task))
+                result.append(contentsOf: collectVisibleTasks(from: task, childrenByParent: childrenByParent))
             }
         }
         return result
     }
     
-    func collectVisibleTasks(from task: Task) -> [Task] {
+    func collectVisibleTasks(from task: Task, childrenByParent: [UUID: [Task]]) -> [Task] {
         var result = [task]
         if taskManager.isTaskExpanded(task.id) {
-            let children = taskManager.childTasks(forParentID: task.id, kind: .template)
+            let children = childrenByParent[task.id] ?? []
             for child in children {
-                result.append(contentsOf: collectVisibleTasks(from: child))
+                result.append(contentsOf: collectVisibleTasks(from: child, childrenByParent: childrenByParent))
             }
         }
         return result
@@ -644,24 +678,6 @@ private struct LiveScrollObserver: NSViewRepresentable {
             endObserver = nil
             scrollView = nil
             liveScrollBinding = nil
-        }
-    }
-}
-
-private struct WindowAccessor: NSViewRepresentable {
-    var onWindowChange: (NSWindow?) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            onWindowChange(view.window)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            onWindowChange(nsView.window)
         }
     }
 }

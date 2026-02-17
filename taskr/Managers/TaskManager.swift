@@ -54,6 +54,9 @@ class TaskManager: ObservableObject {
     @Published private(set) var frostedBackgroundLevel: FrostLevel
     @Published private(set) var fontScale: Double
     @Published private(set) var isApplicationActive: Bool = true
+    #if DEBUG
+    @Published private(set) var liveListWindowIsKeyForUITest: Bool = false
+    #endif
     
     // Paste state for UI dialogs
     @Published var pendingPasteResult: PasteResult?
@@ -96,6 +99,8 @@ class TaskManager: ObservableObject {
     private var activeShiftDragVisibleCacheVersion: UInt64 = 0
     private var activeShiftDragLastTargetID: UUID? = nil
     private var orphanedTaskLog: Set<UUID> = []
+    private var appObserverTokens: [NSObjectProtocol] = []
+    private var hasCompletedInitialCollapsedPrune: Bool = false
 
     private var cancellables = Set<AnyCancellable>()
     static let fontScaleRange: ClosedRange<Double> = 0.9...1.3
@@ -117,14 +122,22 @@ class TaskManager: ObservableObject {
         let storedScale = defaults.object(forKey: fontScalePreferenceKey) as? Double ?? 1.0
         self.fontScale = TaskManager.clampFontScale(storedScale)
         
-        // Forward sub-manager updates to TaskManager's objectWillChange
+        // Forward sub-manager updates to TaskManager's objectWillChange.
+        // RowHeightManager is cache-only and should not invalidate the full view tree.
         themeManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
         animationManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
-        rowHeightManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
         
         loadCollapsedState()
         pruneCollapsedState()
         normalizeDisplayOrdersIfNeeded()
+        installAppLifecycleObservers()
+    }
+
+    deinit {
+        let center = NotificationCenter.default
+        for token in appObserverTokens {
+            center.removeObserver(token)
+        }
     }
 
     func task(withID id: UUID) -> Task? {
@@ -231,6 +244,39 @@ class TaskManager: ObservableObject {
     func setApplicationActive(_ active: Bool) {
         guard isApplicationActive != active else { return }
         isApplicationActive = active
+    }
+
+    func setLiveListWindowIsKeyForUITest(_ isKey: Bool) {
+        #if DEBUG
+        guard liveListWindowIsKeyForUITest != isKey else { return }
+        liveListWindowIsKeyForUITest = isKey
+        #endif
+    }
+
+    private func installAppLifecycleObservers() {
+        setApplicationActive(NSApplication.shared.isActive)
+        guard appObserverTokens.isEmpty else { return }
+
+        let center = NotificationCenter.default
+        let become = center.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            _Concurrency.Task { @MainActor in
+                self?.setApplicationActive(true)
+            }
+        }
+        let resign = center.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            _Concurrency.Task { @MainActor in
+                self?.setApplicationActive(false)
+            }
+        }
+        appObserverTokens = [become, resign]
     }
 
     // MARK: - Selection Delegation
@@ -386,6 +432,9 @@ class TaskManager: ObservableObject {
             }
             childTaskCache[kind] = map
             taskIndexCache[kind] = index
+            if !tasks.isEmpty {
+                runDeferredCollapsedStatePruneIfNeeded()
+            }
         } catch {
         #if DEBUG
             print("TaskManager warning: failed to rebuild child cache for \(kind): \(error)")
@@ -393,6 +442,15 @@ class TaskManager: ObservableObject {
             childTaskCache[kind] = [:]
             taskIndexCache[kind] = [:]
         }
+    }
+
+    func markInitialCollapsedPruneCompleted() {
+        hasCompletedInitialCollapsedPrune = true
+    }
+
+    private func runDeferredCollapsedStatePruneIfNeeded() {
+        guard !hasCompletedInitialCollapsedPrune else { return }
+        pruneCollapsedState()
     }
 
     var currentPathInput: String {

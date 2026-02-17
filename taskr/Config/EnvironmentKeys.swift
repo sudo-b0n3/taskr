@@ -1,6 +1,6 @@
 import SwiftUI
 
-private struct IsWindowFocusedKey: EnvironmentKey {
+private struct IsWindowKeyKey: EnvironmentKey {
     static let defaultValue: Bool = false
 }
 
@@ -9,9 +9,9 @@ private struct IsLiveScrollingKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
-    var isWindowFocused: Bool {
-        get { self[IsWindowFocusedKey.self] }
-        set { self[IsWindowFocusedKey.self] = newValue }
+    var isWindowKey: Bool {
+        get { self[IsWindowKeyKey.self] }
+        set { self[IsWindowKeyKey.self] = newValue }
     }
 
     var isLiveScrolling: Bool {

@@ -14,14 +14,14 @@ struct TaskView: View {
     ) private var tasks: [Task]
     
     @AppStorage("hasCompletedSetup") var hasCompletedSetup: Bool = false
+    var isActive: Bool = true
 
     @FocusState private var isInputFocused: Bool
     @State private var keyboardMonitor: Any?
     @State private var isMKeyPressed: Bool = false
-    @State private var appObserverTokens: [NSObjectProtocol] = []
     @State private var windowObserverTokens: [NSObjectProtocol] = []
     @State private var hostingWindow: NSWindow?
-    @State private var isWindowFocused: Bool = false
+    @State private var isWindowKey: Bool = false
     @State private var isLiveScrolling: Bool = false
     
     // Paste dialog state
@@ -53,15 +53,31 @@ struct TaskView: View {
         }
         .foregroundColor(palette.primaryTextColor)
         .background(backgroundColor)
-        .environment(\.isWindowFocused, isWindowFocused)
+        .environment(\.isWindowKey, isWindowKey)
         .environment(\.isLiveScrolling, isLiveScrolling)
         .onChange(of: isInputFocused) { _, newValue in
             taskManager.setTaskInputFocused(newValue)
         }
+        .onAppear {
+            if isActive {
+                installKeyboardMonitorIfNeeded()
+            }
+        }
+        .onChange(of: isActive) { _, active in
+            if active {
+                installKeyboardMonitorIfNeeded()
+                syncWindowFocusState()
+            } else {
+                removeKeyboardMonitor()
+                isInputFocused = false
+                taskManager.setTaskInputFocused(false)
+                removeWindowObservers(resetFocus: false)
+            }
+        }
         .onDisappear {
             removeKeyboardMonitor()
             taskManager.setTaskInputFocused(false)
-            removeLifecycleObservers()
+            removeWindowObservers()
         }
         .simultaneousGesture(
             TapGesture()
@@ -75,9 +91,11 @@ struct TaskView: View {
                 }
         )
         .background {
-            WindowAccessor { window in
-                DispatchQueue.main.async {
-                    handleWindowChange(window)
+            if isActive {
+                WindowAccessor { window in
+                    DispatchQueue.main.async {
+                        handleWindowChange(window)
+                    }
                 }
             }
         }
@@ -157,8 +175,6 @@ private extension TaskView {
                     isInputFocused = true
                     taskManager.setTaskInputFocused(true)
                 }
-                installKeyboardMonitorIfNeeded()
-                installLifecycleObservers()
             }
             .onChange(of: hasCompletedSetup) { _, newValue in
                 if newValue {
@@ -288,24 +304,6 @@ struct TaskView_Previews: PreviewProvider {
             .environmentObject(AppDelegate())
             .frame(width: 380, height: 400) // Standard preview frame
             .background(taskManager.themePalette.backgroundColor) // Match background
-    }
-}
-
-private struct WindowAccessor: NSViewRepresentable {
-    var onWindowChange: (NSWindow?) -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            onWindowChange(view.window)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            onWindowChange(nsView.window)
-        }
     }
 }
 
@@ -687,6 +685,7 @@ extension TaskView {
     }
 
     private func shouldHandleKeyEvent(_ event: NSEvent) -> Bool {
+        guard isActive else { return false }
         guard let window = event.window else { return false }
         guard window.isKeyWindow else { return false }
 
@@ -702,54 +701,6 @@ extension TaskView {
     }
 
     @MainActor
-    private func installLifecycleObservers() {
-        taskManager.setApplicationActive(NSApp.isActive)
-        if appObserverTokens.isEmpty {
-            let center = NotificationCenter.default
-            let become = center.addObserver(
-                forName: NSApplication.didBecomeActiveNotification,
-                object: nil,
-                queue: .main
-            ) { _ in
-                _Concurrency.Task { @MainActor in
-                    taskManager.setApplicationActive(true)
-                }
-            }
-            let resign = center.addObserver(
-                forName: NSApplication.didResignActiveNotification,
-                object: nil,
-                queue: .main
-            ) { _ in
-                _Concurrency.Task { @MainActor in
-                    taskManager.setApplicationActive(false)
-                }
-            }
-            appObserverTokens = [become, resign]
-        }
-
-        if let window = hostingWindow {
-            isWindowFocused = window.isKeyWindow
-        }
-    }
-
-    @MainActor
-    private func removeLifecycleObservers() {
-        let center = NotificationCenter.default
-        for token in appObserverTokens {
-            center.removeObserver(token)
-        }
-        appObserverTokens.removeAll()
-
-        for token in windowObserverTokens {
-            center.removeObserver(token)
-        }
-        windowObserverTokens.removeAll()
-
-        hostingWindow = nil
-        isWindowFocused = false
-    }
-
-    @MainActor
     private func handleWindowChange(_ window: NSWindow?) {
         guard hostingWindow !== window else { return }
 
@@ -762,11 +713,13 @@ extension TaskView {
         hostingWindow = window
 
         guard let window else {
-            isWindowFocused = false
+            setWindowKeyState(false)
+            isInputFocused = false
+            taskManager.setTaskInputFocused(false)
             return
         }
 
-        isWindowFocused = window.isKeyWindow
+        setWindowKeyState(window.isKeyWindow)
 
         let become = center.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
@@ -774,7 +727,7 @@ extension TaskView {
             queue: .main
         ) { _ in
             _Concurrency.Task { @MainActor in
-                isWindowFocused = true
+                setWindowKeyState(true)
             }
         }
         let resign = center.addObserver(
@@ -783,9 +736,39 @@ extension TaskView {
             queue: .main
         ) { _ in
             _Concurrency.Task { @MainActor in
-                isWindowFocused = false
+                setWindowKeyState(false)
+                isInputFocused = false
+                taskManager.setTaskInputFocused(false)
             }
         }
         windowObserverTokens = [become, resign]
+    }
+
+    @MainActor
+    private func syncWindowFocusState() {
+        if let hostingWindow {
+            setWindowKeyState(hostingWindow.isKeyWindow)
+        } else {
+            setWindowKeyState(NSApp.isActive)
+        }
+    }
+
+    @MainActor
+    private func removeWindowObservers(resetFocus: Bool = true) {
+        let center = NotificationCenter.default
+        for token in windowObserverTokens {
+            center.removeObserver(token)
+        }
+        windowObserverTokens.removeAll()
+        hostingWindow = nil
+        if resetFocus {
+            setWindowKeyState(false)
+        }
+    }
+
+    @MainActor
+    private func setWindowKeyState(_ isKey: Bool) {
+        isWindowKey = isKey
+        taskManager.setLiveListWindowIsKeyForUITest(isKey)
     }
 }

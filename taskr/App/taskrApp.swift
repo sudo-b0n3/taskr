@@ -140,29 +140,81 @@ private struct CopySelectionCommands: View {
 }
 
 #if DEBUG
+private let uiTestPanelReopenFocusResultFilename = "taskr_ui_panel_focus_result.txt"
+
 private func configureUITestAutomationIfNeeded(taskManager: TaskManager, appDelegate: AppDelegate) {
     let arguments = ProcessInfo.processInfo.arguments
-    guard let flagIndex = arguments.firstIndex(of: "-UITestDeepClear") else { return }
-    let depth: Int
-    if arguments.indices.contains(flagIndex + 1), let parsed = Int(arguments[flagIndex + 1]) {
-        depth = max(1, parsed)
-    } else {
-        depth = 18
-    }
 
-    let components = Array(repeating: "test", count: depth)
-    let path = "/" + components.joined(separator: "/")
+    if let flagIndex = arguments.firstIndex(of: "-UITestDeepClear") {
+        let depth: Int
+        if arguments.indices.contains(flagIndex + 1), let parsed = Int(arguments[flagIndex + 1]) {
+            depth = max(1, parsed)
+        } else {
+            depth = 18
+        }
 
-    DispatchQueue.main.async {
-        appDelegate.togglePopover()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            taskManager.addTaskFromPath(pathOverride: path)
-            let ids = taskManager.snapshotVisibleTaskIDs()
-            for id in ids {
-                taskManager.toggleTaskCompletion(taskID: id)
+        let components = Array(repeating: "test", count: depth)
+        let path = "/" + components.joined(separator: "/")
+
+        DispatchQueue.main.async {
+            appDelegate.togglePopover()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                taskManager.addTaskFromPath(pathOverride: path)
+                let ids = taskManager.snapshotVisibleTaskIDs()
+                for id in ids {
+                    taskManager.toggleTaskCompletion(taskID: id)
+                }
+                taskManager.clearCompletedTasks()
             }
-            taskManager.clearCompletedTasks()
         }
     }
+
+    if arguments.contains("-UITestPanelReopenFocus") {
+        runPanelReopenFocusAutomation(taskManager: taskManager, appDelegate: appDelegate)
+    }
+}
+
+private func runPanelReopenFocusAutomation(taskManager: TaskManager, appDelegate: AppDelegate) {
+    UserDefaults.standard.set(MenuBarPresentationStyle.panel.rawValue, forKey: menuBarPresentationStylePreferenceKey)
+    writePanelReopenFocusResult("pending")
+
+    DispatchQueue.main.async {
+        appDelegate.resetMenuBarPresentation()
+        appDelegate.togglePopover()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            ensureAtLeastOneLiveTask(taskManager: taskManager)
+            guard let firstTaskID = taskManager.snapshotVisibleTaskIDs().first else {
+                writePanelReopenFocusResult("fail")
+                return
+            }
+            taskManager.replaceSelection(with: firstTaskID)
+            let firstOpenKeyState = taskManager.liveListWindowIsKeyForUITest
+            appDelegate.togglePopover()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                appDelegate.togglePopover()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    let reopenedKeyState = taskManager.liveListWindowIsKeyForUITest
+                    writePanelReopenFocusResult(firstOpenKeyState && reopenedKeyState ? "pass" : "fail")
+                }
+            }
+        }
+    }
+}
+
+@MainActor
+private func ensureAtLeastOneLiveTask(taskManager: TaskManager) {
+    if taskManager.snapshotVisibleTaskIDs().isEmpty {
+        taskManager.addTaskFromPath(pathOverride: "/focus-probe")
+    }
+}
+
+private func writePanelReopenFocusResult(_ value: String) {
+    let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent(uiTestPanelReopenFocusResultFilename)
+    try? value.write(to: url, atomically: true, encoding: .utf8)
+}
+
+#else
+private func configureUITestAutomationIfNeeded(taskManager: TaskManager, appDelegate: AppDelegate) {
 }
 #endif

@@ -9,8 +9,9 @@
 /* Begin PBXBuildFile section */
 		3F9BECD028E059F2A6A2B4DA /* TaskRowViewFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F9BECCF28E059F2A6A2B4DA /* TaskRowViewFallbackTests.swift */; };
 		6D8F4B0223AB4567890C1DEF /* TaskManagerThemeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D8F4B0123AB4567890C1DEF /* TaskManagerThemeTests.swift */; };
-		BA528B8092C649F88D94C7BC /* TaskManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239E977365004E86AF34518C /* TaskManagerTests.swift */; };
-		E9A7FB042DE1C0C700AA11BB /* TaskrScreenshotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */; };
+			BA528B8092C649F88D94C7BC /* TaskManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 239E977365004E86AF34518C /* TaskManagerTests.swift */; };
+			E9A7FB042DE1C0C700AA11BB /* TaskrScreenshotUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */; };
+			F1A66D752E74ED2000A8123A /* TaskrPanelFocusUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A66D742E74ED2000A8123A /* TaskrPanelFocusUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,8 +37,9 @@
 		3F9BECCF28E059F2A6A2B4DA /* TaskRowViewFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowViewFallbackTests.swift; sourceTree = "<group>"; };
 		6D8F4B0123AB4567890C1DEF /* TaskManagerThemeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskManagerThemeTests.swift; sourceTree = "<group>"; };
 		D562EF14BCB34A6581EA90B8 /* taskrTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		E9A7FB012DE1C0C700AA11BB /* taskrUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskrScreenshotUITests.swift; sourceTree = "<group>"; };
+			E9A7FB012DE1C0C700AA11BB /* taskrUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = taskrUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+			E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskrScreenshotUITests.swift; sourceTree = "<group>"; };
+			F1A66D742E74ED2000A8123A /* TaskrPanelFocusUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskrPanelFocusUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -116,12 +118,13 @@
 			path = taskrTests;
 			sourceTree = "<group>";
 		};
-		E9A7FB022DE1C0C700AA11BB /* taskrUITests */ = {
-			isa = PBXGroup;
-			children = (
-				E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */,
-			);
-			path = taskrUITests;
+			E9A7FB022DE1C0C700AA11BB /* taskrUITests */ = {
+				isa = PBXGroup;
+				children = (
+					F1A66D742E74ED2000A8123A /* TaskrPanelFocusUITests.swift */,
+					E9A7FB032DE1C0C700AA11BB /* TaskrScreenshotUITests.swift */,
+				);
+				path = taskrUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -255,13 +258,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E9A7FB052DE1C0C700AA11BB /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E9A7FB042DE1C0C700AA11BB /* TaskrScreenshotUITests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
+			E9A7FB052DE1C0C700AA11BB /* Sources */ = {
+				isa = PBXSourcesBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					F1A66D752E74ED2000A8123A /* TaskrPanelFocusUITests.swift in Sources */,
+					E9A7FB042DE1C0C700AA11BB /* TaskrScreenshotUITests.swift in Sources */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 

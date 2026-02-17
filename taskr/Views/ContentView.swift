@@ -93,6 +93,10 @@ struct ContentView: View {
                 currentView = .tasks
             }
         }
+        .onChange(of: currentView) { _, _ in
+            endActiveEditingSession()
+            taskManager.setTaskInputFocused(false)
+        }
         .environment(\.taskrFontScale, taskManager.fontScale)
         .environment(\.font, TaskrTypography.scaledFont(for: .body, scale: taskManager.fontScale))
     }
@@ -183,19 +187,28 @@ struct ContentView: View {
     }
 
     private var contentArea: some View {
-        Group {
-            switch currentView {
-            case .tasks:
-                TaskView()
-            case .templates:
-                TemplateView()
-            case .tags:
-                TagView()
-            case .settings:
-                SettingsView(configuresWindow: false)
+        ZStack {
+            TaskView(isActive: currentView == .tasks)
+                .opacity(currentView == .tasks ? 1 : 0)
+                .allowsHitTesting(currentView == .tasks)
+                .accessibilityHidden(currentView != .tasks)
+
+            TemplateView(isActive: currentView == .templates)
+                .opacity(currentView == .templates ? 1 : 0)
+                .allowsHitTesting(currentView == .templates)
+                .accessibilityHidden(currentView != .templates)
+
+            TagView()
+                .opacity(currentView == .tags ? 1 : 0)
+                .allowsHitTesting(currentView == .tags)
+                .accessibilityHidden(currentView != .tags)
+
+            SettingsView(configuresWindow: false)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.clear)
-            }
+                .opacity(currentView == .settings ? 1 : 0)
+                .allowsHitTesting(currentView == .settings)
+                .accessibilityHidden(currentView != .settings)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.clear)
@@ -219,6 +232,13 @@ struct ContentView: View {
             } else {
                 palette.backgroundColor
             }
+        }
+    }
+
+    private func endActiveEditingSession() {
+        if let keyWindow = NSApp.keyWindow {
+            keyWindow.makeFirstResponder(nil)
+            keyWindow.endEditing(for: nil)
         }
     }
 }

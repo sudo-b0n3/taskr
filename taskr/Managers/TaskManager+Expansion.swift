@@ -102,6 +102,11 @@ extension TaskManager {
             // Slow path: fetch all tasks and intersect
             do {
                 let tasks = try modelContext.fetch(FetchDescriptor<Task>())
+                // On some startups SwiftData can briefly return no rows before the store is ready.
+                // Skipping prune here prevents wiping persisted collapsed state and expanding everything.
+                if tasks.isEmpty {
+                    return
+                }
                 let existingIDs = Set(tasks.map { $0.id })
                 let pruned = collapsedTaskIDs.intersection(existingIDs)
                 if pruned != collapsedTaskIDs {
@@ -109,6 +114,7 @@ extension TaskManager {
                     persistCollapsedState()
                     invalidateVisibleTasksCache()
                 }
+                markInitialCollapsedPruneCompleted()
             } catch {
                 print("Error pruning collapsed state: \(error)")
             }
