@@ -42,6 +42,7 @@ struct SettingsView: View {
     @AppStorage(allowClearingStruckDescendantsPreferenceKey) private var allowClearingStruckDescendants: Bool = false
     @AppStorage(skipClearingHiddenDescendantsPreferenceKey) private var skipClearingHiddenDescendants: Bool = true
     @AppStorage(checkboxTopAlignedPreferenceKey) private var checkboxTopAligned: Bool = true
+    @AppStorage(contextMenuTagTargetPreferenceKey) private var contextMenuTagTargetRaw: String = ContextMenuTagTarget.defaultTarget.rawValue
     
     // We'll use a local binding for launch at login since it involves SMAppService
     private var launchAtLoginBinding: Binding<Bool> {
@@ -167,6 +168,15 @@ struct SettingsView: View {
                             ), palette: taskManager.themePalette) {
                                 ForEach(NewTaskPosition.allCases) { position in
                                     Text(position.displayName).tag(position)
+                                }
+                            }
+
+                            SettingsPicker(title: "Tag Right-Click Target", selection: Binding(
+                                get: { ContextMenuTagTarget(rawValue: contextMenuTagTargetRaw) ?? .defaultTarget },
+                                set: { contextMenuTagTargetRaw = $0.rawValue }
+                            ), palette: taskManager.themePalette) {
+                                ForEach(ContextMenuTagTarget.allCases) { target in
+                                    Text(target.displayName).tag(target)
                                 }
                             }
 

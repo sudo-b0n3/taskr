@@ -15,6 +15,7 @@ struct TaskRowContentView: View {
     
     @AppStorage(completionAnimationsEnabledPreferenceKey) private var completionAnimationsEnabled: Bool = true
     @AppStorage(checkboxTopAlignedPreferenceKey) private var checkboxTopAligned: Bool = true
+    @AppStorage(contextMenuTagTargetPreferenceKey) private var contextMenuTagTargetRaw: String = ContextMenuTagTarget.defaultTarget.rawValue
     
     @State private var isEditing: Bool = false
     @State private var editText: String = ""
@@ -349,7 +350,6 @@ struct TaskRowContentView: View {
     @ViewBuilder
     private func menuContent() -> some View {
         if mode == .live {
-            SelectionContextPrimingView(taskManager: taskManager, taskID: taskID)
             let selectedCount = taskManager.selectedTaskIDs.count
             let isRowSelected = taskManager.isTaskSelected(taskID)
             let multiSelectionActive = selectedCount > 1 && isRowSelected
@@ -408,7 +408,16 @@ struct TaskRowContentView: View {
             .disabled(multiSelectionActive)
             Menu("Tags") {
                 let allTags = taskManager.fetchAllTags()
-                let selectedLiveTasks = multiSelectionActive
+                let contextMenuTagTarget = ContextMenuTagTarget(rawValue: contextMenuTagTargetRaw) ?? .defaultTarget
+                let shouldUseSelectionForTags: Bool = {
+                    switch contextMenuTagTarget {
+                    case .clickedItem:
+                        return taskManager.isTaskSelected(taskID)
+                    case .currentSelection:
+                        return !taskManager.selectedTaskIDs.isEmpty
+                    }
+                }()
+                let selectedLiveTasks = shouldUseSelectionForTags
                     ? taskManager.selectedTaskIDs.compactMap { id -> Task? in
                         guard let candidate = taskManager.task(withID: id),
                               !candidate.isTemplateComponent else { return nil }
@@ -436,7 +445,7 @@ struct TaskRowContentView: View {
                 }
             }
             Divider()
-            if !taskManager.selectedTaskIDs.isEmpty {
+            if multiSelectionActive {
                 Button("Copy Selected Tasks (⌘C)") {
                     taskManager.copySelectedTasksToPasteboard()
                 }
@@ -464,7 +473,6 @@ struct TaskRowContentView: View {
                 Text(multiSelectionActive ? "Delete Selected (⌘⌫)" : "Delete (⌘⌫)")
             }
         } else if mode == .template {
-            SelectionContextPrimingView(taskManager: taskManager, taskID: taskID)
             let selectedCount = taskManager.selectedTaskIDs.count
             let isRowSelected = taskManager.isTaskSelected(taskID)
             let multiSelectionActive = selectedCount > 1 && isRowSelected
@@ -511,31 +519,6 @@ struct TaskRowContentView: View {
             } label: {
                 Text(multiSelectionActive ? "Delete Selected (⌘⌫)" : "Delete (⌘⌫)")
             }
-        }
-    }
-
-    private struct SelectionContextPrimingView: View {
-        let taskManager: TaskManager
-        let taskID: UUID
-
-        var body: some View {
-            Color.clear
-                .frame(width: 0, height: 0)
-                .onAppear {
-                    guard isContextMenuInvocation else { return }
-                    DispatchQueue.main.async {
-                        if !taskManager.isTaskSelected(taskID) {
-                            taskManager.replaceSelection(with: taskID)
-                        }
-                    }
-                }
-        }
-
-        private var isContextMenuInvocation: Bool {
-            guard let event = NSApp.currentEvent else { return false }
-            if event.type == .rightMouseDown { return true }
-            if event.type == .leftMouseDown && event.modifierFlags.contains(.control) { return true }
-            return false
         }
     }
 

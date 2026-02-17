@@ -43,6 +43,7 @@ let menuBarPresentationStylePreferenceKey = "menuBarPresentationStylePreference"
 let panelAlignmentPreferenceKey = "panelAlignmentPreference" // Panel alignment relative to menu bar icon
 let windowPinnedPreferenceKey = "windowPinnedPreference" // Keep window always on top
 let skipPasteRootConfirmationPreferenceKey = "skipPasteRootConfirmation" // Skip confirmation when pasting at root level
+let contextMenuTagTargetPreferenceKey = "contextMenuTagTargetPreference" // Tag context-menu target behavior
 
 // Defaults
 let defaultHotkeyKeyCode: UInt16 = UInt16(kVK_ANSI_N)
@@ -145,6 +146,21 @@ enum AnimationStyle: String, CaseIterable, Identifiable {
         }
     }
     static var defaultStyle: AnimationStyle = .easeInOut
+}
+
+enum ContextMenuTagTarget: String, CaseIterable, Identifiable {
+    case clickedItem = "clickedItem"
+    case currentSelection = "currentSelection"
+
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .clickedItem: return "Clicked Item (macOS)"
+        case .currentSelection: return "Current Selection"
+        }
+    }
+
+    static var defaultTarget: ContextMenuTagTarget = .clickedItem
 }
 
 let animationStylePreferenceKey = "animationStylePreference"
@@ -315,6 +331,9 @@ final class PreferencesStore: ObservableObject {
         }
         if defaults.object(forKey: moveCompletedTasksToBottomPreferenceKey) == nil {
             defaults.set(false, forKey: moveCompletedTasksToBottomPreferenceKey)
+        }
+        if defaults.object(forKey: contextMenuTagTargetPreferenceKey) == nil {
+            defaults.set(ContextMenuTagTarget.defaultTarget.rawValue, forKey: contextMenuTagTargetPreferenceKey)
         }
     }
 
