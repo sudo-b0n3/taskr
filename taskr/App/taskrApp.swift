@@ -388,6 +388,10 @@ private func isRunningAutomatedTests() -> Bool {
     return processInfo.processName == "xctest"
 }
 
+private func isRunningUITestAutomation() -> Bool {
+    ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-UITest") }
+}
+
 private func hasLikelyPriorTaskrUsage(defaults: UserDefaults) -> Bool {
     let keys = [
         selectedThemePreferenceKey,
@@ -492,8 +496,13 @@ struct taskrApp: App {
     let container: ModelContainer
 
     init() {
-        restoreStoreFromPendingBookmarkIfNeeded()
-        migrateLegacyStoreIntoCurrentContainerIfNeeded()
+        let runningAutomatedTests = isRunningAutomatedTests()
+        let runningUITests = isRunningUITestAutomation()
+
+        if !runningAutomatedTests {
+            restoreStoreFromPendingBookmarkIfNeeded()
+            migrateLegacyStoreIntoCurrentContainerIfNeeded()
+        }
 
         let modelContainerInstance: ModelContainer
         do {
@@ -502,7 +511,12 @@ struct taskrApp: App {
                 TaskTemplate.self,
                 TaskTag.self,
             ])
-            let config = ModelConfiguration(schema: schema, url: currentContainerStoreURL())
+            let config: ModelConfiguration
+            if runningAutomatedTests {
+                config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            } else {
+                config = ModelConfiguration(schema: schema, url: currentContainerStoreURL())
+            }
             modelContainerInstance = try ModelContainer(for: schema, configurations: [config])
         } catch {
             fatalError("Could not configure the model container: \(error)")
@@ -514,8 +528,12 @@ struct taskrApp: App {
         
         appDelegate.taskManager = taskManagerInstance
         appDelegate.modelContainer = modelContainerInstance
-        appDelegate.setupPopoverAfterDependenciesSet()
-        scheduleLegacyRecoveryPromptIfNeeded(modelContext: modelContainerInstance.mainContext)
+        if !runningAutomatedTests || runningUITests {
+            appDelegate.setupPopoverAfterDependenciesSet()
+        }
+        if !runningAutomatedTests {
+            scheduleLegacyRecoveryPromptIfNeeded(modelContext: modelContainerInstance.mainContext)
+        }
 
 #if DEBUG
         configureUITestAutomationIfNeeded(taskManager: taskManagerInstance, appDelegate: appDelegate)
