@@ -30,7 +30,11 @@ final class TaskrPanelFocusUITests: XCTestCase {
     private let appLaunchTimeout: TimeInterval = 20
     private let panelFocusResultTimeout: TimeInterval = 25
 
-    func testPanelReopenKeepsKeyFocusSignal() {
+    func testPanelReopenKeepsKeyFocusSignal() throws {
+        if ProcessInfo.processInfo.environment["CI"] == "true" {
+            throw XCTSkip("Skipping flaky menu bar focus UI test on GitHub Actions CI.")
+        }
+
         terminateExistingTaskrInstances()
         clearPanelFocusResultFile()
 

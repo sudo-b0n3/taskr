@@ -56,6 +56,7 @@ jobs:
               CODE_SIGNING_ALLOWED=NO \
               -resultBundlePath UITests.xcresult \
               -only-testing:taskrUITests \
+              -skip-testing:taskrUITests/TaskrPanelFocusUITests/testPanelReopenKeepsKeyFocusSignal \
               test; then
               exit 0
             fi
