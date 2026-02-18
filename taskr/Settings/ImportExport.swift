@@ -27,6 +27,7 @@ extension TaskManager {
         case fileTooLarge(actualBytes: Int, maxBytes: Int)
         case tooManyTasks(actualCount: Int, maxCount: Int)
         case taskTreeTooDeep(actualDepth: Int, maxDepth: Int)
+        case unsupportedImportFileType
 
         var errorDescription: String? {
             switch self {
@@ -36,6 +37,8 @@ extension TaskManager {
                 return "Import contains too many tasks. Maximum allowed is \(maxCount)."
             case .taskTreeTooDeep(_, let maxDepth):
                 return "Import task nesting is too deep. Maximum allowed depth is \(maxDepth)."
+            case .unsupportedImportFileType:
+                return "Import requires a regular file."
             }
         }
 
@@ -44,13 +47,51 @@ extension TaskManager {
         }
     }
 
-    static let maxImportBytes = 5 * 1024 * 1024
-    static let maxImportTaskCount = 10_000
-    static let maxImportDepth = 64
+    nonisolated static let maxImportBytes = 5 * 1024 * 1024
+    nonisolated static let maxImportTaskCount = 10_000
+    nonisolated static let maxImportDepth = 64
 
     private struct ImportStats {
         let nodeCount: Int
         let maxDepth: Int
+    }
+
+    private enum ImportScanRootMode {
+        case taskArray
+        case templateArray
+        case backupOrTaskArray
+    }
+
+    private enum ImportArrayRole {
+        case generic
+        case taskList(parentDepth: Int)
+    }
+
+    private enum ImportArrayState {
+        case valueOrEnd
+        case commaOrEnd
+    }
+
+    private struct ImportArrayContext {
+        var role: ImportArrayRole
+        var state: ImportArrayState = .valueOrEnd
+    }
+
+    private enum ImportObjectState {
+        case keyOrEnd
+        case colon(String)
+        case value(String)
+        case commaOrEnd
+    }
+
+    private struct ImportObjectContext {
+        var taskDepth: Int?
+        var state: ImportObjectState = .keyOrEnd
+    }
+
+    private enum ImportContainer {
+        case object(ImportObjectContext)
+        case array(ImportArrayContext)
     }
 
     // MARK: - Export
@@ -104,27 +145,30 @@ extension TaskManager {
     }
 
     // MARK: - Import (append)
-    func importUserTasks(from url: URL) throws {
-        let data = try validatedImportData(from: url)
+    func importUserTasks(from url: URL) async throws {
+        let data = try await readValidatedImportDataOffMain(from: url)
         try importUserTasks(from: data)
     }
 
     func importUserTasks(from data: Data) throws {
-        try validateImportDataSize(data.count)
+        try Self.validateImportDataSize(data.count)
+        try prevalidateImportStructure(in: data, rootMode: .taskArray)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let nodes = try decoder.decode([ExportTaskNode].self, from: data)
         try validateImportTaskNodes(nodes)
         try appendImported(nodes: nodes, preserveMetadata: false)
+        try modelContext.save()
     }
 
-    func importUserBackup(from url: URL) throws {
-        let data = try validatedImportData(from: url)
+    func importUserBackup(from url: URL) async throws {
+        let data = try await readValidatedImportDataOffMain(from: url)
         try importUserBackup(from: data)
     }
 
     func importUserBackup(from data: Data) throws {
-        try validateImportDataSize(data.count)
+        try Self.validateImportDataSize(data.count)
+        try prevalidateImportStructure(in: data, rootMode: .backupOrTaskArray)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         if let payload = try? decoder.decode(ExportBackupPayload.self, from: data) {
@@ -153,7 +197,8 @@ extension TaskManager {
     }
 
     func importUserTasksBackup(from data: Data) throws {
-        try validateImportDataSize(data.count)
+        try Self.validateImportDataSize(data.count)
+        try prevalidateImportStructure(in: data, rootMode: .taskArray)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let nodes = try decoder.decode([ExportTaskNode].self, from: data)
@@ -163,7 +208,8 @@ extension TaskManager {
     }
 
     func importUserTemplates(from data: Data) throws {
-        try validateImportDataSize(data.count)
+        try Self.validateImportDataSize(data.count)
+        try prevalidateImportStructure(in: data, rootMode: .templateArray)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let nodes = try decoder.decode([ExportTemplateNode].self, from: data)
@@ -287,21 +333,58 @@ extension TaskManager {
         return try encoder.encode(payload)
     }
 
-    private func validatedImportData(from url: URL) throws -> Data {
-        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+    nonisolated private func readValidatedImportDataOffMain(from url: URL) async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let data = try Self.validatedImportData(from: url)
+                    continuation.resume(returning: data)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    nonisolated private static func validatedImportData(from url: URL) throws -> Data {
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        guard values.isRegularFile == true else {
+            throw ImportExportError.unsupportedImportFileType
+        }
         if let fileSize = values.fileSize {
             try validateImportDataSize(fileSize)
         }
-
-        let data = try Data(contentsOf: url)
-        try validateImportDataSize(data.count)
-        return data
+        return try readImportDataWithLimit(from: url, maxBytes: maxImportBytes)
     }
 
-    private func validateImportDataSize(_ byteCount: Int) throws {
-        guard byteCount <= Self.maxImportBytes else {
-            throw ImportExportError.fileTooLarge(actualBytes: byteCount, maxBytes: Self.maxImportBytes)
+    nonisolated private static func validateImportDataSize(_ byteCount: Int) throws {
+        guard byteCount <= maxImportBytes else {
+            throw ImportExportError.fileTooLarge(actualBytes: byteCount, maxBytes: maxImportBytes)
         }
+    }
+
+    nonisolated private static func readImportDataWithLimit(from url: URL, maxBytes: Int) throws -> Data {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer {
+            try? handle.close()
+        }
+
+        var collected = Data()
+        let chunkSize = min(64 * 1024, maxBytes + 1)
+
+        while true {
+            let chunk = try handle.read(upToCount: chunkSize) ?? Data()
+            if chunk.isEmpty {
+                break
+            }
+
+            collected.append(chunk)
+            if collected.count > maxBytes {
+                throw ImportExportError.fileTooLarge(actualBytes: collected.count, maxBytes: maxBytes)
+            }
+        }
+
+        return collected
     }
 
     private func validateImportBackupPayload(_ payload: ExportBackupPayload) throws {
@@ -331,6 +414,405 @@ extension TaskManager {
             throw ImportExportError.taskTreeTooDeep(actualDepth: maxDepth, maxDepth: Self.maxImportDepth)
         }
     }
+
+    // Fast pre-decode guard: scans JSON structure iteratively to cap task count/depth
+    // before Codable recursion can consume unbounded resources.
+    private func prevalidateImportStructure(in data: Data, rootMode: ImportScanRootMode) throws {
+        let bytes = Array(data)
+        var index = 0
+        var rootSeen = false
+        var nodeCount = 0
+        var observedMaxDepth = 0
+        var stack: [ImportContainer] = []
+
+        while true {
+            skipJSONWhitespace(bytes, &index)
+            guard index < bytes.count else { break }
+            let byte = bytes[index]
+
+            if !rootSeen {
+                rootSeen = true
+                if byte == asciiLeftBracket {
+                    let role: ImportArrayRole = {
+                        switch rootMode {
+                        case .taskArray, .backupOrTaskArray:
+                            return .taskList(parentDepth: 0)
+                        case .templateArray:
+                            return .generic
+                        }
+                    }()
+                    stack.append(.array(ImportArrayContext(role: role)))
+                    index += 1
+                    continue
+                }
+                if byte == asciiLeftBrace {
+                    stack.append(.object(ImportObjectContext(taskDepth: nil)))
+                    index += 1
+                    continue
+                }
+            }
+
+            guard let last = stack.last else {
+                index += 1
+                continue
+            }
+
+            switch last {
+            case .object(var objectContext):
+                switch objectContext.state {
+                case .keyOrEnd:
+                    if byte == asciiRightBrace {
+                        stack.removeLast()
+                        index += 1
+                        finishCurrentValue(in: &stack)
+                        continue
+                    }
+                    guard byte == asciiQuote,
+                          let key = parseJSONString(bytes, &index, decodeEscapes: true)
+                    else {
+                        return
+                    }
+                    objectContext.state = .colon(key)
+                    stack[stack.count - 1] = .object(objectContext)
+                case .colon(let key):
+                    guard byte == asciiColon else { return }
+                    index += 1
+                    objectContext.state = .value(key)
+                    stack[stack.count - 1] = .object(objectContext)
+                case .value(let key):
+                    let (consumed, pushedContainer, taskDepth) = parseJSONValue(
+                        bytes: bytes,
+                        index: &index,
+                        key: key,
+                        parentTaskDepth: objectContext.taskDepth,
+                        rootMode: rootMode,
+                        stack: stack
+                    )
+                    guard consumed else { return }
+
+                    objectContext.state = .commaOrEnd
+                    stack[stack.count - 1] = .object(objectContext)
+
+                    if let taskDepth {
+                        nodeCount += 1
+                        observedMaxDepth = max(observedMaxDepth, taskDepth)
+                        try validateImportStats(nodeCount: nodeCount, maxDepth: observedMaxDepth)
+                    }
+                    if let pushedContainer {
+                        stack.append(pushedContainer)
+                    }
+                case .commaOrEnd:
+                    if byte == asciiComma {
+                        index += 1
+                        objectContext.state = .keyOrEnd
+                        stack[stack.count - 1] = .object(objectContext)
+                    } else if byte == asciiRightBrace {
+                        stack.removeLast()
+                        index += 1
+                        finishCurrentValue(in: &stack)
+                    } else {
+                        return
+                    }
+                }
+
+            case .array(var arrayContext):
+                switch arrayContext.state {
+                case .valueOrEnd:
+                    if byte == asciiRightBracket {
+                        stack.removeLast()
+                        index += 1
+                        finishCurrentValue(in: &stack)
+                        continue
+                    }
+
+                    let (consumed, pushedContainer, taskDepth) = parseJSONValue(
+                        bytes: bytes,
+                        index: &index,
+                        key: nil,
+                        parentTaskDepth: parentDepth(for: arrayContext.role),
+                        rootMode: rootMode,
+                        stack: stack
+                    )
+                    guard consumed else { return }
+                    arrayContext.state = .commaOrEnd
+                    stack[stack.count - 1] = .array(arrayContext)
+
+                    if let taskDepth {
+                        nodeCount += 1
+                        observedMaxDepth = max(observedMaxDepth, taskDepth)
+                        try validateImportStats(nodeCount: nodeCount, maxDepth: observedMaxDepth)
+                    }
+                    if let pushedContainer {
+                        stack.append(pushedContainer)
+                    }
+                case .commaOrEnd:
+                    if byte == asciiComma {
+                        index += 1
+                        arrayContext.state = .valueOrEnd
+                        stack[stack.count - 1] = .array(arrayContext)
+                    } else if byte == asciiRightBracket {
+                        stack.removeLast()
+                        index += 1
+                        finishCurrentValue(in: &stack)
+                    } else {
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    private func parseJSONValue(
+        bytes: [UInt8],
+        index: inout Int,
+        key: String?,
+        parentTaskDepth: Int?,
+        rootMode: ImportScanRootMode,
+        stack: [ImportContainer]
+    ) -> (consumed: Bool, pushedContainer: ImportContainer?, taskDepth: Int?) {
+        guard index < bytes.count else { return (false, nil, nil) }
+        let byte = bytes[index]
+
+        if byte == asciiLeftBrace {
+            index += 1
+            let taskDepth: Int?
+            if let parentTaskDepth {
+                taskDepth = parentTaskDepth + 1
+            } else {
+                taskDepth = nil
+            }
+            return (
+                true,
+                .object(ImportObjectContext(taskDepth: taskDepth)),
+                taskDepth
+            )
+        }
+
+        if byte == asciiLeftBracket {
+            let role = roleForArrayValue(
+                key: key,
+                parentTaskDepth: parentTaskDepth,
+                rootMode: rootMode,
+                stack: stack
+            )
+            index += 1
+            return (true, .array(ImportArrayContext(role: role)), nil)
+        }
+
+        if byte == asciiQuote {
+            guard parseJSONString(bytes, &index, decodeEscapes: false) != nil else {
+                return (false, nil, nil)
+            }
+            return (true, nil, nil)
+        }
+
+        if consumeJSONLiteral(bytes: bytes, index: &index) {
+            return (true, nil, nil)
+        }
+
+        return (false, nil, nil)
+    }
+
+    private func finishCurrentValue(in stack: inout [ImportContainer]) {
+        guard !stack.isEmpty else { return }
+        switch stack[stack.count - 1] {
+        case .object(var objectContext):
+            if case .value = objectContext.state {
+                objectContext.state = .commaOrEnd
+                stack[stack.count - 1] = .object(objectContext)
+            }
+        case .array(var arrayContext):
+            if arrayContext.state == .valueOrEnd {
+                arrayContext.state = .commaOrEnd
+                stack[stack.count - 1] = .array(arrayContext)
+            }
+        }
+    }
+
+    private func parentDepth(for role: ImportArrayRole) -> Int? {
+        switch role {
+        case .generic:
+            return nil
+        case .taskList(let depth):
+            return depth
+        }
+    }
+
+    private func roleForArrayValue(
+        key: String?,
+        parentTaskDepth: Int?,
+        rootMode: ImportScanRootMode,
+        stack: [ImportContainer]
+    ) -> ImportArrayRole {
+        if let key {
+            if key == "subtasks", let parentTaskDepth {
+                return .taskList(parentDepth: parentTaskDepth)
+            }
+            if key == "tasks" || key == "roots" {
+                return .taskList(parentDepth: 0)
+            }
+            return .generic
+        }
+
+        if stack.isEmpty {
+            switch rootMode {
+            case .taskArray, .backupOrTaskArray:
+                return .taskList(parentDepth: 0)
+            case .templateArray:
+                return .generic
+            }
+        }
+
+        return .generic
+    }
+
+    private func skipJSONWhitespace(_ bytes: [UInt8], _ index: inout Int) {
+        while index < bytes.count {
+            let byte = bytes[index]
+            if byte == asciiSpace || byte == asciiTab || byte == asciiNewline || byte == asciiCarriageReturn {
+                index += 1
+            } else {
+                break
+            }
+        }
+    }
+
+    private func parseJSONString(_ bytes: [UInt8], _ index: inout Int, decodeEscapes: Bool) -> String? {
+        guard index < bytes.count, bytes[index] == asciiQuote else { return nil }
+        index += 1
+        var output = ""
+        while index < bytes.count {
+            let byte = bytes[index]
+            if byte == asciiQuote {
+                index += 1
+                return decodeEscapes ? output : ""
+            }
+            if byte == asciiBackslash {
+                index += 1
+                guard index < bytes.count else { return nil }
+                let escaped = bytes[index]
+                if decodeEscapes {
+                    switch escaped {
+                    case asciiQuote: output.append("\"")
+                    case asciiBackslash: output.append("\\")
+                    case asciiSlash: output.append("/")
+                    case asciiB: output.append("\u{0008}")
+                    case asciiF: output.append("\u{000C}")
+                    case asciiN: output.append("\n")
+                    case asciiR: output.append("\r")
+                    case asciiT: output.append("\t")
+                    case asciiU:
+                        guard index + 4 < bytes.count else { return nil }
+                        let hexBytes = Array(bytes[(index + 1)...(index + 4)])
+                        guard let scalar = decodeHexScalar(hexBytes) else { return nil }
+                        output.append(scalar)
+                        index += 4
+                    default:
+                        return nil
+                    }
+                } else if escaped == asciiU {
+                    guard index + 4 < bytes.count else { return nil }
+                    index += 4
+                }
+                index += 1
+                continue
+            }
+
+            if decodeEscapes {
+                output.append(Character(UnicodeScalar(byte)))
+            }
+            index += 1
+        }
+
+        return nil
+    }
+
+    private func consumeJSONLiteral(bytes: [UInt8], index: inout Int) -> Bool {
+        guard index < bytes.count else { return false }
+        let byte = bytes[index]
+        if byte == asciiMinus || (asciiZero...asciiNine).contains(byte) {
+            index += 1
+            while index < bytes.count {
+                let current = bytes[index]
+                if (asciiZero...asciiNine).contains(current) || current == asciiPlus || current == asciiMinus || current == asciiDot || current == asciiE || current == asciiLowerE {
+                    index += 1
+                } else {
+                    break
+                }
+            }
+            return true
+        }
+        if matchesLiteral(bytes: bytes, index: index, literal: [asciiT, asciiR, asciiU, asciiE]) {
+            index += 4
+            return true
+        }
+        if matchesLiteral(bytes: bytes, index: index, literal: [asciiF, asciiA, asciiL, asciiS, asciiE]) {
+            index += 5
+            return true
+        }
+        if matchesLiteral(bytes: bytes, index: index, literal: [asciiN, asciiU, asciiL, asciiL]) {
+            index += 4
+            return true
+        }
+        return false
+    }
+
+    private func matchesLiteral(bytes: [UInt8], index: Int, literal: [UInt8]) -> Bool {
+        guard index + literal.count <= bytes.count else { return false }
+        return Array(bytes[index..<(index + literal.count)]) == literal
+    }
+
+    private func decodeHexScalar(_ bytes: [UInt8]) -> String? {
+        guard bytes.count == 4 else { return nil }
+        var value: UInt32 = 0
+        for byte in bytes {
+            value <<= 4
+            switch byte {
+            case asciiZero...asciiNine:
+                value += UInt32(byte - asciiZero)
+            case asciiA...asciiF:
+                value += UInt32(byte - asciiA + 10)
+            case asciiLowerA...asciiLowerF:
+                value += UInt32(byte - asciiLowerA + 10)
+            default:
+                return nil
+            }
+        }
+        guard let scalar = UnicodeScalar(value) else { return nil }
+        return String(scalar)
+    }
+
+    private var asciiQuote: UInt8 { 34 }
+    private var asciiBackslash: UInt8 { 92 }
+    private var asciiSlash: UInt8 { 47 }
+    private var asciiLeftBrace: UInt8 { 123 }
+    private var asciiRightBrace: UInt8 { 125 }
+    private var asciiLeftBracket: UInt8 { 91 }
+    private var asciiRightBracket: UInt8 { 93 }
+    private var asciiColon: UInt8 { 58 }
+    private var asciiComma: UInt8 { 44 }
+    private var asciiSpace: UInt8 { 32 }
+    private var asciiTab: UInt8 { 9 }
+    private var asciiNewline: UInt8 { 10 }
+    private var asciiCarriageReturn: UInt8 { 13 }
+    private var asciiMinus: UInt8 { 45 }
+    private var asciiPlus: UInt8 { 43 }
+    private var asciiDot: UInt8 { 46 }
+    private var asciiZero: UInt8 { 48 }
+    private var asciiNine: UInt8 { 57 }
+    private var asciiA: UInt8 { 65 }
+    private var asciiF: UInt8 { 70 }
+    private var asciiE: UInt8 { 69 }
+    private var asciiLowerA: UInt8 { 97 }
+    private var asciiLowerE: UInt8 { 101 }
+    private var asciiLowerF: UInt8 { 102 }
+    private var asciiB: UInt8 { 98 }
+    private var asciiN: UInt8 { 110 }
+    private var asciiR: UInt8 { 114 }
+    private var asciiT: UInt8 { 116 }
+    private var asciiU: UInt8 { 117 }
+    private var asciiL: UInt8 { 108 }
+    private var asciiS: UInt8 { 115 }
 
     private func collectImportStats(from roots: [ExportTaskNode]) -> ImportStats {
         guard !roots.isEmpty else {

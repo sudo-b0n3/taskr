@@ -215,12 +215,6 @@ struct ContentView: View {
     }
 
     private func handleTasksButton() {
-        #if DEBUG
-        let flags = NSApp.currentEvent?.modifierFlags.intersection(.deviceIndependentFlagsMask) ?? []
-        if flags.contains(.option) {
-            taskManager.toggleScreenshotDemoMode()
-        }
-        #endif
         currentView = .tasks
     }
 

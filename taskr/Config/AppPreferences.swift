@@ -49,10 +49,6 @@ let contextMenuTagTargetPreferenceKey = "contextMenuTagTargetPreference" // Tag 
 let defaultHotkeyKeyCode: UInt16 = UInt16(kVK_ANSI_N)
 let defaultHotkeyModifiers: NSEvent.ModifierFlags = [.control, .option]
 
-// Screenshot automation coordination artifacts
-let screenshotAutomationConfigFilename = "taskr_screenshot_config.json"
-let screenshotDemoModeActivePreferenceKey = "screenshotDemoModeActivePreference"
-
 // --- Enums ---
 
 // Icon Choices

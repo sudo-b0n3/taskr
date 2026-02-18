@@ -623,6 +623,46 @@ final class TaskManagerTests: XCTestCase {
         }
     }
 
+    func testImportUserBackupFromURLRejectsOversizedPayload() async throws {
+        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer {
+            try? FileManager.default.removeItem(at: tempURL)
+        }
+
+        let oversizedData = Data(repeating: 0x41, count: TaskManager.maxImportBytes + 1)
+        try oversizedData.write(to: tempURL, options: .atomic)
+
+        do {
+            try await manager.importUserBackup(from: tempURL)
+            XCTFail("Expected fileTooLarge error")
+        } catch let TaskManager.ImportExportError.fileTooLarge(actualBytes, maxBytes) {
+            XCTAssertGreaterThan(actualBytes, maxBytes)
+            XCTAssertEqual(maxBytes, TaskManager.maxImportBytes)
+        } catch {
+            XCTFail("Expected fileTooLarge error, got \(error)")
+        }
+    }
+
+    func testImportUserBackupFromURLRejectsNonRegularFile() async throws {
+        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        do {
+            try await manager.importUserBackup(from: tempDirectory)
+            XCTFail("Expected unsupportedImportFileType error")
+        } catch TaskManager.ImportExportError.unsupportedImportFileType {
+            // expected
+        } catch {
+            XCTFail("Expected unsupportedImportFileType error, got \(error)")
+        }
+    }
+
     func testImportUserTasksBackupRejectsTooDeepHierarchy() throws {
         let deepNode = makeDeepExportNode(depth: TaskManager.maxImportDepth + 1)
         let data = try encodeTaskNodes([deepNode])
@@ -734,6 +774,33 @@ final class TaskManagerTests: XCTestCase {
             }
             XCTAssertEqual(maxCount, TaskManager.maxImportTaskCount)
             XCTAssertEqual(actualCount, TaskManager.maxImportTaskCount + 1)
+        }
+    }
+
+    func testImportUserTasksRejectsTooDeepRawJSONBeforeDecode() throws {
+        let data = makeRawTaskArrayJSON(depth: TaskManager.maxImportDepth + 1)
+
+        XCTAssertThrowsError(try manager.importUserTasks(from: data)) { error in
+            guard case let TaskManager.ImportExportError.taskTreeTooDeep(actualDepth, maxDepth) = error else {
+                return XCTFail("Expected taskTreeTooDeep error, got \(error)")
+            }
+            XCTAssertEqual(maxDepth, TaskManager.maxImportDepth)
+            XCTAssertGreaterThan(actualDepth, maxDepth)
+        }
+    }
+
+    func testImportUserBackupRejectsTooManyTasksRawJSONBeforeDecode() throws {
+        let tooManyTasks = TaskManager.maxImportTaskCount + 1
+        let tasksBody = Array(repeating: "{}", count: tooManyTasks).joined(separator: ",")
+        let raw = "{\"tasks\":[\(tasksBody)],\"templates\":[]}"
+        let data = Data(raw.utf8)
+
+        XCTAssertThrowsError(try manager.importUserBackup(from: data)) { error in
+            guard case let TaskManager.ImportExportError.tooManyTasks(actualCount, maxCount) = error else {
+                return XCTFail("Expected tooManyTasks error, got \(error)")
+            }
+            XCTAssertEqual(maxCount, TaskManager.maxImportTaskCount)
+            XCTAssertGreaterThan(actualCount, maxCount)
         }
     }
 
@@ -958,6 +1025,15 @@ final class TaskManagerTests: XCTestCase {
         }
 
         return node
+    }
+
+    private func makeRawTaskArrayJSON(depth: Int) -> Data {
+        precondition(depth > 0)
+        var node = "{}"
+        for _ in 1..<depth {
+            node = "{\"subtasks\":[\(node)]}"
+        }
+        return Data("[\(node)]".utf8)
     }
 
     private func encodeTaskNodes(_ nodes: [ExportTaskNode]) throws -> Data {

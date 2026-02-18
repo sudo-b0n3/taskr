@@ -627,11 +627,13 @@ struct SettingsView: View {
         panel.allowedContentTypes = [UTType.json]
         
         if panel.runModal() == .OK, let url = panel.url {
-            do {
-                try taskManager.importUserBackup(from: url)
-            } catch {
-                alertMessage = "Import failed: \(error.localizedDescription)"
-                showAlert = true
+            _Concurrency.Task { @MainActor in
+                do {
+                    try await taskManager.importUserBackup(from: url)
+                } catch {
+                    alertMessage = "Import failed: \(error.localizedDescription)"
+                    showAlert = true
+                }
             }
         }
     }
