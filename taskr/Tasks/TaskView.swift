@@ -275,6 +275,9 @@ private extension TaskView {
         case .parseError:
             pasteErrorMessage = "Could not parse clipboard content."
             showPasteError = true
+        case .limitExceeded(let message):
+            pasteErrorMessage = message
+            showPasteError = true
         }
     }
 }

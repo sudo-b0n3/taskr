@@ -11,6 +11,7 @@ extension TaskManager {
         case multipleSelection
         case emptyClipboard
         case parseError
+        case limitExceeded(message: String)
     }
     
     struct ParsedTaskEntry {
@@ -23,6 +24,15 @@ extension TaskManager {
 // MARK: - Clipboard Parsing
 
 extension TaskManager {
+    nonisolated private static let maxPasteBytes = 1 * 1024 * 1024
+    nonisolated private static let maxPasteTaskCount = 2_000
+    nonisolated private static let maxPasteDepth = 64
+    
+    private enum PasteParseOutcome {
+        case success([ParsedTaskEntry])
+        case failure(PasteResult)
+    }
+
     /// Cached regex for taskr format parsing — compiled once for efficiency
     private static let taskrFormatRegex: NSRegularExpression? = {
         let pattern = #"^(\t*)\((x?)\) - (.+)$"#
@@ -87,39 +97,58 @@ extension TaskManager {
     /// Entry point called by ⌘V keyboard shortcut
     /// Handles the paste and publishes result for UI to handle dialogs
     func triggerPaste() {
-        // Pre-parse clipboard once to avoid redundant parsing
         guard let content = NSPasteboard.general.string(forType: .string),
               !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             pendingPasteResult = .emptyClipboard
             return
         }
-        
-        guard let entries = parseClipboardContent(content), !entries.isEmpty else {
-            pendingPasteResult = .parseError
+
+        switch parseAndValidateClipboardContent(content) {
+        case .failure(let errorResult):
+            pendingPasteResult = errorResult
             return
-        }
-        
-        let result = pasteTasksFromParsed(entries: entries)
-        
-        switch result {
-        case .success:
-            // Success - nothing to show to user
-            pendingPasteResult = nil
-        case .noSelection:
-            // Check if we should skip confirmation
-            if UserDefaults.standard.bool(forKey: skipPasteRootConfirmationPreferenceKey) {
-                // User opted to skip confirmation, paste at root
-                let createdCount = createTasksFromParsed(entries: entries, under: nil)
+        case .success(let entries):
+            let result = pasteTasksFromParsed(entries: entries)
+
+            switch result {
+            case .success:
                 pendingPasteResult = nil
-                _ = createdCount // Paste succeeded silently
-            } else {
-                // Show confirmation dialog
+            case .noSelection:
+                if UserDefaults.standard.bool(forKey: skipPasteRootConfirmationPreferenceKey) {
+                    let createdCount = createTasksFromParsed(entries: entries, under: nil)
+                    pendingPasteResult = nil
+                    _ = createdCount
+                } else {
+                    pendingPasteResult = result
+                }
+            case .multipleSelection, .emptyClipboard, .parseError, .limitExceeded:
                 pendingPasteResult = result
             }
-        case .multipleSelection, .emptyClipboard, .parseError:
-            // Show error alert
-            pendingPasteResult = result
         }
+    }
+
+    private func parseAndValidateClipboardContent(_ content: String) -> PasteParseOutcome {
+        let byteCount = content.lengthOfBytes(using: .utf8)
+        guard byteCount <= Self.maxPasteBytes else {
+            let maximum = ByteCountFormatter.string(fromByteCount: Int64(Self.maxPasteBytes), countStyle: .file)
+            return .failure(.limitExceeded(message: "Clipboard content is too large. Maximum allowed is \(maximum)."))
+        }
+
+        guard let entries = parseClipboardContent(content), !entries.isEmpty else {
+            return .failure(.parseError)
+        }
+
+        guard entries.count <= Self.maxPasteTaskCount else {
+            return .failure(.limitExceeded(message: "Clipboard contains too many tasks. Maximum allowed is \(Self.maxPasteTaskCount)."))
+        }
+
+        let minDepth = entries.map(\.depth).min() ?? 0
+        let adjustedMaxDepth = entries.map { max(0, $0.depth - minDepth) }.max() ?? 0
+        guard adjustedMaxDepth <= Self.maxPasteDepth else {
+            return .failure(.limitExceeded(message: "Clipboard task nesting is too deep. Maximum allowed depth is \(Self.maxPasteDepth)."))
+        }
+
+        return .success(entries)
     }
 }
 
@@ -152,18 +181,18 @@ extension TaskManager {
     
     /// Pastes tasks at root level (called from confirmation dialog)
     func pasteTasksAtRootLevel() -> PasteResult {
-        // Re-parse clipboard since this is called after user confirmation
         guard let content = NSPasteboard.general.string(forType: .string),
               !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .emptyClipboard
         }
-        
-        guard let entries = parseClipboardContent(content), !entries.isEmpty else {
-            return .parseError
+
+        switch parseAndValidateClipboardContent(content) {
+        case .failure(let errorResult):
+            return errorResult
+        case .success(let entries):
+            let createdCount = createTasksFromParsed(entries: entries, under: nil)
+            return .success(count: createdCount)
         }
-        
-        let createdCount = createTasksFromParsed(entries: entries, under: nil)
-        return .success(count: createdCount)
     }
     
     /// Creates tasks from parsed entries under the given parent (nil = root level)

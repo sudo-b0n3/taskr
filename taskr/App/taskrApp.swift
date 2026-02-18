@@ -45,10 +45,18 @@ private func migrateLegacyStoreIntoCurrentContainerIfNeeded() {
 
         do {
             try copyStoreWithSidecars(from: sourceStoreURL, to: currentStoreURL, fileManager: fileManager)
+            #if DEBUG
             print("Store migration: migrated data from \(sourceStoreURL.path) to \(currentStoreURL.path)")
+            #else
+            print("Store migration: migrated legacy data into current container.")
+            #endif
             return
         } catch {
+            #if DEBUG
             print("Store migration: failed to migrate from \(sourceStoreURL.path): \(error)")
+            #else
+            print("Store migration: failed to migrate a legacy store candidate: \(error)")
+            #endif
         }
     }
 }
@@ -103,7 +111,11 @@ private func copyStoreWithSidecars(from sourceStoreURL: URL, to destinationStore
         do {
             try fileManager.copyItem(at: sourceShm, to: destinationShm)
         } catch {
+            #if DEBUG
             print("Store migration: unable to copy SHM sidecar from \(sourceShm.path): \(error)")
+            #else
+            print("Store migration: unable to copy SHM sidecar: \(error)")
+            #endif
         }
     }
 
@@ -111,7 +123,11 @@ private func copyStoreWithSidecars(from sourceStoreURL: URL, to destinationStore
         do {
             try fileManager.copyItem(at: sourceWal, to: destinationWal)
         } catch {
+            #if DEBUG
             print("Store migration: unable to copy WAL sidecar from \(sourceWal.path): \(error)")
+            #else
+            print("Store migration: unable to copy WAL sidecar: \(error)")
+            #endif
         }
     }
 }
@@ -222,7 +238,11 @@ private func restoreStoreFromPendingBookmarkIfNeeded() {
         clearPendingRecoverySelection(defaults: defaults)
         return
     }
+    #if DEBUG
     print("Store recovery: restoring from \(sourceURL.path)")
+    #else
+    print("Store recovery: restoring from selected store.")
+    #endif
 
     var didRestore = false
     do {
@@ -279,9 +299,13 @@ private func preferredRecoveryStoreURL(in directoryURL: URL, preferredFilename: 
         .filter { fileManager.fileExists(atPath: $0.path) }
 
     guard !candidates.isEmpty else { return nil }
+    #if DEBUG
     print("Store recovery: candidate stores = \(candidates.map { $0.path })")
+    #endif
     let selected = candidates[0]
+    #if DEBUG
     print("Store recovery: selected candidate by priority = \(selected.path)")
+    #endif
     return selected
 }
 
@@ -443,7 +467,9 @@ private func presentLegacyStorePickerAndQueueRestore(defaults: UserDefaults) {
             _ = alert.runModal()
             return
         }
+        #if DEBUG
         print("Store recovery: selected folder source \(selectedSourceURL.path)")
+        #endif
         let selectedRelativePath = relativePath(from: directoryURL, to: selectedSourceURL)
         guard !selectedRelativePath.isEmpty else {
             return

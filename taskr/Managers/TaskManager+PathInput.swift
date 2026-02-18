@@ -151,7 +151,7 @@ extension TaskManager {
                         try taskManager.modelContext.save()
                         taskManager.modelContext.processPendingChanges()
                     } catch {
-                        print("Error saving tasks for path \(pathToProcess): \(error)")
+                        print("Error saving tasks for path input: \(error)")
                         return
                     }
 
