@@ -499,6 +499,10 @@ struct taskrApp: App {
         let runningAutomatedTests = isRunningAutomatedTests()
         let runningUITests = isRunningUITestAutomation()
 
+        if runningAutomatedTests {
+            UserDefaults.standard.set(true, forKey: "hasCompletedSetup")
+        }
+
         if !runningAutomatedTests {
             restoreStoreFromPendingBookmarkIfNeeded()
             migrateLegacyStoreIntoCurrentContainerIfNeeded()
@@ -635,6 +639,7 @@ private func configureUITestAutomationIfNeeded(taskManager: TaskManager, appDele
 }
 
 private func runPanelReopenFocusAutomation(taskManager: TaskManager, appDelegate: AppDelegate) {
+    UserDefaults.standard.set(true, forKey: "hasCompletedSetup")
     UserDefaults.standard.set(MenuBarPresentationStyle.panel.rawValue, forKey: menuBarPresentationStylePreferenceKey)
     writePanelReopenFocusResult("pending")
 
