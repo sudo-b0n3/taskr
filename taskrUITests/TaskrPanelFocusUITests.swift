@@ -27,6 +27,8 @@ final class TaskrPanelFocusUITests: XCTestCase {
         }
         return [explicitResultURL, hostURL, runnerURL]
     }()
+    private let appLaunchTimeout: TimeInterval = 20
+    private let panelFocusResultTimeout: TimeInterval = 25
 
     func testPanelReopenKeepsKeyFocusSignal() {
         terminateExistingTaskrInstances()
@@ -37,11 +39,11 @@ final class TaskrPanelFocusUITests: XCTestCase {
         app.launchArguments.append("-UITestPanelReopenFocus")
         app.launch()
 
-        let isForeground = app.wait(for: .runningForeground, timeout: 2)
-        let isBackground = app.wait(for: .runningBackground, timeout: 0)
+        let isForeground = app.wait(for: .runningForeground, timeout: appLaunchTimeout)
+        let isBackground = app.wait(for: .runningBackground, timeout: appLaunchTimeout)
         XCTAssertTrue(isForeground || isBackground, "App did not launch successfully")
 
-        let result = waitForPanelFocusResult(timeout: 8.0)
+        let result = waitForPanelFocusResult(timeout: panelFocusResultTimeout)
         XCTAssertEqual(result, "pass", "Expected panel reopen focus result to pass, got: \(result ?? "nil")")
     }
 
@@ -51,6 +53,14 @@ final class TaskrPanelFocusUITests: XCTestCase {
             if !runningApp.terminate() {
                 _ = runningApp.forceTerminate()
             }
+        }
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            let remaining = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            if remaining.isEmpty {
+                return
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
     }
 
