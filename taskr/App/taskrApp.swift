@@ -332,8 +332,7 @@ private func moveStoreWithSidecars(from sourceStoreURL: URL, to destinationStore
 }
 
 private func scheduleLegacyRecoveryPromptIfNeeded(modelContext: ModelContext) {
-    let arguments = ProcessInfo.processInfo.arguments
-    if arguments.contains("--uitests") {
+    if isRunningAutomatedTests() {
         return
     }
 
@@ -367,6 +366,26 @@ private func scheduleLegacyRecoveryPromptIfNeeded(modelContext: ModelContext) {
             break
         }
     }
+}
+
+private func isRunningAutomatedTests() -> Bool {
+    let processInfo = ProcessInfo.processInfo
+    let environment = processInfo.environment
+    let arguments = processInfo.arguments
+
+    if environment["XCTestConfigurationFilePath"] != nil {
+        return true
+    }
+    if environment["XCTestBundlePath"] != nil {
+        return true
+    }
+    if environment["XCTestSessionIdentifier"] != nil {
+        return true
+    }
+    if arguments.contains("--uitests") {
+        return true
+    }
+    return processInfo.processName == "xctest"
 }
 
 private func hasLikelyPriorTaskrUsage(defaults: UserDefaults) -> Bool {
