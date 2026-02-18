@@ -23,6 +23,36 @@ struct ExportBackupPayload: Codable {
 }
 
 extension TaskManager {
+    enum ImportExportError: LocalizedError, Equatable {
+        case fileTooLarge(actualBytes: Int, maxBytes: Int)
+        case tooManyTasks(actualCount: Int, maxCount: Int)
+        case taskTreeTooDeep(actualDepth: Int, maxDepth: Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .fileTooLarge(let actualBytes, let maxBytes):
+                return "Import file is too large (\(Self.byteCountString(actualBytes))). Maximum allowed is \(Self.byteCountString(maxBytes))."
+            case .tooManyTasks(_, let maxCount):
+                return "Import contains too many tasks. Maximum allowed is \(maxCount)."
+            case .taskTreeTooDeep(_, let maxDepth):
+                return "Import task nesting is too deep. Maximum allowed depth is \(maxDepth)."
+            }
+        }
+
+        private static func byteCountString(_ bytes: Int) -> String {
+            ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+        }
+    }
+
+    static let maxImportBytes = 5 * 1024 * 1024
+    static let maxImportTaskCount = 10_000
+    static let maxImportDepth = 64
+
+    private struct ImportStats {
+        let nodeCount: Int
+        let maxDepth: Int
+    }
+
     // MARK: - Export
     func exportUserTasksData() throws -> Data {
         // Fetch top-level user tasks (non-templates)
@@ -75,27 +105,30 @@ extension TaskManager {
 
     // MARK: - Import (append)
     func importUserTasks(from url: URL) throws {
-        let data = try Data(contentsOf: url)
+        let data = try validatedImportData(from: url)
         try importUserTasks(from: data)
     }
 
     func importUserTasks(from data: Data) throws {
+        try validateImportDataSize(data.count)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let nodes = try decoder.decode([ExportTaskNode].self, from: data)
+        try validateImportTaskNodes(nodes)
         try appendImported(nodes: nodes, preserveMetadata: false)
     }
 
     func importUserBackup(from url: URL) throws {
-        let data = try Data(contentsOf: url)
+        let data = try validatedImportData(from: url)
         try importUserBackup(from: data)
     }
 
     func importUserBackup(from data: Data) throws {
+        try validateImportDataSize(data.count)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        do {
-            let payload = try decoder.decode(ExportBackupPayload.self, from: data)
+        if let payload = try? decoder.decode(ExportBackupPayload.self, from: data) {
+            try validateImportBackupPayload(payload)
             if !payload.tasks.isEmpty {
                 try appendImported(nodes: payload.tasks, preserveMetadata: true)
             }
@@ -103,11 +136,13 @@ extension TaskManager {
                 try appendImportedTemplates(nodes: payload.templates, preserveMetadata: true)
             }
             try modelContext.save()
-        } catch {
-            let nodes = try decoder.decode([ExportTaskNode].self, from: data)
-            try appendImported(nodes: nodes, preserveMetadata: false)
-            try modelContext.save()
+            return
         }
+
+        let nodes = try decoder.decode([ExportTaskNode].self, from: data)
+        try validateImportTaskNodes(nodes)
+        try appendImported(nodes: nodes, preserveMetadata: false)
+        try modelContext.save()
     }
 
     private func appendImported(nodes: [ExportTaskNode], preserveMetadata: Bool) throws {
@@ -118,17 +153,21 @@ extension TaskManager {
     }
 
     func importUserTasksBackup(from data: Data) throws {
+        try validateImportDataSize(data.count)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let nodes = try decoder.decode([ExportTaskNode].self, from: data)
+        try validateImportTaskNodes(nodes)
         try appendImported(nodes: nodes, preserveMetadata: true)
         try modelContext.save()
     }
 
     func importUserTemplates(from data: Data) throws {
+        try validateImportDataSize(data.count)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let nodes = try decoder.decode([ExportTemplateNode].self, from: data)
+        try validateImportTemplateNodes(nodes)
         try appendImportedTemplates(nodes: nodes, preserveMetadata: true)
         try modelContext.save()
     }
@@ -246,5 +285,72 @@ extension TaskManager {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(payload)
+    }
+
+    private func validatedImportData(from url: URL) throws -> Data {
+        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+        if let fileSize = values.fileSize {
+            try validateImportDataSize(fileSize)
+        }
+
+        let data = try Data(contentsOf: url)
+        try validateImportDataSize(data.count)
+        return data
+    }
+
+    private func validateImportDataSize(_ byteCount: Int) throws {
+        guard byteCount <= Self.maxImportBytes else {
+            throw ImportExportError.fileTooLarge(actualBytes: byteCount, maxBytes: Self.maxImportBytes)
+        }
+    }
+
+    private func validateImportBackupPayload(_ payload: ExportBackupPayload) throws {
+        let taskStats = collectImportStats(from: payload.tasks)
+        let templateStats = collectImportStats(from: payload.templates.flatMap(\.roots))
+        let totalCount = taskStats.nodeCount + templateStats.nodeCount
+        let totalDepth = max(taskStats.maxDepth, templateStats.maxDepth)
+
+        try validateImportStats(nodeCount: totalCount, maxDepth: totalDepth)
+    }
+
+    private func validateImportTaskNodes(_ nodes: [ExportTaskNode]) throws {
+        let stats = collectImportStats(from: nodes)
+        try validateImportStats(nodeCount: stats.nodeCount, maxDepth: stats.maxDepth)
+    }
+
+    private func validateImportTemplateNodes(_ nodes: [ExportTemplateNode]) throws {
+        let stats = collectImportStats(from: nodes.flatMap(\.roots))
+        try validateImportStats(nodeCount: stats.nodeCount, maxDepth: stats.maxDepth)
+    }
+
+    private func validateImportStats(nodeCount: Int, maxDepth: Int) throws {
+        guard nodeCount <= Self.maxImportTaskCount else {
+            throw ImportExportError.tooManyTasks(actualCount: nodeCount, maxCount: Self.maxImportTaskCount)
+        }
+        guard maxDepth <= Self.maxImportDepth else {
+            throw ImportExportError.taskTreeTooDeep(actualDepth: maxDepth, maxDepth: Self.maxImportDepth)
+        }
+    }
+
+    private func collectImportStats(from roots: [ExportTaskNode]) -> ImportStats {
+        guard !roots.isEmpty else {
+            return ImportStats(nodeCount: 0, maxDepth: 0)
+        }
+
+        var stack: [(node: ExportTaskNode, depth: Int)] = roots.map { ($0, 1) }
+        var nodeCount = 0
+        var observedMaxDepth = 0
+
+        while let current = stack.popLast() {
+            nodeCount += 1
+            if current.depth > observedMaxDepth {
+                observedMaxDepth = current.depth
+            }
+            for child in current.node.subtasks {
+                stack.append((child, current.depth + 1))
+            }
+        }
+
+        return ImportStats(nodeCount: nodeCount, maxDepth: observedMaxDepth)
     }
 }

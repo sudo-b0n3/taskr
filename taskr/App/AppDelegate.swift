@@ -774,6 +774,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
                 let receivedKeyCode = event.keyCode
                 let receivedDeviceIndependentModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
+                #if DEBUG
                 print("""
                     --- Hotkey Event Received ---
                     Expected KeyCode: \(activeConfiguration.keyCode), Received KeyCode: \(receivedKeyCode)
@@ -783,6 +784,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Observabl
                     Is Modifiers Match: \(receivedDeviceIndependentModifiers == activeConfiguration.modifiers)
                     --- End Hotkey Event ---
                     """)
+                #endif
 
                 if receivedKeyCode == activeConfiguration.keyCode && receivedDeviceIndependentModifiers == activeConfiguration.modifiers {
                     print("AppDelegate: Global hotkey \(activeConfiguration.displayString) DETECTED!")

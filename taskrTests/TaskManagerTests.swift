@@ -611,6 +611,132 @@ final class TaskManagerTests: XCTestCase {
         XCTAssertEqual(exportedTemplate.roots.first?.isCompleted, true)
     }
 
+    func testImportUserBackupRejectsOversizedPayload() throws {
+        let oversizedData = Data(repeating: 0x41, count: TaskManager.maxImportBytes + 1)
+
+        XCTAssertThrowsError(try manager.importUserBackup(from: oversizedData)) { error in
+            guard case let TaskManager.ImportExportError.fileTooLarge(actualBytes, maxBytes) = error else {
+                return XCTFail("Expected fileTooLarge error, got \(error)")
+            }
+            XCTAssertEqual(actualBytes, oversizedData.count)
+            XCTAssertEqual(maxBytes, TaskManager.maxImportBytes)
+        }
+    }
+
+    func testImportUserTasksBackupRejectsTooDeepHierarchy() throws {
+        let deepNode = makeDeepExportNode(depth: TaskManager.maxImportDepth + 1)
+        let data = try encodeTaskNodes([deepNode])
+
+        XCTAssertThrowsError(try manager.importUserTasksBackup(from: data)) { error in
+            guard case let TaskManager.ImportExportError.taskTreeTooDeep(actualDepth, maxDepth) = error else {
+                return XCTFail("Expected taskTreeTooDeep error, got \(error)")
+            }
+            XCTAssertEqual(maxDepth, TaskManager.maxImportDepth)
+            XCTAssertGreaterThan(actualDepth, maxDepth)
+        }
+    }
+
+    func testImportUserTasksBackupRejectsTooManyTasks() throws {
+        let nodes = (0...TaskManager.maxImportTaskCount).map { index in
+            ExportTaskNode(
+                id: UUID(),
+                name: "Task \(index)",
+                isCompleted: false,
+                creationDate: Date(),
+                displayOrder: index,
+                isLocked: false,
+                subtasks: []
+            )
+        }
+        let data = try encodeTaskNodes(nodes)
+
+        XCTAssertThrowsError(try manager.importUserTasksBackup(from: data)) { error in
+            guard case let TaskManager.ImportExportError.tooManyTasks(actualCount, maxCount) = error else {
+                return XCTFail("Expected tooManyTasks error, got \(error)")
+            }
+            XCTAssertEqual(maxCount, TaskManager.maxImportTaskCount)
+            XCTAssertEqual(actualCount, TaskManager.maxImportTaskCount + 1)
+        }
+    }
+
+    func testImportUserTasksRejectsTooDeepHierarchy() throws {
+        let deepNode = makeDeepExportNode(depth: TaskManager.maxImportDepth + 1)
+        let data = try encodeTaskNodes([deepNode])
+
+        XCTAssertThrowsError(try manager.importUserTasks(from: data)) { error in
+            guard case let TaskManager.ImportExportError.taskTreeTooDeep(actualDepth, maxDepth) = error else {
+                return XCTFail("Expected taskTreeTooDeep error, got \(error)")
+            }
+            XCTAssertEqual(maxDepth, TaskManager.maxImportDepth)
+            XCTAssertGreaterThan(actualDepth, maxDepth)
+        }
+    }
+
+    func testImportUserTasksRejectsTooManyTasks() throws {
+        let nodes = (0...TaskManager.maxImportTaskCount).map { index in
+            ExportTaskNode(
+                id: UUID(),
+                name: "Task \(index)",
+                isCompleted: false,
+                creationDate: Date(),
+                displayOrder: index,
+                isLocked: false,
+                subtasks: []
+            )
+        }
+        let data = try encodeTaskNodes(nodes)
+
+        XCTAssertThrowsError(try manager.importUserTasks(from: data)) { error in
+            guard case let TaskManager.ImportExportError.tooManyTasks(actualCount, maxCount) = error else {
+                return XCTFail("Expected tooManyTasks error, got \(error)")
+            }
+            XCTAssertEqual(maxCount, TaskManager.maxImportTaskCount)
+            XCTAssertEqual(actualCount, TaskManager.maxImportTaskCount + 1)
+        }
+    }
+
+    func testImportUserTemplatesRejectsTooDeepHierarchy() throws {
+        let deepNode = makeDeepExportNode(depth: TaskManager.maxImportDepth + 1)
+        let templates = [
+            ExportTemplateNode(name: "Template", roots: [deepNode])
+        ]
+        let data = try encodeTemplateNodes(templates)
+
+        XCTAssertThrowsError(try manager.importUserTemplates(from: data)) { error in
+            guard case let TaskManager.ImportExportError.taskTreeTooDeep(actualDepth, maxDepth) = error else {
+                return XCTFail("Expected taskTreeTooDeep error, got \(error)")
+            }
+            XCTAssertEqual(maxDepth, TaskManager.maxImportDepth)
+            XCTAssertGreaterThan(actualDepth, maxDepth)
+        }
+    }
+
+    func testImportUserTemplatesRejectsTooManyTasks() throws {
+        let roots = (0...TaskManager.maxImportTaskCount).map { index in
+            ExportTaskNode(
+                id: UUID(),
+                name: "Template Task \(index)",
+                isCompleted: false,
+                creationDate: Date(),
+                displayOrder: index,
+                isLocked: false,
+                subtasks: []
+            )
+        }
+        let templates = [
+            ExportTemplateNode(name: "Template", roots: roots)
+        ]
+        let data = try encodeTemplateNodes(templates)
+
+        XCTAssertThrowsError(try manager.importUserTemplates(from: data)) { error in
+            guard case let TaskManager.ImportExportError.tooManyTasks(actualCount, maxCount) = error else {
+                return XCTFail("Expected tooManyTasks error, got \(error)")
+            }
+            XCTAssertEqual(maxCount, TaskManager.maxImportTaskCount)
+            XCTAssertEqual(actualCount, TaskManager.maxImportTaskCount + 1)
+        }
+    }
+
     func testDuplicateTemplateCopiesStructureAndStatus() throws {
         manager.newTemplateName = "Morning"
         manager.addTemplate()
@@ -801,5 +927,48 @@ final class TaskManagerTests: XCTestCase {
             manager.addTaskFromPath(pathOverride: "/\(rootName)/Child \(index)")
         }
         return parent
+    }
+
+    private func makeDeepExportNode(depth: Int) -> ExportTaskNode {
+        precondition(depth > 0)
+        var node = ExportTaskNode(
+            id: UUID(),
+            name: "Depth \(depth)",
+            isCompleted: false,
+            creationDate: Date(),
+            displayOrder: depth,
+            isLocked: false,
+            subtasks: []
+        )
+
+        if depth == 1 {
+            return node
+        }
+
+        for level in stride(from: depth - 1, through: 1, by: -1) {
+            node = ExportTaskNode(
+                id: UUID(),
+                name: "Depth \(level)",
+                isCompleted: false,
+                creationDate: Date(),
+                displayOrder: level,
+                isLocked: false,
+                subtasks: [node]
+            )
+        }
+
+        return node
+    }
+
+    private func encodeTaskNodes(_ nodes: [ExportTaskNode]) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(nodes)
+    }
+
+    private func encodeTemplateNodes(_ nodes: [ExportTemplateNode]) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(nodes)
     }
 }
