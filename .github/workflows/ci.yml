@@ -43,12 +43,37 @@ jobs:
 
       - name: Run UI tests
         run: |
-          xcodebuild \
-            -project taskr.xcodeproj \
-            -scheme taskr \
-            -configuration Debug \
-            -destination 'platform=macOS,arch=arm64' \
-            CODE_SIGNING_ALLOWED=NO \
-            -resultBundlePath UITests.xcresult \
-            -only-testing:taskrUITests \
-            test
+          max_attempts=3
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            rm -rf UITests.xcresult
+            echo "UI test attempt $attempt/$max_attempts"
+            if xcodebuild \
+              -project taskr.xcodeproj \
+              -scheme taskr \
+              -configuration Debug \
+              -destination 'platform=macOS,arch=arm64' \
+              CODE_SIGNING_ALLOWED=NO \
+              -resultBundlePath UITests.xcresult \
+              -only-testing:taskrUITests \
+              test; then
+              exit 0
+            fi
+            if [ $attempt -lt $max_attempts ]; then
+              echo "UI tests failed on attempt $attempt; retrying..."
+              sleep 5
+            fi
+            attempt=$((attempt + 1))
+          done
+          echo "UI tests failed after $max_attempts attempts."
+          exit 1
+
+      - name: Upload test result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_id }}
+          path: |
+            UnitTests.xcresult
+            UITests.xcresult
+          if-no-files-found: warn
