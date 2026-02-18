@@ -9,6 +9,7 @@ struct ExportTaskNode: Codable {
     var creationDate: Date
     var displayOrder: Int?
     var isLocked: Bool?
+    var tagIDs: [UUID]? = nil
     var subtasks: [ExportTaskNode]
 }
 
@@ -17,9 +18,31 @@ struct ExportTemplateNode: Codable {
     var roots: [ExportTaskNode]
 }
 
+struct ExportTagNode: Codable {
+    var id: UUID?
+    var phrase: String
+    var colorKey: String
+    var creationDate: Date
+    var displayOrder: Int?
+}
+
 struct ExportBackupPayload: Codable {
     var tasks: [ExportTaskNode]
     var templates: [ExportTemplateNode]
+    var tags: [ExportTagNode]
+
+    init(tasks: [ExportTaskNode], templates: [ExportTemplateNode], tags: [ExportTagNode] = []) {
+        self.tasks = tasks
+        self.templates = templates
+        self.tags = tags
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tasks = try container.decode([ExportTaskNode].self, forKey: .tasks)
+        templates = try container.decode([ExportTemplateNode].self, forKey: .templates)
+        tags = try container.decodeIfPresent([ExportTagNode].self, forKey: .tags) ?? []
+    }
 }
 
 extension TaskManager {
@@ -115,6 +138,7 @@ extension TaskManager {
             creationDate: task.creationDate,
             displayOrder: task.displayOrder,
             isLocked: task.isLocked,
+            tagIDs: task.tagsForExport.map(\.id),
             subtasks: children.map { taskToNode($0) }
         )
     }
@@ -127,7 +151,8 @@ extension TaskManager {
     func exportUserBackupData() throws -> Data {
         let tasks = try exportTaskNodes()
         let templates = try exportTemplateNodes()
-        let payload = ExportBackupPayload(tasks: tasks, templates: templates)
+        let tags = try exportTagNodes()
+        let payload = ExportBackupPayload(tasks: tasks, templates: templates, tags: tags)
         return try encodeExportPayload(payload)
     }
 
@@ -173,8 +198,9 @@ extension TaskManager {
         decoder.dateDecodingStrategy = .iso8601
         if let payload = try? decoder.decode(ExportBackupPayload.self, from: data) {
             try validateImportBackupPayload(payload)
+            let tagLookup = try appendImportedTags(nodes: payload.tags, preserveMetadata: true)
             if !payload.tasks.isEmpty {
-                try appendImported(nodes: payload.tasks, preserveMetadata: true)
+                try appendImported(nodes: payload.tasks, preserveMetadata: true, tagLookup: tagLookup)
             }
             if !payload.templates.isEmpty {
                 try appendImportedTemplates(nodes: payload.templates, preserveMetadata: true)
@@ -189,10 +215,14 @@ extension TaskManager {
         try modelContext.save()
     }
 
-    private func appendImported(nodes: [ExportTaskNode], preserveMetadata: Bool) throws {
+    private func appendImported(
+        nodes: [ExportTaskNode],
+        preserveMetadata: Bool,
+        tagLookup: [UUID: TaskTag] = [:]
+    ) throws {
         // Append to end of current root tasks
         for node in nodes {
-            _ = try createTask(from: node, parent: nil, preserveMetadata: preserveMetadata)
+            _ = try createTask(from: node, parent: nil, preserveMetadata: preserveMetadata, tagLookup: tagLookup)
         }
     }
 
@@ -219,7 +249,12 @@ extension TaskManager {
     }
 
     @discardableResult
-    private func createTask(from node: ExportTaskNode, parent: Task?, preserveMetadata: Bool) throws -> Task {
+    private func createTask(
+        from node: ExportTaskNode,
+        parent: Task?,
+        preserveMetadata: Bool,
+        tagLookup: [UUID: TaskTag]
+    ) throws -> Task {
         let order = preserveMetadata ? (node.displayOrder ?? nextDisplayOrder(for: parent)) : nextDisplayOrder(for: parent)
         let id = preserveMetadata ? (node.id ?? UUID()) : UUID()
         let t = Task(
@@ -233,9 +268,12 @@ extension TaskManager {
             parentTask: parent
         )
         modelContext.insert(t)
+        if preserveMetadata {
+            t.tags = tagsForImport(node: node, tagLookup: tagLookup)
+        }
         t.subtasks = []
         for child in node.subtasks {
-            let childTask = try createTask(from: child, parent: t, preserveMetadata: preserveMetadata)
+            let childTask = try createTask(from: child, parent: t, preserveMetadata: preserveMetadata, tagLookup: tagLookup)
             t.subtasks?.append(childTask)
         }
         return t
@@ -305,6 +343,77 @@ extension TaskManager {
                 .sorted { $0.displayOrder < $1.displayOrder }
                 .map { taskToNode($0) }
             return ExportTemplateNode(name: template.name, roots: rootTasks)
+        }
+    }
+
+    private func exportTagNodes() throws -> [ExportTagNode] {
+        let descriptor = FetchDescriptor<TaskTag>(
+            sortBy: [
+                SortDescriptor(\TaskTag.displayOrder, order: .forward),
+                SortDescriptor(\TaskTag.creationDate, order: .forward)
+            ]
+        )
+        let tags = try modelContext.fetch(descriptor)
+        return tags.map { tag in
+            ExportTagNode(
+                id: tag.id,
+                phrase: tag.phrase,
+                colorKey: tag.colorKey,
+                creationDate: tag.creationDate,
+                displayOrder: tag.displayOrder
+            )
+        }
+    }
+
+    private func appendImportedTags(nodes: [ExportTagNode], preserveMetadata: Bool) throws -> [UUID: TaskTag] {
+        guard !nodes.isEmpty else { return [:] }
+
+        let existingTags = try modelContext.fetch(FetchDescriptor<TaskTag>())
+        var existingByID: [UUID: TaskTag] = Dictionary(uniqueKeysWithValues: existingTags.map { ($0.id, $0) })
+        var lookup: [UUID: TaskTag] = [:]
+        var nextDisplayOrder = (existingTags.map(\.displayOrder).max() ?? -1) + 1
+
+        for node in nodes {
+            let rawColorKey = node.colorKey
+            let safeColorKey = TaskTagPalette.options.contains(where: { $0.key == rawColorKey }) ? rawColorKey : TaskTagPalette.defaultKey
+
+            if preserveMetadata, let nodeID = node.id, let existing = existingByID[nodeID] {
+                existing.phrase = node.phrase
+                existing.colorKey = safeColorKey
+                existing.creationDate = node.creationDate
+                existing.displayOrder = node.displayOrder ?? existing.displayOrder
+                lookup[nodeID] = existing
+                continue
+            }
+
+            let tagID = preserveMetadata ? (node.id ?? UUID()) : UUID()
+            let tag = TaskTag(
+                id: tagID,
+                phrase: node.phrase,
+                colorKey: safeColorKey,
+                creationDate: node.creationDate,
+                displayOrder: preserveMetadata ? (node.displayOrder ?? nextDisplayOrder) : nextDisplayOrder
+            )
+            modelContext.insert(tag)
+            if let nodeID = node.id {
+                lookup[nodeID] = tag
+            }
+            existingByID[tag.id] = tag
+            nextDisplayOrder += 1
+        }
+
+        return lookup
+    }
+
+    private func tagsForImport(node: ExportTaskNode, tagLookup: [UUID: TaskTag]) -> [TaskTag] {
+        guard let tagIDs = node.tagIDs, !tagIDs.isEmpty else { return [] }
+
+        let importedTags = tagIDs.compactMap { tagLookup[$0] }
+        return importedTags.sorted {
+            if $0.displayOrder == $1.displayOrder {
+                return $0.phrase.localizedCaseInsensitiveCompare($1.phrase) == .orderedAscending
+            }
+            return $0.displayOrder < $1.displayOrder
         }
     }
 
@@ -834,5 +943,16 @@ extension TaskManager {
         }
 
         return ImportStats(nodeCount: nodeCount, maxDepth: observedMaxDepth)
+    }
+}
+
+private extension Task {
+    var tagsForExport: [TaskTag] {
+        (tags ?? []).sorted {
+            if $0.displayOrder == $1.displayOrder {
+                return $0.phrase.localizedCaseInsensitiveCompare($1.phrase) == .orderedAscending
+            }
+            return $0.displayOrder < $1.displayOrder
+        }
     }
 }

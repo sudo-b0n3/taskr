@@ -572,6 +572,14 @@ final class TaskManagerTests: XCTestCase {
 
         manager.toggleTaskCompletion(taskID: item.id)
         manager.toggleLockForTask(root)
+        manager.createTag(phrase: "Urgent", colorKey: TaskTagColorKey.red.rawValue)
+        let tagDescriptor = FetchDescriptor<TaskTag>(
+            predicate: #Predicate<TaskTag> { $0.phrase == "Urgent" }
+        )
+        guard let urgentTag = try container.mainContext.fetch(tagDescriptor).first else {
+            return XCTFail("Expected Urgent tag")
+        }
+        manager.toggleTag(urgentTag, for: item)
 
         manager.newTemplateName = "Morning"
         manager.addTemplate()
@@ -596,6 +604,7 @@ final class TaskManagerTests: XCTestCase {
 
         XCTAssertEqual(payload.tasks.count, 1)
         XCTAssertEqual(payload.templates.count, 1)
+        XCTAssertEqual(payload.tags.count, 1)
         guard let exportedRoot = payload.tasks.first else {
             return XCTFail("Expected exported root task")
         }
@@ -603,12 +612,81 @@ final class TaskManagerTests: XCTestCase {
         XCTAssertEqual(exportedRoot.isLocked, true)
         XCTAssertEqual(exportedRoot.subtasks.first?.name, "Item")
         XCTAssertEqual(exportedRoot.subtasks.first?.isCompleted, true)
+        XCTAssertEqual(exportedRoot.subtasks.first?.tagIDs, [urgentTag.id])
+
+        guard let exportedTag = payload.tags.first else {
+            return XCTFail("Expected exported tag")
+        }
+        XCTAssertEqual(exportedTag.id, urgentTag.id)
+        XCTAssertEqual(exportedTag.phrase, "Urgent")
+        XCTAssertEqual(exportedTag.colorKey, TaskTagColorKey.red.rawValue)
 
         guard let exportedTemplate = payload.templates.first else {
             return XCTFail("Expected exported template")
         }
         XCTAssertEqual(exportedTemplate.name, "Morning")
         XCTAssertEqual(exportedTemplate.roots.first?.isCompleted, true)
+    }
+
+    func testImportUserBackupRestoresTagsAndAssignments() throws {
+        let tagID = UUID()
+        let childID = UUID()
+        let rootID = UUID()
+        let now = Date()
+
+        let payload = ExportBackupPayload(
+            tasks: [
+                ExportTaskNode(
+                    id: rootID,
+                    name: "Work",
+                    isCompleted: false,
+                    creationDate: now,
+                    displayOrder: 0,
+                    isLocked: false,
+                    subtasks: [
+                        ExportTaskNode(
+                            id: childID,
+                            name: "Item",
+                            isCompleted: false,
+                            creationDate: now,
+                            displayOrder: 0,
+                            isLocked: false,
+                            tagIDs: [tagID],
+                            subtasks: []
+                        )
+                    ]
+                )
+            ],
+            templates: [],
+            tags: [
+                ExportTagNode(
+                    id: tagID,
+                    phrase: "Needs Follow-up",
+                    colorKey: TaskTagColorKey.blue.rawValue,
+                    creationDate: now,
+                    displayOrder: 0
+                )
+            ]
+        )
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(payload)
+
+        try manager.importUserBackup(from: data)
+
+        let allTags = try container.mainContext.fetch(FetchDescriptor<TaskTag>())
+        XCTAssertEqual(allTags.count, 1)
+        XCTAssertEqual(allTags.first?.id, tagID)
+        XCTAssertEqual(allTags.first?.phrase, "Needs Follow-up")
+
+        let taskDescriptor = FetchDescriptor<Task>(predicate: #Predicate<Task> {
+            !$0.isTemplateComponent && $0.id == childID
+        })
+        guard let importedChild = try container.mainContext.fetch(taskDescriptor).first else {
+            return XCTFail("Expected imported child task")
+        }
+        XCTAssertEqual(importedChild.tags?.map(\.id), [tagID])
     }
 
     func testImportUserBackupRejectsOversizedPayload() throws {
