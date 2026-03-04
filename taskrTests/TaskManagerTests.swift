@@ -342,6 +342,102 @@ final class TaskManagerTests: XCTestCase {
         XCTAssertEqual(collapsedIDs, survivingCollapsedIDs)
     }
 
+    func testSetExpandedStateRecursivelyCollapsesExpandableDescendantsOnly() throws {
+        manager.addTaskFromPath(pathOverride: "/Root/Branch/Leaf")
+
+        guard let root = manager.findUserTask(named: "Root", under: nil),
+              let branch = manager.findUserTask(named: "Branch", under: root),
+              let leaf = manager.findUserTask(named: "Leaf", under: branch) else {
+            return XCTFail("Expected Root/Branch/Leaf hierarchy")
+        }
+
+        manager.setExpandedStateRecursively(for: [root.id], expanded: false, kind: .live)
+
+        XCTAssertFalse(manager.isTaskExpanded(root.id))
+        XCTAssertFalse(manager.isTaskExpanded(branch.id))
+        XCTAssertTrue(manager.isTaskExpanded(leaf.id))
+        XCTAssertTrue(manager.collapsedTaskIDs.contains(root.id))
+        XCTAssertTrue(manager.collapsedTaskIDs.contains(branch.id))
+        XCTAssertFalse(manager.collapsedTaskIDs.contains(leaf.id))
+    }
+
+    func testSetExpandedStateRecursivelyExpandsCollapsedSubtree() throws {
+        manager.addTaskFromPath(pathOverride: "/Root/Branch/Leaf")
+
+        guard let root = manager.findUserTask(named: "Root", under: nil),
+              let branch = manager.findUserTask(named: "Branch", under: root) else {
+            return XCTFail("Expected Root/Branch hierarchy")
+        }
+
+        manager.setExpandedStateRecursively(for: [root.id], expanded: false, kind: .live)
+        manager.setExpandedStateRecursively(for: [root.id], expanded: true, kind: .live)
+
+        XCTAssertTrue(manager.isTaskExpanded(root.id))
+        XCTAssertTrue(manager.isTaskExpanded(branch.id))
+        XCTAssertFalse(manager.collapsedTaskIDs.contains(root.id))
+        XCTAssertFalse(manager.collapsedTaskIDs.contains(branch.id))
+    }
+
+    func testSetExpandedStateRecursivelyCollapsesMultipleParentSubtrees() throws {
+        manager.addTaskFromPath(pathOverride: "/Parent A/Branch A/Leaf A")
+        manager.addTaskFromPath(pathOverride: "/Parent B/Branch B/Leaf B")
+
+        guard let parentA = manager.findUserTask(named: "Parent A", under: nil),
+              let parentB = manager.findUserTask(named: "Parent B", under: nil),
+              let branchA = manager.findUserTask(named: "Branch A", under: parentA),
+              let branchB = manager.findUserTask(named: "Branch B", under: parentB),
+              let leafA = manager.findUserTask(named: "Leaf A", under: branchA),
+              let leafB = manager.findUserTask(named: "Leaf B", under: branchB) else {
+            return XCTFail("Expected dual parent hierarchy")
+        }
+
+        manager.setExpandedStateRecursively(for: [parentA.id, parentB.id], expanded: false, kind: .live)
+
+        XCTAssertFalse(manager.isTaskExpanded(parentA.id))
+        XCTAssertFalse(manager.isTaskExpanded(parentB.id))
+        XCTAssertFalse(manager.isTaskExpanded(branchA.id))
+        XCTAssertFalse(manager.isTaskExpanded(branchB.id))
+        XCTAssertFalse(manager.collapsedTaskIDs.contains(leafA.id))
+        XCTAssertFalse(manager.collapsedTaskIDs.contains(leafB.id))
+    }
+
+    func testSetExpandedStateRecursivelyPrunesHiddenSelection() throws {
+        manager.addTaskFromPath(pathOverride: "/Root/Branch/Leaf")
+        manager.addTaskFromPath(pathOverride: "/Sibling Root")
+
+        guard let root = manager.findUserTask(named: "Root", under: nil),
+              let siblingRoot = manager.findUserTask(named: "Sibling Root", under: nil),
+              let branch = manager.findUserTask(named: "Branch", under: root),
+              let leaf = manager.findUserTask(named: "Leaf", under: branch) else {
+            return XCTFail("Expected Root/Branch/Leaf + sibling root hierarchy")
+        }
+
+        manager.selectTasks(
+            orderedIDs: [root.id, branch.id, leaf.id, siblingRoot.id],
+            anchor: root.id,
+            cursor: siblingRoot.id
+        )
+        manager.setExpandedStateRecursively(for: [root.id], expanded: false, kind: .live)
+
+        XCTAssertEqual(manager.selectedTaskIDs, [root.id, siblingRoot.id])
+    }
+
+    func testSetExpandedStateNonRecursiveDoesNotCollapseGrandchildParent() throws {
+        manager.addTaskFromPath(pathOverride: "/Root/Branch/Leaf")
+
+        guard let root = manager.findUserTask(named: "Root", under: nil),
+              let branch = manager.findUserTask(named: "Branch", under: root),
+              let leaf = manager.findUserTask(named: "Leaf", under: branch) else {
+            return XCTFail("Expected Root/Branch/Leaf hierarchy")
+        }
+
+        manager.setExpandedState(for: [root.id], expanded: false, kind: .live)
+
+        XCTAssertFalse(manager.isTaskExpanded(root.id))
+        XCTAssertTrue(manager.isTaskExpanded(branch.id))
+        XCTAssertFalse(manager.collapsedTaskIDs.contains(leaf.id))
+    }
+
     func testToggleCompletionAdvancesMutationVersion() throws {
         manager.addTaskFromPath(pathOverride: "/Ops/Review")
         manager.addTaskFromPath(pathOverride: "/Ops/Deploy")

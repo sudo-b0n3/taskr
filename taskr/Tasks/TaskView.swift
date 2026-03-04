@@ -717,11 +717,11 @@ extension TaskView {
             taskManager.stepSelection(.up, extend: shiftOnly)
             return true
         case 123: // Left arrow
-            guard noModifiers else { return false }
-            return updateSelectedParentExpansion(expanded: false)
+            guard noModifiers || shiftOnly else { return false }
+            return updateSelectedParentExpansion(expanded: false, recursive: shiftOnly)
         case 124: // Right arrow
-            guard noModifiers else { return false }
-            return updateSelectedParentExpansion(expanded: true)
+            guard noModifiers || shiftOnly else { return false }
+            return updateSelectedParentExpansion(expanded: true, recursive: shiftOnly)
         case 36, 76: // Return and Enter
             guard noModifiers || shiftOnly else { return false }
             let selectedIDs = taskManager.selectedTaskIDs
@@ -755,13 +755,17 @@ extension TaskView {
         return false
     }
 
-    private func updateSelectedParentExpansion(expanded: Bool) -> Bool {
+    private func updateSelectedParentExpansion(expanded: Bool, recursive: Bool) -> Bool {
         let selectedParents = taskManager.selectedTaskIDs.filter {
             taskManager.hasCachedChildren(forParentID: $0, kind: .live)
         }
         guard !selectedParents.isEmpty else { return false }
 
-        taskManager.setExpandedState(for: selectedParents, expanded: expanded, kind: .live)
+        if recursive {
+            taskManager.setExpandedStateRecursively(for: selectedParents, expanded: expanded, kind: .live)
+        } else {
+            taskManager.setExpandedState(for: selectedParents, expanded: expanded, kind: .live)
+        }
         return true
     }
 

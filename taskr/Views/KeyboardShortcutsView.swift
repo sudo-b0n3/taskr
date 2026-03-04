@@ -22,6 +22,8 @@ struct KeyboardShortcutsView: View {
                 shortcutRow("↑ / ↓", "Navigate tasks")
                 shortcutRow("→", "Expand parent")
                 shortcutRow("←", "Collapse parent")
+                shortcutRow("⇧→", "Expand parent + all subtasks")
+                shortcutRow("⇧←", "Collapse parent + all subtasks")
                 
                 // Selection
                 sectionHeader("Selection")

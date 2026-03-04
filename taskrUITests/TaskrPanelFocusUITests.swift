@@ -1,5 +1,6 @@
 import XCTest
 import AppKit
+import Darwin
 
 final class TaskrPanelFocusUITests: XCTestCase {
     private let bundleID = "com.bone.taskr"
@@ -39,6 +40,10 @@ final class TaskrPanelFocusUITests: XCTestCase {
         clearPanelFocusResultFile()
 
         let app = XCUIApplication()
+        addTeardownBlock {
+            app.terminate()
+            self.terminateExistingTaskrInstances()
+        }
         app.launchEnvironment[resultPathEnvironmentKey] = explicitResultURL.path
         app.launchArguments.append("-UITestPanelReopenFocus")
         app.launch()
@@ -52,19 +57,38 @@ final class TaskrPanelFocusUITests: XCTestCase {
     }
 
     private func terminateExistingTaskrInstances() {
-        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-        for runningApp in apps {
+        let initialApps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        for runningApp in initialApps {
             if !runningApp.terminate() {
                 _ = runningApp.forceTerminate()
             }
         }
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline {
-            let remaining = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-            if remaining.isEmpty {
+
+        let gracefulDeadline = Date().addingTimeInterval(3)
+        while Date() < gracefulDeadline {
+            if runningTaskrApps().isEmpty {
                 return
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+
+        // Fall back to hard kill by PID for stubborn background instances.
+        for runningApp in runningTaskrApps() {
+            _ = kill(runningApp.processIdentifier, SIGKILL)
+        }
+
+        let forceDeadline = Date().addingTimeInterval(5)
+        while Date() < forceDeadline {
+            if runningTaskrApps().isEmpty {
+                return
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+    }
+
+    private func runningTaskrApps() -> [NSRunningApplication] {
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).filter {
+            $0.processIdentifier != ProcessInfo.processInfo.processIdentifier
         }
     }
 

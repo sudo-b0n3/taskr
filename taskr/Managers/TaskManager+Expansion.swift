@@ -82,6 +82,48 @@ extension TaskManager {
         TaskrDiagnostics.logExpansion("setExpandedState end ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
     }
 
+    func setExpandedStateRecursively(for taskIDs: [UUID], expanded: Bool, kind: TaskListKind = .live) {
+        let uniqueIDs = Set(taskIDs)
+        guard !uniqueIDs.isEmpty else { return }
+
+        let parentIDs = collectExpandableDescendantIDs(from: uniqueIDs, kind: kind)
+        guard !parentIDs.isEmpty else { return }
+
+        TaskrDiagnostics.logExpansion("setExpandedStateRecursively begin ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
+        TaskrDiagnostics.signpostBegin(
+            TaskrDiagnostics.Signpost.setExpandedState,
+            message: "recursive ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)"
+        )
+        performCollapseTransition {
+            var updated = collapsedTaskIDs
+            var changed = false
+
+            for id in parentIDs {
+                if expanded {
+                    if updated.remove(id) != nil {
+                        changed = true
+                    }
+                } else {
+                    if updated.insert(id).inserted {
+                        changed = true
+                    }
+                }
+            }
+
+            guard changed else { return }
+            collapsedTaskIDs = updated
+            persistCollapsedState()
+            if !expanded {
+                pruneSelectionToVisibleTasks()
+            }
+        }
+        TaskrDiagnostics.signpostEnd(
+            TaskrDiagnostics.Signpost.setExpandedState,
+            message: "recursive ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)"
+        )
+        TaskrDiagnostics.logExpansion("setExpandedStateRecursively end ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
+    }
+
     func requestInlineEdit(for taskID: UUID) {
         if pendingInlineEditTaskID == taskID {
             pendingInlineEditTaskID = nil
@@ -135,5 +177,27 @@ extension TaskManager {
         let defaults = UserDefaults.standard
         let ids = collapsedTaskIDs.map { $0.uuidString }
         defaults.set(ids, forKey: collapsedTaskIDsPreferenceKey)
+    }
+
+    private func collectExpandableDescendantIDs(from rootTaskIDs: Set<UUID>, kind: TaskListKind) -> Set<UUID> {
+        ensureChildCache(for: kind)
+        let childMap = childTaskCache[kind] ?? [:]
+
+        var visited: Set<UUID> = []
+        var expandableIDs: Set<UUID> = []
+        var stack = Array(rootTaskIDs)
+
+        while let currentID = stack.popLast() {
+            guard visited.insert(currentID).inserted else { continue }
+            let children = (childMap[currentID] ?? []).filter { $0.modelContext != nil && !$0.isDeleted }
+            guard !children.isEmpty else { continue }
+
+            expandableIDs.insert(currentID)
+            for child in children {
+                stack.append(child.id)
+            }
+        }
+
+        return expandableIDs
     }
 }
