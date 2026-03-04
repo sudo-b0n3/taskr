@@ -186,24 +186,26 @@ struct TaskRowContentView: View {
                 Spacer()
 
                 if hasExpandableChildren {
-                    Image(systemName: "chevron.right")
-                        .rotationEffect(.degrees(chevronExpanded ? 90 : 0))
-                        .taskrFont(.caption)
-                        .foregroundColor(palette.secondaryTextColor)
-                        .frame(width: 28, height: 24, alignment: .center)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(isHoveringChevron ? palette.hoverBackgroundColor.opacity(0.5) : Color.clear)
-                                .animation(
-                                    hoverHighlightsEnabled ? .easeInOut(duration: 0.10) : nil,
-                                    value: isHoveringChevron
-                                )
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            taskManager.registerUserInteractionTap()
-                            taskManager.toggleTaskExpansion(taskID)
-                        }
+                    Button {
+                        taskManager.registerUserInteractionTap()
+                        taskManager.toggleTaskExpansion(taskID)
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .rotationEffect(.degrees(chevronExpanded ? 90 : 0))
+                            .taskrFont(.caption)
+                            .foregroundColor(palette.secondaryTextColor)
+                            .frame(width: 28, height: 24, alignment: .center)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(isHoveringChevron ? palette.hoverBackgroundColor.opacity(0.5) : Color.clear)
+                                    .animation(
+                                        hoverHighlightsEnabled ? .easeInOut(duration: 0.10) : nil,
+                                        value: isHoveringChevron
+                                    )
+                            )
+                            .contentShape(Rectangle())
+                    }
+                        .buttonStyle(.plain)
                         .onHover { hovering in
                             isHoveringChevron = hovering
                         }
@@ -222,6 +224,13 @@ struct TaskRowContentView: View {
                         .onChange(of: chevronAnimEnabled) { _, _ in
                             chevronExpanded = isExpanded
                         }
+                        .contextMenu {
+                            if mode == .live {
+                                chevronContextMenuContent()
+                            }
+                        }
+                        .accessibilityIdentifier("task-chevron-\(taskID.uuidString)")
+                        .accessibilityLabel("Chevron for \(task.name)")
                 }
 
                 if mode == .template {
@@ -358,6 +367,31 @@ struct TaskRowContentView: View {
         }
         .fixedSize()
         .frame(height: 22, alignment: .center)
+    }
+
+    @ViewBuilder
+    private func chevronContextMenuContent() -> some View {
+        Button("Expand (→)") {
+            updateChevronExpansion(expanded: true, recursive: false)
+        }
+        Button("Collapse (←)") {
+            updateChevronExpansion(expanded: false, recursive: false)
+        }
+        Divider()
+        Button("Expand Subtree (⇧→)") {
+            updateChevronExpansion(expanded: true, recursive: true)
+        }
+        Button("Collapse Subtree (⇧←)") {
+            updateChevronExpansion(expanded: false, recursive: true)
+        }
+    }
+
+    private func updateChevronExpansion(expanded: Bool, recursive: Bool) {
+        if recursive {
+            taskManager.setExpandedStateRecursively(for: [taskID], expanded: expanded, kind: .live)
+        } else {
+            taskManager.setExpandedState(for: [taskID], expanded: expanded, kind: .live)
+        }
     }
 
     @ViewBuilder

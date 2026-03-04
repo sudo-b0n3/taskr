@@ -80,6 +80,7 @@ struct HelpView: View {
             Text("• Navigate tasks with ↑/↓; hold Shift to extend selection.")
             Text("• Right Arrow expands selected parents and Left Arrow collapses selected parents.")
             Text("• Shift+Right Arrow expands selected parents and all subtasks; Shift+Left Arrow collapses the full subtree.")
+            Text("• Right-click a task chevron for expand/collapse subtree actions.")
             Text("• Hold M and press ↑/↓ to move selected tasks up or down within their list.")
             Text("• Shift+Return adds a subtask to the selected task.")
             Text("• Command+Return toggles completion; Command+Delete removes selected tasks.")
