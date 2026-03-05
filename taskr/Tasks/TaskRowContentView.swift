@@ -599,6 +599,11 @@ struct TaskRowContentView: View {
         originalNameBeforeEdit = task.name
         isEditing = true
         taskManager.setInlineEditingTaskID(taskID)
+        taskManager.resetTapInteractionCapture()
+        // Double-click can still deliver a trailing tap to row handlers; clear capture on next runloop too.
+        DispatchQueue.main.async {
+            taskManager.resetTapInteractionCapture()
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             isTextFieldFocused = true
         }
@@ -738,7 +743,6 @@ struct TaskRowContentView: View {
     }
     
     private func handleDoubleTapEdit() {
-        taskManager.registerUserInteractionTap()
         if !taskManager.isTaskSelected(taskID) {
             taskManager.replaceSelection(with: taskID)
         }
