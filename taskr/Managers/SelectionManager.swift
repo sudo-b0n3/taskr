@@ -28,6 +28,7 @@ class SelectionManager: ObservableObject {
     }
     private(set) var selectedTaskIDSet: Set<UUID> = []
     private var rowSelectionStates: [UUID: TaskSelectionState] = [:]
+    private var inlineEditingTaskID: UUID?
     
     var selectionAnchorID: UUID?
     @Published var selectionCursorID: UUID?
@@ -65,6 +66,10 @@ class SelectionManager: ObservableObject {
         for id in ids where !selectedTaskIDSet.contains(id) {
             rowSelectionStates.removeValue(forKey: id)
         }
+    }
+
+    func setInlineEditingTaskID(_ id: UUID?) {
+        inlineEditingTaskID = id
     }
     
     var isShiftSelectionInProgress: Bool {
@@ -213,6 +218,7 @@ class SelectionManager: ObservableObject {
     }
 
     private func updateSelectionStates(previous: Set<UUID>, current: Set<UUID>) {
+        let selectionChanged = previous != current
         let removed = previous.subtracting(current)
         for id in removed {
             rowSelectionStates[id]?.setSelected(false)
@@ -228,10 +234,12 @@ class SelectionManager: ObservableObject {
                 rowSelectionStates[id] = created
             }
         }
-
-        let retainedSelected = current.intersection(previous)
-        for id in retainedSelected {
-            rowSelectionStates[id]?.notifySelectionContextChanged()
+        
+        if selectionChanged,
+           let editingTaskID = inlineEditingTaskID,
+           current.contains(editingTaskID),
+           previous.contains(editingTaskID) {
+            rowSelectionStates[editingTaskID]?.notifySelectionContextChanged()
         }
     }
 }

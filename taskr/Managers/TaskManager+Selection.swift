@@ -35,6 +35,7 @@ extension TaskManager {
             let index = direction == .down ? 0 : visibleIDs.count - 1
             let id = visibleIDs[index]
             selectTasks(orderedIDs: [id], anchor: id, cursor: id)
+            requestScrollTo(id)
             return
         }
 
@@ -50,6 +51,7 @@ extension TaskManager {
             } else {
                 selectTasks(orderedIDs: [id], anchor: id, cursor: id)
             }
+            requestScrollTo(id)
             return
         }
 
@@ -69,6 +71,7 @@ extension TaskManager {
         } else {
             selectTasks(orderedIDs: [nextID], anchor: nextID, cursor: nextID)
         }
+        requestScrollTo(nextID)
     }
 
     func copySelectedTasksToPasteboard() {

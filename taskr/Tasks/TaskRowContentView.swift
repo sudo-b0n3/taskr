@@ -313,6 +313,9 @@ struct TaskRowContentView: View {
         .onDisappear {
             isHoveringRow = false
             isHoveringChevron = false
+            if isEditing {
+                taskManager.setInlineEditingTaskID(nil)
+            }
             taskManager.clearRowHeight(for: taskID)
         }
         .modifier(ShiftSelectionModifier(taskID: taskID, taskManager: taskManager))
@@ -332,7 +335,7 @@ struct TaskRowContentView: View {
     
     @ViewBuilder
     private var templateActions: some View {
-        let selectedCount = taskManager.selectedTaskIDs.count
+        let selectedCount = taskManager.selectionCapabilities.selectedCount
         let isSelected = taskManager.isTaskSelected(taskID)
         let multiSelectionActive = selectedCount > 1 && isSelected
         
@@ -397,14 +400,15 @@ struct TaskRowContentView: View {
     @ViewBuilder
     private func menuContent() -> some View {
         if mode == .live {
-            let selectedCount = taskManager.selectedTaskIDs.count
+            let capabilities = taskManager.selectionCapabilities
+            let selectedCount = capabilities.selectedCount
             let isRowSelected = taskManager.isTaskSelected(taskID)
             let multiSelectionActive = selectedCount > 1 && isRowSelected
-            let canMoveUp = multiSelectionActive ? taskManager.canMoveSelectedTasksUp() : taskManager.canMoveTaskUp(task)
-            let canMoveDown = multiSelectionActive ? taskManager.canMoveSelectedTasksDown() : taskManager.canMoveTaskDown(task)
-            let canDuplicate = multiSelectionActive ? taskManager.canDuplicateSelectedTasks() : true
-            let canMarkCompleted = multiSelectionActive ? taskManager.canMarkSelectedTasksCompleted() : false
-            let canMarkUncompleted = multiSelectionActive ? taskManager.canMarkSelectedTasksUncompleted() : false
+            let canMoveUp = multiSelectionActive ? capabilities.canMoveUp : taskManager.canMoveTaskUp(task)
+            let canMoveDown = multiSelectionActive ? capabilities.canMoveDown : taskManager.canMoveTaskDown(task)
+            let canDuplicate = multiSelectionActive ? capabilities.canDuplicate : true
+            let canMarkCompleted = multiSelectionActive ? capabilities.canMarkCompleted : false
+            let canMarkUncompleted = multiSelectionActive ? capabilities.canMarkUncompleted : false
 
             Button("Edit (⏎)") {
                 taskManager.requestInlineEdit(for: taskID)
@@ -461,15 +465,11 @@ struct TaskRowContentView: View {
                     case .clickedItem:
                         return taskManager.isTaskSelected(taskID)
                     case .currentSelection:
-                        return !taskManager.selectedTaskIDs.isEmpty
+                        return taskManager.selectionCapabilities.selectedCount > 0
                     }
                 }()
                 let selectedLiveTasks = shouldUseSelectionForTags
-                    ? taskManager.selectedTaskIDs.compactMap { id -> Task? in
-                        guard let candidate = taskManager.task(withID: id),
-                              !candidate.isTemplateComponent else { return nil }
-                        return candidate
-                    }
+                    ? taskManager.selectedLiveTasksSnapshot()
                     : [task]
                 if allTags.isEmpty {
                     Button("No tags created") { }
@@ -520,7 +520,7 @@ struct TaskRowContentView: View {
                 Text(multiSelectionActive ? "Delete Selected (⌘⌫)" : "Delete (⌘⌫)")
             }
         } else if mode == .template {
-            let selectedCount = taskManager.selectedTaskIDs.count
+            let selectedCount = taskManager.selectionCapabilities.selectedCount
             let isRowSelected = taskManager.isTaskSelected(taskID)
             let multiSelectionActive = selectedCount > 1 && isRowSelected
             
@@ -598,6 +598,7 @@ struct TaskRowContentView: View {
         editText = task.name
         originalNameBeforeEdit = task.name
         isEditing = true
+        taskManager.setInlineEditingTaskID(taskID)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             isTextFieldFocused = true
         }
@@ -610,6 +611,7 @@ struct TaskRowContentView: View {
         if trimmedText.isEmpty {
             editText = task.name
             isEditing = false
+            taskManager.setInlineEditingTaskID(nil)
             return
         }
 
@@ -631,6 +633,7 @@ struct TaskRowContentView: View {
 
         originalNameBeforeEdit = nil  // Clear FIRST to prevent race with cancelEdit
         isEditing = false
+        taskManager.setInlineEditingTaskID(nil)
     }
     
     private func cancelEdit() {
@@ -654,6 +657,7 @@ struct TaskRowContentView: View {
             editText = original
         }
         isEditing = false
+        taskManager.setInlineEditingTaskID(nil)
     }
 
     private func handleInlineEditRequestIfNeeded() {
@@ -665,7 +669,7 @@ struct TaskRowContentView: View {
     
     private func handleSelectionChangeWhileEditing() {
         guard isEditing else { return }
-        if !selectionState.isSelected || taskManager.selectedTaskIDs.count != 1 {
+        if !selectionState.isSelected || taskManager.selectionCapabilities.selectedCount != 1 {
             isTextFieldFocused = false
             commitEdit()
         }

@@ -443,10 +443,6 @@ private struct SelectionScrollCoordinator: View {
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
-            .onChange(of: selectionManager.selectionCursorID) { _, newCursorID in
-                guard let cursorID = newCursorID else { return }
-                proxy.scrollTo(cursorID)
-            }
             .onChange(of: selectionManager.scrollToTaskRequest?.counter) { _, _ in
                 guard let request = selectionManager.scrollToTaskRequest else { return }
                 proxy.scrollTo(request.id)

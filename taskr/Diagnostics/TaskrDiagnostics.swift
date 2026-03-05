@@ -7,11 +7,15 @@ enum TaskrDiagnostics {
     static let expansionLogger = Logger(subsystem: subsystem, category: "expansion")
     static let stallLogger = Logger(subsystem: subsystem, category: "stall")
     static let signpostLog = OSLog(subsystem: subsystem, category: "signpost")
+    static let verboseSelectionSignpostsEnabled: Bool = ProcessInfo.processInfo.environment["TASKR_SELECTION_SIGNPOSTS"] == "1"
 
     enum Signpost {
         static let toggleExpansion: StaticString = "ToggleExpansion"
         static let setTaskExpanded: StaticString = "SetTaskExpanded"
         static let setExpandedState: StaticString = "SetExpandedState"
+        static let selectionMutation: StaticString = "SelectionMutation"
+        static let selectionCapabilitiesRecompute: StaticString = "SelectionCapabilitiesRecompute"
+        static let shiftDragSelectionUpdate: StaticString = "ShiftDragSelectionUpdate"
     }
 
     static func logExpansion(_ message: String) {

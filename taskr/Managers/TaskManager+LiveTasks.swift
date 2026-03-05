@@ -768,19 +768,35 @@ extension TaskManager {
     
     // Helper for multi-selection move
     private func selectedSiblingContext() -> SelectedSiblingContext? {
-        guard let firstID = selectedTaskIDs.first,
-              let firstTask = task(withID: firstID) else { return nil }
-        
+        guard let firstID = selectedTaskIDs.first else { return nil }
+
+        ensureChildCache(for: .live)
+        if let index = taskIndexCache[.live],
+           let firstTask = index[firstID],
+           !firstTask.isTemplateComponent {
+            let parent = firstTask.parentTask
+            let selectedSet = Set(selectedTaskIDs)
+
+            // Verify all selected tasks exist in cache and share the same parent.
+            for id in selectedTaskIDs {
+                guard let task = index[id],
+                      !task.isTemplateComponent,
+                      task.parentTask?.id == parent?.id else { return nil }
+            }
+
+            guard let siblings = try? fetchSiblings(for: parent, kind: .live) else { return nil }
+            let indices = siblings.indices.filter { selectedSet.contains(siblings[$0].id) }
+            return SelectedSiblingContext(parent: parent, siblings: siblings, selectedSet: selectedSet, indices: indices)
+        }
+
+        // Fallback path when cache misses occur.
+        guard let firstTask = task(withID: firstID) else { return nil }
         let parent = firstTask.parentTask
         guard let siblings = try? fetchSiblings(for: parent, kind: .live) else { return nil }
-        
         let selectedSet = Set(selectedTaskIDs)
-        
-        // Verify all selected tasks share the same parent
         for id in selectedTaskIDs {
-            guard let t = task(withID: id), t.parentTask?.id == parent?.id else { return nil }
+            guard let task = task(withID: id), task.parentTask?.id == parent?.id else { return nil }
         }
-        
         let indices = siblings.indices.filter { selectedSet.contains(siblings[$0].id) }
         return SelectedSiblingContext(parent: parent, siblings: siblings, selectedSet: selectedSet, indices: indices)
     }
@@ -894,11 +910,22 @@ private extension TaskManager {
         let indices: [Int]
     }
 
-    func selectedLiveTasks() -> [Task] {
-        selectedTaskIDs.compactMap { id in
+    func selectedLiveTasksFromCache() -> [Task] {
+        ensureChildCache(for: .live)
+        if let index = taskIndexCache[.live] {
+            return selectedTaskIDs.compactMap { id in
+                guard let task = index[id], !task.isTemplateComponent else { return nil }
+                return task
+            }
+        }
+        return selectedTaskIDs.compactMap { id in
             guard let task = task(withID: id), !task.isTemplateComponent else { return nil }
             return task
         }
+    }
+
+    func selectedLiveTasks() -> [Task] {
+        selectedLiveTasksFromCache()
     }
 
     func hasSelectedAncestor(_ task: Task, selectedSet: Set<UUID>) -> Bool {

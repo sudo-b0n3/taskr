@@ -34,6 +34,26 @@ class TaskManager: ObservableObject {
         }
     }
 
+    struct SelectionCapabilities: Equatable {
+        var selectedCount: Int
+        var isMultiSelection: Bool
+        var canMoveUp: Bool
+        var canMoveDown: Bool
+        var canDuplicate: Bool
+        var canMarkCompleted: Bool
+        var canMarkUncompleted: Bool
+
+        static let empty = SelectionCapabilities(
+            selectedCount: 0,
+            isMultiSelection: false,
+            canMoveUp: false,
+            canMoveDown: false,
+            canDuplicate: false,
+            canMarkCompleted: false,
+            canMarkUncompleted: false
+        )
+    }
+
     let modelContext: ModelContext
     private let defaults: UserDefaults
 
@@ -48,6 +68,7 @@ class TaskManager: ObservableObject {
     @Published var pendingInlineEditTaskID: UUID? = nil
     @Published var collapsedTaskIDs: Set<UUID> = []
     @Published var isDemoSwapInProgress: Bool = false
+    private(set) var selectionCapabilities: SelectionCapabilities = .empty
     
     @Published private(set) var isTaskInputFocused: Bool = false
     @Published private(set) var frostedBackgroundEnabled: Bool
@@ -126,11 +147,15 @@ class TaskManager: ObservableObject {
         // RowHeightManager is cache-only and should not invalidate the full view tree.
         themeManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
         animationManager.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
+        selectionManager.$selectedTaskIDs.sink { [weak self] _ in
+            self?.recomputeSelectionCapabilities()
+        }.store(in: &cancellables)
         
         loadCollapsedState()
         pruneCollapsedState()
         normalizeDisplayOrdersIfNeeded()
         installAppLifecycleObservers()
+        recomputeSelectionCapabilities()
     }
 
     deinit {
@@ -297,31 +322,45 @@ class TaskManager: ObservableObject {
     }
     
     func clearSelection() {
-        selectionManager.clearSelection()
+        performSelectionMutationSignposted("clearSelection") {
+            selectionManager.clearSelection()
+        }
     }
     
     func replaceSelection(with id: UUID) {
-        selectionManager.replaceSelection(with: id)
+        performSelectionMutationSignposted("replaceSelection") {
+            selectionManager.replaceSelection(with: id)
+        }
     }
     
     func toggleSelection(for id: UUID) {
-        selectionManager.toggleSelection(for: id, visibleTaskIDs: snapshotVisibleTaskIDs())
+        performSelectionMutationSignposted("toggleSelection") {
+            selectionManager.toggleSelection(for: id, visibleTaskIDs: snapshotVisibleTaskIDs())
+        }
     }
 
     func toggleSelection(for id: UUID, visibleTaskIDs: [UUID]) {
-        selectionManager.toggleSelection(for: id, visibleTaskIDs: visibleTaskIDs)
+        performSelectionMutationSignposted("toggleSelectionVisible") {
+            selectionManager.toggleSelection(for: id, visibleTaskIDs: visibleTaskIDs)
+        }
     }
     
     func extendSelection(to id: UUID) {
-        selectionManager.extendSelection(to: id, visibleTaskIDs: snapshotVisibleTaskIDs())
+        performSelectionMutationSignposted("extendSelection") {
+            selectionManager.extendSelection(to: id, visibleTaskIDs: snapshotVisibleTaskIDs())
+        }
     }
 
     func extendSelection(to id: UUID, visibleTaskIDs: [UUID]) {
-        selectionManager.extendSelection(to: id, visibleTaskIDs: visibleTaskIDs)
+        performSelectionMutationSignposted("extendSelectionVisible") {
+            selectionManager.extendSelection(to: id, visibleTaskIDs: visibleTaskIDs)
+        }
     }
     
     func selectTasks(orderedIDs: [UUID], anchor: UUID?, cursor: UUID?) {
-        selectionManager.selectTasks(orderedIDs: orderedIDs, anchor: anchor, cursor: cursor)
+        performSelectionMutationSignposted("selectTasks(\(orderedIDs.count))") {
+            selectionManager.selectTasks(orderedIDs: orderedIDs, anchor: anchor, cursor: cursor)
+        }
     }
     
     func beginShiftSelection(at id: UUID) {
@@ -332,16 +371,21 @@ class TaskManager: ObservableObject {
         guard selectionCursorID != targetID || !shiftSelectionActive else { return }
         let visibleIDs = shiftDragVisibleIDs()
         guard !visibleIDs.isEmpty else { return }
-        selectionManager.updateShiftSelection(to: targetID, visibleTaskIDs: visibleIDs)
+        performSelectionMutationSignposted("updateShiftSelection") {
+            selectionManager.updateShiftSelection(to: targetID, visibleTaskIDs: visibleIDs)
+        }
     }
 
     func updateShiftSelection(to targetID: UUID, visibleTaskIDs: [UUID]) {
         guard selectionCursorID != targetID || !shiftSelectionActive else { return }
-        selectionManager.updateShiftSelection(to: targetID, visibleTaskIDs: visibleTaskIDs)
+        performSelectionMutationSignposted("updateShiftSelectionVisible") {
+            selectionManager.updateShiftSelection(to: targetID, visibleTaskIDs: visibleTaskIDs)
+        }
     }
 
     func endShiftSelection() {
         selectionManager.endShiftSelection()
+        recomputeSelectionCapabilities()
     }
     
     func requestScrollTo(_ taskID: UUID) {
@@ -487,6 +531,7 @@ class TaskManager: ObservableObject {
         if invalidateChildCache {
             invalidateChildTaskCache(for: nil)
         }
+        recomputeSelectionCapabilities()
         return result
     }
 
@@ -641,7 +686,13 @@ class TaskManager: ObservableObject {
         let targetID = visibleIDs[targetIndex]
         guard activeShiftDragLastTargetID != targetID else { return }
         activeShiftDragLastTargetID = targetID
+        if TaskrDiagnostics.verboseSelectionSignpostsEnabled {
+            TaskrDiagnostics.signpostBegin(TaskrDiagnostics.Signpost.shiftDragSelectionUpdate, message: "target=\(targetID)")
+        }
         updateShiftSelection(to: targetID, visibleTaskIDs: visibleIDs)
+        if TaskrDiagnostics.verboseSelectionSignpostsEnabled {
+            TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.shiftDragSelectionUpdate, message: "target=\(targetID)")
+        }
     }
     
     func resetShiftDragTracking() {
@@ -683,5 +734,131 @@ class TaskManager: ObservableObject {
         activeShiftDragVisibleIDs = visibleIDs
         activeShiftDragVisibleCacheVersion = visibleCacheVersion
         return visibleIDs
+    }
+
+    func setInlineEditingTaskID(_ id: UUID?) {
+        selectionManager.setInlineEditingTaskID(id)
+    }
+
+    func selectedLiveTasksSnapshot() -> [Task] {
+        selectedLiveTasksForCapabilities()
+    }
+
+    private func performSelectionMutationSignposted(_ message: String, _ body: () -> Void) {
+        if TaskrDiagnostics.verboseSelectionSignpostsEnabled {
+            TaskrDiagnostics.signpostBegin(TaskrDiagnostics.Signpost.selectionMutation, message: message)
+        }
+        body()
+        if TaskrDiagnostics.verboseSelectionSignpostsEnabled {
+            TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.selectionMutation, message: message)
+        }
+    }
+
+    private func recomputeSelectionCapabilities() {
+        if TaskrDiagnostics.verboseSelectionSignpostsEnabled {
+            TaskrDiagnostics.signpostBegin(TaskrDiagnostics.Signpost.selectionCapabilitiesRecompute, message: "selected=\(selectedTaskIDs.count)")
+        }
+        let selectedCount = selectedTaskIDs.count
+        var updated = SelectionCapabilities.empty
+        updated.selectedCount = selectedCount
+        updated.isMultiSelection = selectedCount > 1
+        guard selectedCount > 0 else {
+            if selectionCapabilities != updated {
+                selectionCapabilities = updated
+            }
+            if TaskrDiagnostics.verboseSelectionSignpostsEnabled {
+                TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.selectionCapabilitiesRecompute, message: "selected=\(selectedCount)")
+            }
+            return
+        }
+
+        // During active shift-drag, keep recompute lightweight to avoid per-frame O(n) churn.
+        if shiftSelectionActive {
+            updated.canDuplicate = selectionCapabilities.canDuplicate
+            updated.canMarkCompleted = selectionCapabilities.canMarkCompleted
+            updated.canMarkUncompleted = selectionCapabilities.canMarkUncompleted
+            updated.canMoveUp = selectionCapabilities.canMoveUp
+            updated.canMoveDown = selectionCapabilities.canMoveDown
+            if selectionCapabilities != updated {
+                selectionCapabilities = updated
+            }
+            if TaskrDiagnostics.verboseSelectionSignpostsEnabled {
+                TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.selectionCapabilitiesRecompute, message: "selected=\(selectedCount)")
+            }
+            return
+        }
+
+        let selectedLiveTasks = selectedLiveTasksForCapabilities()
+        updated.canDuplicate = !selectedLiveTasks.isEmpty
+        updated.canMarkCompleted = selectedLiveTasks.contains { !$0.isCompleted }
+        updated.canMarkUncompleted = selectedLiveTasks.contains { $0.isCompleted }
+        if updated.isMultiSelection {
+            let moveCapabilities = canMoveSelectedTasksFromCache()
+            updated.canMoveUp = moveCapabilities.canMoveUp
+            updated.canMoveDown = moveCapabilities.canMoveDown
+        }
+        if selectionCapabilities != updated {
+            selectionCapabilities = updated
+        }
+        if TaskrDiagnostics.verboseSelectionSignpostsEnabled {
+            TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.selectionCapabilitiesRecompute, message: "selected=\(selectedCount)")
+        }
+    }
+
+    private func selectedLiveTasksForCapabilities() -> [Task] {
+        ensureChildCache(for: .live)
+        if let index = taskIndexCache[.live] {
+            return selectedTaskIDs.compactMap { id in
+                guard let task = index[id], !task.isTemplateComponent else { return nil }
+                return task
+            }
+        }
+        return selectedTaskIDs.compactMap { id in
+            guard let task = task(withID: id), !task.isTemplateComponent else { return nil }
+            return task
+        }
+    }
+
+    private func canMoveSelectedTasksFromCache() -> (canMoveUp: Bool, canMoveDown: Bool) {
+        guard selectedTaskIDs.count > 1 else {
+            return (canMoveUp: false, canMoveDown: false)
+        }
+
+        ensureChildCache(for: .live)
+        guard let index = taskIndexCache[.live],
+              let childMap = childTaskCache[.live],
+              let firstID = selectedTaskIDs.first,
+              let firstTask = index[firstID],
+              !firstTask.isTemplateComponent else {
+            return (
+                canMoveUp: canMoveSelectedTasksUp(),
+                canMoveDown: canMoveSelectedTasksDown()
+            )
+        }
+
+        let parentID = firstTask.parentTask?.id
+        let selectedSet = Set(selectedTaskIDs)
+
+        for id in selectedTaskIDs {
+            guard let task = index[id],
+                  !task.isTemplateComponent,
+                  task.parentTask?.id == parentID else {
+                return (canMoveUp: false, canMoveDown: false)
+            }
+        }
+
+        guard let siblings = childMap[parentID], !siblings.isEmpty else {
+            return (canMoveUp: false, canMoveDown: false)
+        }
+
+        let indices = siblings.indices.filter { selectedSet.contains(siblings[$0].id) }
+        guard let firstIndex = indices.first, let lastIndex = indices.last else {
+            return (canMoveUp: false, canMoveDown: false)
+        }
+
+        return (
+            canMoveUp: firstIndex > 0,
+            canMoveDown: lastIndex < siblings.count - 1
+        )
     }
 }
