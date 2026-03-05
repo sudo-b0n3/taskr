@@ -282,21 +282,24 @@ extension TaskManager {
     }
 
     func canMoveSelectedTasksUp() -> Bool {
-        guard selectedTaskIDs.count > 1,
-              let context = selectedSiblingContext(),
-              let firstIndex = context.indices.first else {
-            return false
-        }
-        return firstIndex > 0
+        selectedMoveCapabilities().canMoveUp
     }
 
     func canMoveSelectedTasksDown() -> Bool {
+        selectedMoveCapabilities().canMoveDown
+    }
+
+    func selectedMoveCapabilities() -> (canMoveUp: Bool, canMoveDown: Bool) {
         guard selectedTaskIDs.count > 1,
               let context = selectedSiblingContext(),
+              let firstIndex = context.indices.first,
               let lastIndex = context.indices.last else {
-            return false
+            return (canMoveUp: false, canMoveDown: false)
         }
-        return lastIndex < context.siblings.count - 1
+        return (
+            canMoveUp: firstIndex > 0,
+            canMoveDown: lastIndex < context.siblings.count - 1
+        )
     }
 
     func moveSelectedTasksUp() {
@@ -776,17 +779,23 @@ extension TaskManager {
            !firstTask.isTemplateComponent {
             let parent = firstTask.parentTask
             let selectedSet = Set(selectedTaskIDs)
+            var canUseCachedIndex = true
 
             // Verify all selected tasks exist in cache and share the same parent.
             for id in selectedTaskIDs {
                 guard let task = index[id],
                       !task.isTemplateComponent,
-                      task.parentTask?.id == parent?.id else { return nil }
+                      task.parentTask?.id == parent?.id else {
+                    canUseCachedIndex = false
+                    break
+                }
             }
 
-            guard let siblings = try? fetchSiblings(for: parent, kind: .live) else { return nil }
-            let indices = siblings.indices.filter { selectedSet.contains(siblings[$0].id) }
-            return SelectedSiblingContext(parent: parent, siblings: siblings, selectedSet: selectedSet, indices: indices)
+            if canUseCachedIndex {
+                guard let siblings = try? fetchSiblings(for: parent, kind: .live) else { return nil }
+                let indices = siblings.indices.filter { selectedSet.contains(siblings[$0].id) }
+                return SelectedSiblingContext(parent: parent, siblings: siblings, selectedSet: selectedSet, indices: indices)
+            }
         }
 
         // Fallback path when cache misses occur.

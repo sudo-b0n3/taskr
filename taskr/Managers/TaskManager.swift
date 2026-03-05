@@ -830,10 +830,7 @@ class TaskManager: ObservableObject {
               let firstID = selectedTaskIDs.first,
               let firstTask = index[firstID],
               !firstTask.isTemplateComponent else {
-            return (
-                canMoveUp: canMoveSelectedTasksUp(),
-                canMoveDown: canMoveSelectedTasksDown()
-            )
+            return selectedMoveCapabilities()
         }
 
         let parentID = firstTask.parentTask?.id

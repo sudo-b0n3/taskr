@@ -643,6 +643,7 @@ struct TaskRowContentView: View {
         guard let original = originalNameBeforeEdit else {
             editText = task.name
             isEditing = false
+            taskManager.setInlineEditingTaskID(nil)
             return
         }
         originalNameBeforeEdit = nil

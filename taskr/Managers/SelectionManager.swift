@@ -241,5 +241,12 @@ class SelectionManager: ObservableObject {
            previous.contains(editingTaskID) {
             rowSelectionStates[editingTaskID]?.notifySelectionContextChanged()
         }
+
+        if selectionChanged {
+            let retainedSelected = current.intersection(previous)
+            for id in retainedSelected where id != inlineEditingTaskID {
+                rowSelectionStates[id]?.notifySelectionContextChanged()
+            }
+        }
     }
 }
