@@ -253,6 +253,7 @@ extension TaskManager {
             for task in targets {
                 task.isCompleted = false
             }
+            moveUncompletedTasksAboveCompletedIfNeeded(targets)
         }
 
         completionMutationVersion &+= 1
@@ -388,13 +389,24 @@ extension TaskManager {
             isTemplateComponent: false,
             parentTask: parent
         )
+        let parentWasCompleted = parent.isCompleted
         performListMutation {
+            if parentWasCompleted {
+                parent.isCompleted = false
+                moveUncompletedTasksAboveCompletedIfNeeded([parent])
+            }
             modelContext.insert(newTask)
         }
         do {
             try modelContext.save()
             setTaskExpanded(parent.id, expanded: true)
             resequenceDisplayOrder(for: parent)
+            if parentWasCompleted {
+                completionMutationVersion &+= 1
+            }
+            replaceSelection(with: newTask.id)
+            requestScrollTo(newTask.id)
+            requestInlineEdit(for: newTask.id)
             return newTask
         } catch {
             print("Error adding subtask: \(error)")
@@ -436,6 +448,8 @@ extension TaskManager {
             isCompletedNow = task.isCompleted
             if isCompletedNow {
                 moveCompletedTasksToBottomIfNeeded([task])
+            } else {
+                moveUncompletedTasksAboveCompletedIfNeeded([task])
             }
         }
         completionMutationVersion &+= 1
@@ -739,6 +753,25 @@ extension TaskManager {
                 siblings.append(contentsOf: completedSiblings)
 
                 for (index, task) in siblings.enumerated() {
+                    task.displayOrder = index
+                }
+            } catch {
+                continue
+            }
+        }
+    }
+
+    private func moveUncompletedTasksAboveCompletedIfNeeded(_ tasks: [Task]) {
+        guard UserDefaults.standard.bool(forKey: moveCompletedTasksToBottomPreferenceKey) else { return }
+        let uncompleted = tasks.filter { !$0.isTemplateComponent && !$0.isCompleted }
+        guard !uncompleted.isEmpty else { return }
+
+        let grouped = Dictionary(grouping: uncompleted) { $0.parentTask }
+        for (parent, _) in grouped {
+            do {
+                let siblings = try fetchSiblings(for: parent, kind: .live)
+                let reordered = siblings.filter { !$0.isCompleted } + siblings.filter(\.isCompleted)
+                for (index, task) in reordered.enumerated() {
                     task.displayOrder = index
                 }
             } catch {

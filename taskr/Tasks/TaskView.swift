@@ -723,11 +723,8 @@ extension TaskView {
             let selectedIDs = taskManager.selectedTaskIDs
             guard selectedIDs.count == 1, let targetID = selectedIDs.first else { return false }
             if shiftOnly {
-                guard let targetTask = taskManager.task(withID: targetID),
-                      let newTask = taskManager.addSubtask(to: targetTask) else { return false }
-                taskManager.replaceSelection(with: newTask.id)
-                taskManager.requestInlineEdit(for: newTask.id)
-                return true
+                guard let targetTask = taskManager.task(withID: targetID) else { return false }
+                return taskManager.addSubtask(to: targetTask) != nil
             }
             taskManager.requestInlineEdit(for: targetID)
             return true

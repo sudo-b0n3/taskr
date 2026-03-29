@@ -452,9 +452,7 @@ struct TaskRowContentView: View {
                 .disabled(!canMarkUncompleted)
             }
             Button("Add Subtask (⇧↩)") {
-                if let newTask = taskManager.addSubtask(to: task) {
-                    taskManager.requestInlineEdit(for: newTask.id)
-                }
+                _ = taskManager.addSubtask(to: task)
             }
             .disabled(multiSelectionActive)
             Menu("Tags") {

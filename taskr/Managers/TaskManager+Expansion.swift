@@ -12,16 +12,21 @@ extension TaskManager {
         TaskrDiagnostics.logExpansion("toggleTaskExpansion begin id=\(taskID.uuidString)")
         TaskrDiagnostics.signpostBegin(TaskrDiagnostics.Signpost.toggleExpansion, message: taskID.uuidString)
         performCollapseTransition {
-            let willCollapse = !collapsedTaskIDs.contains(taskID)
+            var updated = collapsedTaskIDs
+            let willCollapse = !updated.contains(taskID)
             if willCollapse {
-                collapsedTaskIDs.insert(taskID)
+                updated.insert(taskID)
             } else {
-                collapsedTaskIDs.remove(taskID)
+                updated.remove(taskID)
             }
+            guard updated != collapsedTaskIDs else { return }
+            collapsedTaskIDs = updated
+            invalidateVisibleTasksCache()
             persistCollapsedState()
             if willCollapse {
                 pruneSelectionToVisibleTasks()
             }
+            objectWillChange.send()
         }
         TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.toggleExpansion, message: taskID.uuidString)
         TaskrDiagnostics.logExpansion("toggleTaskExpansion end id=\(taskID.uuidString) expanded=\(!collapsedTaskIDs.contains(taskID))")
@@ -31,16 +36,21 @@ extension TaskManager {
         TaskrDiagnostics.logExpansion("setTaskExpanded begin id=\(taskID.uuidString) expanded=\(expanded)")
         TaskrDiagnostics.signpostBegin(TaskrDiagnostics.Signpost.setTaskExpanded, message: "\(taskID.uuidString) expanded=\(expanded)")
         performCollapseTransition {
-            let wasCollapsed = collapsedTaskIDs.contains(taskID)
+            var updated = collapsedTaskIDs
+            let wasCollapsed = updated.contains(taskID)
             if expanded {
-                collapsedTaskIDs.remove(taskID)
+                updated.remove(taskID)
             } else {
-                collapsedTaskIDs.insert(taskID)
+                updated.insert(taskID)
             }
+            guard updated != collapsedTaskIDs else { return }
+            collapsedTaskIDs = updated
+            invalidateVisibleTasksCache()
             persistCollapsedState()
             if !expanded && !wasCollapsed {
                 pruneSelectionToVisibleTasks()
             }
+            objectWillChange.send()
         }
         TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.setTaskExpanded, message: "\(taskID.uuidString) expanded=\(expanded)")
         TaskrDiagnostics.logExpansion("setTaskExpanded end id=\(taskID.uuidString) expanded=\(!collapsedTaskIDs.contains(taskID))")
@@ -73,10 +83,12 @@ extension TaskManager {
 
             guard changed else { return }
             collapsedTaskIDs = updated
+            invalidateVisibleTasksCache()
             persistCollapsedState()
             if !expanded {
                 pruneSelectionToVisibleTasks()
             }
+            objectWillChange.send()
         }
         TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.setExpandedState, message: "ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
         TaskrDiagnostics.logExpansion("setExpandedState end ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
@@ -112,10 +124,12 @@ extension TaskManager {
 
             guard changed else { return }
             collapsedTaskIDs = updated
+            invalidateVisibleTasksCache()
             persistCollapsedState()
             if !expanded {
                 pruneSelectionToVisibleTasks()
             }
+            objectWillChange.send()
         }
         TaskrDiagnostics.signpostEnd(
             TaskrDiagnostics.Signpost.setExpandedState,
