@@ -691,11 +691,7 @@ extension TaskManager {
                 }
             }
             guard changed else { return }
-            collapsedTaskIDs = updated
-            persistCollapsedState()
-            invalidateVisibleTasksCache()
-            objectWillChange.send()
-            pruneSelectionToVisibleTasks()
+            applyCollapsedState(updated, pruneSelection: true)
         }
     }
 

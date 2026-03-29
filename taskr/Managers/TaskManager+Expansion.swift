@@ -4,6 +4,26 @@ import SwiftData
 extension TaskManager {
     // MARK: - Expansion State Management
 
+    func applyCollapsedState(
+        _ updated: Set<UUID>,
+        persist: Bool = true,
+        pruneSelection: Bool = false,
+        notify: Bool = true
+    ) {
+        guard updated != collapsedTaskIDs else { return }
+        collapsedTaskIDs = updated
+        if persist {
+            persistCollapsedState()
+        }
+        invalidateVisibleTasksCache()
+        if pruneSelection {
+            pruneSelectionToVisibleTasks()
+        }
+        if notify {
+            objectWillChange.send()
+        }
+    }
+
     func isTaskExpanded(_ taskID: UUID) -> Bool {
         !collapsedTaskIDs.contains(taskID)
     }
@@ -19,14 +39,7 @@ extension TaskManager {
             } else {
                 updated.remove(taskID)
             }
-            guard updated != collapsedTaskIDs else { return }
-            collapsedTaskIDs = updated
-            invalidateVisibleTasksCache()
-            persistCollapsedState()
-            if willCollapse {
-                pruneSelectionToVisibleTasks()
-            }
-            objectWillChange.send()
+            applyCollapsedState(updated, pruneSelection: willCollapse)
         }
         TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.toggleExpansion, message: taskID.uuidString)
         TaskrDiagnostics.logExpansion("toggleTaskExpansion end id=\(taskID.uuidString) expanded=\(!collapsedTaskIDs.contains(taskID))")
@@ -43,14 +56,7 @@ extension TaskManager {
             } else {
                 updated.insert(taskID)
             }
-            guard updated != collapsedTaskIDs else { return }
-            collapsedTaskIDs = updated
-            invalidateVisibleTasksCache()
-            persistCollapsedState()
-            if !expanded && !wasCollapsed {
-                pruneSelectionToVisibleTasks()
-            }
-            objectWillChange.send()
+            applyCollapsedState(updated, pruneSelection: !expanded && !wasCollapsed)
         }
         TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.setTaskExpanded, message: "\(taskID.uuidString) expanded=\(expanded)")
         TaskrDiagnostics.logExpansion("setTaskExpanded end id=\(taskID.uuidString) expanded=\(!collapsedTaskIDs.contains(taskID))")
@@ -82,13 +88,7 @@ extension TaskManager {
             }
 
             guard changed else { return }
-            collapsedTaskIDs = updated
-            invalidateVisibleTasksCache()
-            persistCollapsedState()
-            if !expanded {
-                pruneSelectionToVisibleTasks()
-            }
-            objectWillChange.send()
+            applyCollapsedState(updated, pruneSelection: !expanded)
         }
         TaskrDiagnostics.signpostEnd(TaskrDiagnostics.Signpost.setExpandedState, message: "ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
         TaskrDiagnostics.logExpansion("setExpandedState end ids=\(parentIDs.count) expanded=\(expanded) kind=\(kind)")
@@ -123,13 +123,7 @@ extension TaskManager {
             }
 
             guard changed else { return }
-            collapsedTaskIDs = updated
-            invalidateVisibleTasksCache()
-            persistCollapsedState()
-            if !expanded {
-                pruneSelectionToVisibleTasks()
-            }
-            objectWillChange.send()
+            applyCollapsedState(updated, pruneSelection: !expanded)
         }
         TaskrDiagnostics.signpostEnd(
             TaskrDiagnostics.Signpost.setExpandedState,
@@ -149,11 +143,7 @@ extension TaskManager {
         if let idsToRemove = idsToRemove {
             // Fast path: we know which IDs to remove
             let pruned = collapsedTaskIDs.subtracting(idsToRemove)
-            if pruned != collapsedTaskIDs {
-                collapsedTaskIDs = pruned
-                persistCollapsedState()
-                invalidateVisibleTasksCache()
-            }
+            applyCollapsedState(pruned)
         } else {
             // Slow path: fetch all tasks and intersect
             do {
@@ -165,11 +155,7 @@ extension TaskManager {
                 }
                 let existingIDs = Set(tasks.map { $0.id })
                 let pruned = collapsedTaskIDs.intersection(existingIDs)
-                if pruned != collapsedTaskIDs {
-                    collapsedTaskIDs = pruned
-                    persistCollapsedState()
-                    invalidateVisibleTasksCache()
-                }
+                applyCollapsedState(pruned)
                 markInitialCollapsedPruneCompleted()
             } catch {
                 print("Error pruning collapsed state: \(error)")

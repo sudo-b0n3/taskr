@@ -66,7 +66,7 @@ class TaskManager: ObservableObject {
     @Published var newTemplateName: String = ""
     @Published var completionMutationVersion: Int = 0
     @Published var pendingInlineEditTaskID: UUID? = nil
-    @Published var collapsedTaskIDs: Set<UUID> = []
+    var collapsedTaskIDs: Set<UUID> = []
     @Published var isDemoSwapInProgress: Bool = false
     private(set) var selectionCapabilities: SelectionCapabilities = .empty
     
@@ -537,7 +537,6 @@ class TaskManager: ObservableObject {
 
     @discardableResult
     func performCollapseTransition<Result>(_ body: () -> Result) -> Result {
-        invalidateVisibleTasksCache()
         return animationManager.performCollapseTransition(body)
     }
 
