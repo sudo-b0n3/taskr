@@ -17,7 +17,7 @@ extension TaskManager {
     func canMoveTaskUp(_ task: Task) -> Bool {
         guard !task.isTemplateComponent else { return false }
         do {
-            let siblings = try fetchSiblings(for: task.parentTask, kind: .live)
+            let siblings = try siblingTasks(for: task.parentTask, kind: .live)
             guard let index = siblings.firstIndex(where: { $0.id == task.id }) else { return false }
             return index > 0
         } catch {
@@ -28,7 +28,7 @@ extension TaskManager {
     func canMoveTaskDown(_ task: Task) -> Bool {
         guard !task.isTemplateComponent else { return false }
         do {
-            let siblings = try fetchSiblings(for: task.parentTask, kind: .live)
+            let siblings = try siblingTasks(for: task.parentTask, kind: .live)
             guard let index = siblings.firstIndex(where: { $0.id == task.id }) else { return false }
             return index < siblings.count - 1
         } catch {
@@ -306,7 +306,7 @@ extension TaskManager {
     func moveSelectedTasksUp() {
         guard selectedTaskIDs.count > 1 else {
             if let first = selectedTaskIDs.first,
-               let task = task(withID: first) {
+               let task = task(withID: first, kind: .live) {
                 moveTaskUp(task)
                 // Request scroll to follow the moved task
                 requestScrollTo(first)
@@ -338,7 +338,7 @@ extension TaskManager {
     func moveSelectedTasksDown() {
         guard selectedTaskIDs.count > 1 else {
             if let first = selectedTaskIDs.first,
-               let task = task(withID: first) {
+               let task = task(withID: first, kind: .live) {
                 moveTaskDown(task)
                 // Request scroll to follow the moved task
                 requestScrollTo(first)
@@ -821,71 +821,90 @@ extension TaskManager {
             }
 
             if canUseCachedIndex {
-                guard let siblings = try? fetchSiblings(for: parent, kind: .live) else { return nil }
+                guard let siblings = try? siblingTasks(for: parent, kind: .live) else { return nil }
                 let indices = siblings.indices.filter { selectedSet.contains(siblings[$0].id) }
                 return SelectedSiblingContext(parent: parent, siblings: siblings, selectedSet: selectedSet, indices: indices)
             }
         }
 
         // Fallback path when cache misses occur.
-        guard let firstTask = task(withID: firstID) else { return nil }
+        guard let firstTask = task(withID: firstID, kind: .live) else { return nil }
         let parent = firstTask.parentTask
-        guard let siblings = try? fetchSiblings(for: parent, kind: .live) else { return nil }
+        guard let siblings = try? siblingTasks(for: parent, kind: .live) else { return nil }
         let selectedSet = Set(selectedTaskIDs)
         for id in selectedTaskIDs {
-            guard let task = task(withID: id), task.parentTask?.id == parent?.id else { return nil }
+            guard let task = task(withID: id, kind: .live), task.parentTask?.id == parent?.id else { return nil }
         }
         let indices = siblings.indices.filter { selectedSet.contains(siblings[$0].id) }
         return SelectedSiblingContext(parent: parent, siblings: siblings, selectedSet: selectedSet, indices: indices)
     }
     
     private func applySiblingOrder(_ orderedTasks: [Task], parent: Task?, selectedSet: Set<UUID>) {
-        performListMutation {
-            for (index, task) in orderedTasks.enumerated() {
-                if task.displayOrder != index {
-                    task.displayOrder = index
-                }
-            }
-            
+        performListMutation(invalidateChildCache: false, invalidateVisibleTasks: false) {
+            applyDisplayOrderIndices(to: orderedTasks)
             do {
-                try modelContext.save()
+                try saveModelContext()
+                completeReorderMutation(
+                    kind: .live,
+                    oldParentID: parent?.id,
+                    oldParentSiblings: nil,
+                    newParentID: parent?.id,
+                    newParentSiblings: orderedTasks,
+                    invalidateVisibleTasks: true,
+                    hierarchyChanged: false
+                )
             } catch {
                 print("Error saving reorder: \(error)")
             }
         }
     }
     func moveTask(draggedTaskID: UUID, targetTaskID: UUID, parentOfList: Task?, moveBeforeTarget: Bool) {
-        performListMutation {
-            guard let dragged = task(withID: draggedTaskID), !dragged.isTemplateComponent else { return }
-            guard let target = task(withID: targetTaskID), !target.isTemplateComponent else { return }
-            
-            // Reparent if needed
-            if dragged.parentTask?.id != parentOfList?.id {
-                dragged.parentTask = parentOfList
-            }
-            
+        performListMutation(invalidateChildCache: false, invalidateVisibleTasks: false) {
+            guard let dragged = task(withID: draggedTaskID, kind: .live), !dragged.isTemplateComponent else { return }
+            guard let target = task(withID: targetTaskID, kind: .live), !target.isTemplateComponent else { return }
+
+            let oldParent = dragged.parentTask
+            let oldParentID = oldParent?.id
+            let newParentID = parentOfList?.id
+            let hierarchyChanged = oldParentID != newParentID
+
             do {
-                var siblings = try fetchSiblings(for: parentOfList, kind: .live)
-                // Remove dragged from siblings if present (it might be there if parent didn't change)
+                let oldSiblings: [Task]?
+                if hierarchyChanged {
+                    oldSiblings = try siblingTasks(for: oldParent, kind: .live).filter { $0.id != dragged.id }
+                    dragged.parentTask = parentOfList
+                } else {
+                    oldSiblings = nil
+                }
+
+                var siblings = hierarchyChanged ? (try siblingTasks(for: parentOfList, kind: .live)) : (try siblingTasks(for: oldParent, kind: .live))
                 siblings.removeAll { $0.id == dragged.id }
-                
+
                 guard let targetIndex = siblings.firstIndex(where: { $0.id == target.id }) else { return }
-                
+
                 let insertionIndex = moveBeforeTarget ? targetIndex : targetIndex + 1
-                
+
                 if insertionIndex >= siblings.count {
                     siblings.append(dragged)
                 } else {
                     siblings.insert(dragged, at: insertionIndex)
                 }
-                
-                // Update display orders
-                for (index, task) in siblings.enumerated() {
-                    task.displayOrder = index
+
+                applyDisplayOrderIndices(to: siblings)
+                if let oldSiblings {
+                    applyDisplayOrderIndices(to: oldSiblings)
                 }
-                
-                try modelContext.save()
-                resequenceDisplayOrder(for: parentOfList)
+
+                try saveModelContext()
+                completeReorderMutation(
+                    kind: .live,
+                    oldParentID: oldParentID,
+                    oldParentSiblings: oldSiblings,
+                    newParentID: newParentID,
+                    newParentSiblings: siblings,
+                    invalidateVisibleTasks: true,
+                    hierarchyChanged: hierarchyChanged
+                )
             } catch {
                 print("Error moving task: \(error)")
             }
@@ -896,13 +915,11 @@ extension TaskManager {
 
     /// Returns true if the task or any of its ancestors is locked
     func isTaskInLockedThread(_ task: Task) -> Bool {
-        if task.isLocked { return true }
-        var current = task.parentTask
-        while let parent = current {
-            if parent.isLocked { return true }
-            current = parent.parentTask
+        guard !task.isTemplateComponent else { return false }
+        if task.modelContext != nil {
+            return isTaskInLockedThreadCached(for: task.id, kind: .live)
         }
-        return false
+        return computeLockedThreadState(for: task)
     }
 
     /// Toggle lock state for a single task
@@ -910,7 +927,8 @@ extension TaskManager {
         guard !task.isTemplateComponent else { return }
         task.isLocked.toggle()
         do {
-            try modelContext.save()
+            try saveModelContext()
+            invalidateLockedThreadCache(for: .live)
             objectWillChange.send()
         } catch {
             print("Error toggling lock for task: \(error)")
@@ -931,7 +949,8 @@ extension TaskManager {
         }
 
         do {
-            try modelContext.save()
+            try saveModelContext()
+            invalidateLockedThreadCache(for: .live)
             objectWillChange.send()
         } catch {
             print("Error toggling lock for selected tasks: \(error)")
@@ -957,7 +976,7 @@ private extension TaskManager {
             }
         }
         return selectedTaskIDs.compactMap { id in
-            guard let task = task(withID: id), !task.isTemplateComponent else { return nil }
+            guard let task = task(withID: id, kind: .live), !task.isTemplateComponent else { return nil }
             return task
         }
     }

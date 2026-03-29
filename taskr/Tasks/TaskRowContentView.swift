@@ -589,7 +589,7 @@ struct TaskRowContentView: View {
     }
 
     private var isInLockedThread: Bool {
-        taskManager.isTaskInLockedThread(task)
+        taskManager.isTaskInLockedThreadCached(for: taskID, kind: .live)
     }
 
     private func startEditing() {

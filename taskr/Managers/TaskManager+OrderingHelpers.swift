@@ -130,34 +130,45 @@ extension TaskManager {
         kind: TaskListKind,
         direction: MoveDirection
     ) {
-        performListMutation {
+        performListMutation(invalidateChildCache: false, invalidateVisibleTasks: false) {
             let parent = task.parentTask
             do {
-                let siblings = try fetchSiblings(for: parent, kind: kind)
+                var siblings = try siblingTasks(for: parent, kind: kind)
                 guard let index = siblings.firstIndex(where: { $0.id == task.id }) else { return }
 
                 switch direction {
                 case .up:
                     guard index > 0 else { return }
-                    let neighbor = siblings[index - 1]
-                    swapDisplayOrder(task, neighbor)
+                    siblings.swapAt(index, index - 1)
                 case .down:
                     guard index < siblings.count - 1 else { return }
-                    let neighbor = siblings[index + 1]
-                    swapDisplayOrder(task, neighbor)
+                    siblings.swapAt(index, index + 1)
                 }
 
-                try modelContext.save()
-                resequenceDisplayOrder(for: parent, kind: kind)
+                applyDisplayOrderIndices(to: siblings)
+                try saveModelContext()
+                completeReorderMutation(
+                    kind: kind,
+                    oldParentID: parent?.id,
+                    oldParentSiblings: nil,
+                    newParentID: parent?.id,
+                    newParentSiblings: siblings,
+                    invalidateVisibleTasks: kind == .live,
+                    hierarchyChanged: false
+                )
             } catch {
                 print("Error moving task (kind: \(kind)) : \(error)")
             }
         }
     }
 
-    private func swapDisplayOrder(_ lhs: Task, _ rhs: Task) {
-        let currentOrder = lhs.displayOrder
-        lhs.displayOrder = rhs.displayOrder
-        rhs.displayOrder = currentOrder
+    @discardableResult
+    func applyDisplayOrderIndices(to tasks: [Task]) -> Bool {
+        var changed = false
+        for (index, task) in tasks.enumerated() where task.displayOrder != index {
+            task.displayOrder = index
+            changed = true
+        }
+        return changed
     }
 }

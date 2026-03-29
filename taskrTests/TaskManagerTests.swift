@@ -126,6 +126,29 @@ final class TaskManagerTests: XCTestCase {
         XCTAssertEqual(children.map(\.displayOrder), [0, 1])
     }
 
+    func testAddSubtaskInvalidatesWarmCachesAndShowsNewChild() throws {
+        manager.addTaskFromPath(pathOverride: "/Parent/Existing")
+
+        let parentDescriptor = FetchDescriptor<Task>(
+            predicate: #Predicate<Task> { !$0.isTemplateComponent && $0.parentTask == nil }
+        )
+        guard let parent = try container.mainContext.fetch(parentDescriptor).first else {
+            return XCTFail("Expected parent task")
+        }
+
+        XCTAssertEqual(try manager.siblingTasks(for: parent, kind: .live).map(\.name), ["Existing"])
+        _ = manager.snapshotVisibleTaskIDs()
+        XCTAssertNotNil(manager.childTaskCache[.live]?[parent.id])
+        XCTAssertNotNil(manager.visibleLiveTaskIDsCache)
+
+        let newChild = manager.addSubtask(to: parent)
+        XCTAssertNotNil(newChild)
+        XCTAssertNil(manager.visibleLiveTaskIDsCache)
+        XCTAssertNil(manager.childTaskCache[.live])
+
+        XCTAssertEqual(try manager.siblingTasks(for: parent, kind: .live).map(\.name), ["Existing", "New Subtask"])
+    }
+
     func testApplySelectedSuggestionAppendsSlashAndSurfacesChildren() throws {
         manager.addTaskFromPath(pathOverride: "/Projects/Alpha")
         manager.addTaskFromPath(pathOverride: "/Projects/Beta")

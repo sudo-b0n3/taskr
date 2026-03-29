@@ -116,12 +116,14 @@ class TaskManager: ObservableObject {
     var childTaskCache: [TaskListKind: [UUID?: [Task]]] = [:]
     var taskIndexCache: [TaskListKind: [UUID: Task]] = [:]
     var completedAncestorCache: [TaskListKind: [UUID: Bool]] = [:]
+    var lockedThreadCache: [TaskListKind: [UUID: Bool]] = [:]
     private var activeShiftDragVisibleIDs: [UUID]? = nil
     private var activeShiftDragVisibleCacheVersion: UInt64 = 0
     private var activeShiftDragLastTargetID: UUID? = nil
     private var orphanedTaskLog: Set<UUID> = []
     private var appObserverTokens: [NSObjectProtocol] = []
     private var hasCompletedInitialCollapsedPrune: Bool = false
+    private(set) var saveInvocationCount: Int = 0
 
     private var cancellables = Set<AnyCancellable>()
     static let fontScaleRange: ClosedRange<Double> = 0.9...1.3
@@ -165,12 +167,40 @@ class TaskManager: ObservableObject {
         }
     }
 
-    func task(withID id: UUID) -> Task? {
+    func cachedTask(withID id: UUID, kind: TaskListKind) -> Task? {
+        ensureChildCache(for: kind)
+        return taskIndexCache[kind]?[id]
+    }
+
+    func task(withID id: UUID, kind: TaskListKind? = nil) -> Task? {
+        if let kind {
+            if let cached = cachedTask(withID: id, kind: kind) {
+                return cached
+            }
+        } else {
+            for cachedTasks in taskIndexCache.values {
+                if let cached = cachedTasks[id] {
+                    return cached
+                }
+            }
+        }
+
         var descriptor = FetchDescriptor<Task>(
             predicate: #Predicate<Task> { $0.id == id }
         )
         descriptor.fetchLimit = 1
-        return try? modelContext.fetch(descriptor).first
+        guard let task = try? modelContext.fetch(descriptor).first else { return nil }
+
+        if let kind {
+            guard task.isTemplateComponent == (kind == .template) else { return nil }
+        }
+
+        return task
+    }
+
+    func saveModelContext() throws {
+        try modelContext.save()
+        saveInvocationCount += 1
     }
 
     // MARK: - Theme Delegation
@@ -411,12 +441,14 @@ class TaskManager: ObservableObject {
     }
 
     // MARK: - Cache Management
-    func invalidateVisibleTasksCache() {
+    func invalidateVisibleTasksCache(shouldInvalidateCompletionCache: Bool = true) {
         visibleLiveTasksCache = nil
         visibleLiveTasksWithDepthCache = nil
         visibleLiveTaskIDsCache = nil
         visibleCacheVersion &+= 1
-        invalidateCompletionCache(for: .live)
+        if shouldInvalidateCompletionCache {
+            invalidateCompletionCache(for: .live)
+        }
     }
 
     func invalidateChildTaskCache(for kind: TaskListKind? = nil) {
@@ -428,6 +460,7 @@ class TaskManager: ObservableObject {
             taskIndexCache.removeAll()
         }
         invalidateCompletionCache(for: kind)
+        invalidateLockedThreadCache(for: kind)
     }
 
     func invalidateCompletionCache(for kind: TaskListKind? = nil) {
@@ -435,6 +468,14 @@ class TaskManager: ObservableObject {
             completedAncestorCache.removeValue(forKey: specificKind)
         } else {
             completedAncestorCache.removeAll()
+        }
+    }
+
+    func invalidateLockedThreadCache(for kind: TaskListKind? = nil) {
+        if let specificKind = kind {
+            lockedThreadCache.removeValue(forKey: specificKind)
+        } else {
+            lockedThreadCache.removeAll()
         }
     }
 
@@ -476,6 +517,7 @@ class TaskManager: ObservableObject {
             }
             childTaskCache[kind] = map
             taskIndexCache[kind] = index
+            lockedThreadCache[kind] = nil
             if !tasks.isEmpty {
                 runDeferredCollapsedStatePruneIfNeeded()
             }
@@ -485,6 +527,7 @@ class TaskManager: ObservableObject {
         #endif
             childTaskCache[kind] = [:]
             taskIndexCache[kind] = [:]
+            lockedThreadCache[kind] = [:]
         }
     }
 
@@ -524,10 +567,13 @@ class TaskManager: ObservableObject {
     @discardableResult
     func performListMutation<Result>(
         invalidateChildCache: Bool = true,
+        invalidateVisibleTasks: Bool = true,
         _ body: () -> Result
     ) -> Result {
         let result = animationManager.performListMutation(body)
-        invalidateVisibleTasksCache()
+        if invalidateVisibleTasks {
+            invalidateVisibleTasksCache()
+        }
         if invalidateChildCache {
             invalidateChildTaskCache(for: nil)
         }
@@ -555,7 +601,7 @@ class TaskManager: ObservableObject {
         }
 
         // Fallback: log and attempt fetch once if cache is missing an entry
-        guard let parentTask = task(withID: parentID) else {
+        guard let parentTask = task(withID: parentID, kind: kind) else {
             noteOrphanedTask(id: parentID, context: "childTasks(\(kind))")
             return []
         }
@@ -576,6 +622,56 @@ class TaskManager: ObservableObject {
         }
     }
 
+    func siblingTasks(for parent: Task?, kind: TaskListKind) throws -> [Task] {
+        ensureChildCache(for: kind)
+
+        let parentID = parent?.id
+        if let cached = childTaskCache[kind]?[parentID] {
+            let validTasks = cached.filter { $0.modelContext != nil && !$0.isDeleted }
+            if validTasks.count == cached.count {
+                return cached
+            }
+            childTaskCache[kind]?[parentID] = nil
+        }
+
+        let siblings = try fetchSiblings(for: parent, kind: kind)
+        updateSiblingCache(for: parentID, kind: kind, siblings: siblings)
+        return siblings
+    }
+
+    func updateSiblingCache(for parentID: UUID?, kind: TaskListKind, siblings: [Task]) {
+        guard childTaskCache[kind] != nil else { return }
+        var childMap = childTaskCache[kind] ?? [:]
+        childMap[parentID] = siblings
+        childTaskCache[kind] = childMap
+    }
+
+    func completeReorderMutation(
+        kind: TaskListKind,
+        oldParentID: UUID?,
+        oldParentSiblings: [Task]?,
+        newParentID: UUID?,
+        newParentSiblings: [Task],
+        invalidateVisibleTasks: Bool,
+        hierarchyChanged: Bool
+    ) {
+        updateSiblingCache(for: newParentID, kind: kind, siblings: newParentSiblings)
+        if hierarchyChanged, oldParentID != newParentID {
+            updateSiblingCache(for: oldParentID, kind: kind, siblings: oldParentSiblings ?? [])
+        }
+
+        if invalidateVisibleTasks {
+            invalidateVisibleTasksCache(shouldInvalidateCompletionCache: hierarchyChanged && kind == .live)
+        }
+
+        if hierarchyChanged {
+            invalidateCompletionCache(for: kind)
+            invalidateLockedThreadCache(for: kind)
+        }
+
+        recomputeSelectionCapabilities()
+    }
+
     func hasCachedChildren(forParentID parentID: UUID, kind: TaskListKind) -> Bool {
         ensureChildCache(for: kind)
         guard let cached = childTaskCache[kind]?[parentID] else {
@@ -587,7 +683,7 @@ class TaskManager: ObservableObject {
     func hasCompletedAncestor(for taskID: UUID, kind: TaskListKind) -> Bool {
         guard kind == .live else { return false }
 
-        guard let startingTask = task(withID: taskID) else {
+        guard let startingTask = task(withID: taskID, kind: kind) else {
             noteOrphanedTask(id: taskID, context: "hasCompletedAncestor:start")
             return false
         }
@@ -600,7 +696,7 @@ class TaskManager: ObservableObject {
                 break
             }
 
-            guard let parentTask = task(withID: currentParentID) else {
+            guard let parentTask = task(withID: currentParentID, kind: kind) else {
                 noteOrphanedTask(id: currentParentID, context: "hasCompletedAncestor:lookup")
                 break
             }
@@ -643,6 +739,47 @@ class TaskManager: ObservableObject {
 
         completedAncestorCache[kind, default: [:]][taskID] = hasCompletedAncestor
         return hasCompletedAncestor
+    }
+
+    func computeLockedThreadState(for task: Task) -> Bool {
+        if task.isLocked { return true }
+        var current = task.parentTask
+        while let parent = current {
+            if parent.isLocked { return true }
+            current = parent.parentTask
+        }
+        return false
+    }
+
+    func isTaskInLockedThreadCached(for taskID: UUID, kind: TaskListKind) -> Bool {
+        guard kind == .live else { return false }
+        ensureChildCache(for: kind)
+        guard let index = taskIndexCache[kind], let task = index[taskID] else {
+            guard let uncachedTask = task(withID: taskID, kind: kind) else { return false }
+            return computeLockedThreadState(for: uncachedTask)
+        }
+
+        if let cached = lockedThreadCache[kind]?[taskID] {
+            return cached
+        }
+
+        var visited = Set<UUID>()
+        var current: Task? = task
+        var isLocked = false
+
+        while let candidate = current {
+            if !visited.insert(candidate.id).inserted {
+                break
+            }
+            if candidate.isLocked {
+                isLocked = true
+                break
+            }
+            current = candidate.parentTask
+        }
+
+        lockedThreadCache[kind, default: [:]][taskID] = isLocked
+        return isLocked
     }
 
     func handleShiftDrag(from startTaskID: UUID, offset: CGFloat) {
@@ -813,7 +950,7 @@ class TaskManager: ObservableObject {
             }
         }
         return selectedTaskIDs.compactMap { id in
-            guard let task = task(withID: id), !task.isTemplateComponent else { return nil }
+            guard let task = task(withID: id, kind: .live), !task.isTemplateComponent else { return nil }
             return task
         }
     }

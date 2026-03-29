@@ -17,7 +17,7 @@ extension TaskManager {
     func canMoveTemplateTaskUp(_ task: Task) -> Bool {
         guard task.isTemplateComponent else { return false }
         do {
-            let siblings = try fetchSiblings(for: task.parentTask, kind: .template)
+            let siblings = try siblingTasks(for: task.parentTask, kind: .template)
             guard let index = siblings.firstIndex(where: { $0.id == task.id }) else { return false }
             return index > 0
         } catch {
@@ -28,7 +28,7 @@ extension TaskManager {
     func canMoveTemplateTaskDown(_ task: Task) -> Bool {
         guard task.isTemplateComponent else { return false }
         do {
-            let siblings = try fetchSiblings(for: task.parentTask, kind: .template)
+            let siblings = try siblingTasks(for: task.parentTask, kind: .template)
             guard let index = siblings.firstIndex(where: { $0.id == task.id }) else { return false }
             return index < siblings.count - 1
         } catch {
@@ -38,26 +38,35 @@ extension TaskManager {
 
     func reparentTemplateTask(draggedTaskID: UUID, newParentID: UUID?) {
         do {
-            let draggedFetch = FetchDescriptor<Task>(predicate: #Predicate { $0.id == draggedTaskID && $0.isTemplateComponent })
-            guard let dragged = try modelContext.fetch(draggedFetch).first else { return }
+            guard let dragged = task(withID: draggedTaskID, kind: .template) else { return }
             let originalParent = dragged.parentTask
 
             let newParent: Task?
             if let pid = newParentID {
-                let parentFetch = FetchDescriptor<Task>(predicate: #Predicate { $0.id == pid && $0.isTemplateComponent })
-                newParent = try modelContext.fetch(parentFetch).first
+                newParent = task(withID: pid, kind: .template)
             } else {
                 newParent = nil
             }
 
+            let oldParentID = originalParent?.id
+            let newParentID = newParent?.id
+            let oldSiblings = try siblingTasks(for: originalParent, kind: .template).filter { $0.id != dragged.id }
             dragged.parentTask = newParent
             dragged.displayOrder = getNextDisplayOrderForTemplates(for: newParent, in: modelContext)
-            try modelContext.save()
-
-            if originalParent?.id != newParent?.id {
-                resequenceTemplateDisplayOrder(for: originalParent)
-            }
-            invalidateChildTaskCache(for: .template)
+            var newSiblings = try siblingTasks(for: newParent, kind: .template).filter { $0.id != dragged.id }
+            newSiblings.append(dragged)
+            applyDisplayOrderIndices(to: newSiblings)
+            applyDisplayOrderIndices(to: oldSiblings)
+            try saveModelContext()
+            completeReorderMutation(
+                kind: .template,
+                oldParentID: oldParentID,
+                oldParentSiblings: oldSiblings,
+                newParentID: newParentID,
+                newParentSiblings: newSiblings,
+                invalidateVisibleTasks: false,
+                hierarchyChanged: oldParentID != newParentID
+            )
         } catch {
             print("Error reparenting template task with ID \(draggedTaskID): \(error)")
         }
@@ -371,38 +380,50 @@ extension TaskManager {
     }
     func moveTemplateTask(draggedTaskID: UUID, targetTaskID: UUID, parentOfList: Task?, moveBeforeTarget: Bool) {
         do {
-            let draggedFetch = FetchDescriptor<Task>(predicate: #Predicate { $0.id == draggedTaskID && $0.isTemplateComponent })
-            guard let dragged = try modelContext.fetch(draggedFetch).first else { return }
-            
-            let targetFetch = FetchDescriptor<Task>(predicate: #Predicate { $0.id == targetTaskID && $0.isTemplateComponent })
-            guard let target = try modelContext.fetch(targetFetch).first else { return }
-            
-            // Reparent if needed
-            if dragged.parentTask?.id != parentOfList?.id {
+            guard let dragged = task(withID: draggedTaskID, kind: .template) else { return }
+            guard let target = task(withID: targetTaskID, kind: .template) else { return }
+
+            let oldParent = dragged.parentTask
+            let oldParentID = oldParent?.id
+            let newParentID = parentOfList?.id
+            let hierarchyChanged = oldParentID != newParentID
+
+            let oldSiblings: [Task]?
+            if hierarchyChanged {
+                oldSiblings = try siblingTasks(for: oldParent, kind: .template).filter { $0.id != dragged.id }
                 dragged.parentTask = parentOfList
+            } else {
+                oldSiblings = nil
             }
-            
-            var siblings = try fetchSiblings(for: parentOfList, kind: .template)
+
+            var siblings = hierarchyChanged ? (try siblingTasks(for: parentOfList, kind: .template)) : (try siblingTasks(for: oldParent, kind: .template))
             siblings.removeAll { $0.id == dragged.id }
-            
+
             guard let targetIndex = siblings.firstIndex(where: { $0.id == target.id }) else { return }
-            
+
             let insertionIndex = moveBeforeTarget ? targetIndex : targetIndex + 1
-            
+
             if insertionIndex >= siblings.count {
                 siblings.append(dragged)
             } else {
                 siblings.insert(dragged, at: insertionIndex)
             }
-            
-            // Update display orders
-            for (index, task) in siblings.enumerated() {
-                task.displayOrder = index
+
+            applyDisplayOrderIndices(to: siblings)
+            if let oldSiblings {
+                applyDisplayOrderIndices(to: oldSiblings)
             }
-            
-            try modelContext.save()
-            resequenceDisplayOrder(for: parentOfList, kind: .template)
-            invalidateChildTaskCache(for: .template)
+
+            try saveModelContext()
+            completeReorderMutation(
+                kind: .template,
+                oldParentID: oldParentID,
+                oldParentSiblings: oldSiblings,
+                newParentID: newParentID,
+                newParentSiblings: siblings,
+                invalidateVisibleTasks: false,
+                hierarchyChanged: hierarchyChanged
+            )
         } catch {
             print("Error moving template task: \(error)")
         }
